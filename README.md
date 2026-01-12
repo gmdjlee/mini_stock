@@ -50,9 +50,34 @@ mini_stock/
 
 ## Quick Start
 
+### Using uv (Recommended)
+
+```bash
+# 1. uv 설치
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. 의존성 설치 및 테스트 실행
+cd stock-analyzer
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# 3. 환경변수 설정
+cp .env.example .env
+# .env 파일에 키움 API 키 입력
+
+# 4. 테스트 실행
+uv run pytest tests/unit/ -v
+
+# 5. 샘플 스크립트 실행
+uv run python scripts/run_analysis.py
+```
+
+### Using pip
+
 ```bash
 # 1. Python 라이브러리 설치
 cd stock-analyzer
+python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 # 2. 환경변수 설정
@@ -76,6 +101,7 @@ python scripts/run_analysis.py
 
 ### Python (stock-analyzer)
 - Python 3.10+
+- [uv](https://github.com/astral-sh/uv) - 빠른 패키지 매니저
 - pandas, numpy
 - requests
 - pytest
