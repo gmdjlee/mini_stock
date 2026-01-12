@@ -17,18 +17,22 @@
 ## Quick Commands
 
 ```bash
-# 테스트 실행
 cd stock-analyzer
+
+# uv 사용 (권장)
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+uv run pytest tests/unit/ -v
+uv run python scripts/run_analysis.py
+
+# pip 사용
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 python -m pytest tests/unit/ -v
+python scripts/run_analysis.py
 
 # 전체 테스트 (API 키 필요)
-python -m pytest tests/ -v
-
-# 패키지 설치 (개발 모드)
-pip install -e ".[dev]"
-
-# 샘플 스크립트 실행 (.env 필요)
-python scripts/run_analysis.py
+uv run pytest tests/ -v
 ```
 
 ## File Locations
@@ -123,6 +127,7 @@ KIWOOM_BASE_URL=https://api.kiwoom.com
 ## Development Notes
 
 - Python 3.10+ 필요
+- [uv](https://github.com/astral-sh/uv) 패키지 매니저 권장 (pip 대비 10-100배 빠름)
 - 모든 함수는 `{"ok": bool, "data/error": ...}` 형식 반환
 - 토큰은 자동 갱신됨 (AuthClient.get_token)
 - 테스트는 mock 클라이언트 사용 (실제 API 호출 없음)

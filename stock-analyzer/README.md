@@ -11,12 +11,35 @@
 
 ## Installation
 
+### Using uv (Recommended)
+
+[uv](https://github.com/astral-sh/uv)는 Rust로 작성된 빠른 Python 패키지 매니저입니다.
+
 ```bash
+# uv 설치 (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# uv 설치 (Windows)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 가상환경 생성 및 의존성 설치
+uv venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+uv pip install -e ".[dev]"
+
+# 또는 한 번에 실행
+uv run pytest tests/unit/ -v
+```
+
+### Using pip
+
+```bash
+# 가상환경 생성
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
 # 개발 모드 설치
 pip install -e ".[dev]"
-
-# 또는 의존성만 설치
-pip install -r requirements.txt
 ```
 
 ## Configuration
@@ -177,17 +200,19 @@ get_daily(client, "005930", start_date="20250101", end_date="20250110")
 ## Testing
 
 ```bash
-# 단위 테스트 실행
-python -m pytest tests/unit/ -v
+# uv 사용
+uv run pytest tests/unit/ -v
+uv run pytest tests/unit/ --cov=stock_analyzer
 
-# 커버리지 포함
+# pip/venv 사용
+python -m pytest tests/unit/ -v
 python -m pytest tests/unit/ --cov=stock_analyzer
 
 # 통합 테스트 (API 키 필요)
-python -m pytest tests/integration/ -v
+uv run pytest tests/integration/ -v
 
 # E2E 테스트 (API 키 필요)
-python -m pytest tests/e2e/ -v
+uv run pytest tests/e2e/ -v
 ```
 
 ## Project Structure
