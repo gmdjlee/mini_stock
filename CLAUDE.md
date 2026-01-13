@@ -10,7 +10,7 @@
 |-------|--------|-------------|
 | Phase 0 | ✅ Done | 프로젝트 설정, 키움 API 클라이언트 |
 | Phase 1 | ✅ Done | 종목 검색, 수급 분석, OHLCV |
-| Phase 2 | ⏳ Pending | 기술적 지표 (Trend, Elder, DeMark) |
+| Phase 2 | ✅ Done | 기술적 지표 (Trend, Elder, DeMark) |
 | Phase 3 | ⏳ Pending | 차트 시각화 |
 | Phase 4 | ⏳ Pending | 조건검색, 시장 지표 |
 
@@ -49,11 +49,14 @@ stock-analyzer/
 │   │   ├── search.py       # 종목 검색
 │   │   ├── analysis.py     # 수급 분석
 │   │   └── ohlcv.py        # 가격 데이터
-│   ├── indicator/          # (Phase 2) 기술적 지표
+│   ├── indicator/          # 기술적 지표
+│   │   ├── trend.py        # Trend Signal (MA, CMF, Fear/Greed)
+│   │   ├── elder.py        # Elder Impulse (EMA13, MACD)
+│   │   └── demark.py       # DeMark TD Setup
 │   ├── market/             # (Phase 4) 시장 지표
 │   └── search/             # (Phase 4) 조건검색
 ├── tests/
-│   ├── unit/               # 단위 테스트 (38개)
+│   ├── unit/               # 단위 테스트 (70개)
 │   ├── integration/        # 통합 테스트
 │   └── e2e/                # E2E 테스트
 └── scripts/
@@ -85,6 +88,7 @@ stock-analyzer/
 ```python
 from stock_analyzer.client.kiwoom import KiwoomClient
 from stock_analyzer.stock import search, analysis, ohlcv
+from stock_analyzer.indicator import trend, elder, demark
 
 # 클라이언트 생성
 client = KiwoomClient(app_key, secret_key, base_url)
@@ -97,6 +101,11 @@ result = analysis.analyze(client, "005930", days=180)
 
 # OHLCV 데이터
 result = ohlcv.get_daily(client, "005930", days=30)
+
+# 기술적 지표
+result = trend.calc(client, "005930", days=180)   # Trend Signal
+result = elder.calc(client, "005930", days=180)   # Elder Impulse
+result = demark.calc(client, "005930", days=180)  # DeMark TD
 ```
 
 ## Kiwoom API Reference
@@ -108,9 +117,31 @@ result = ohlcv.get_daily(client, "005930", days=30)
 | ka10001 | 주식 기본정보 | stock/search.py |
 | ka10008 | 외국인 매매동향 | stock/analysis.py |
 | ka10059 | 투자자별 매매 | stock/analysis.py |
-| ka10081 | 일봉 차트 | stock/ohlcv.py |
+| ka10081 | 일봉 차트 | stock/ohlcv.py, indicator/* |
 | ka10082 | 주봉 차트 | stock/ohlcv.py |
 | ka10083 | 월봉 차트 | stock/ohlcv.py |
+
+## Technical Indicators (Phase 2)
+
+### Trend Signal (`indicator/trend.py`)
+MA, CMF, Fear/Greed를 조합한 추세 신호
+- `ma_signal`: MA 정배열/역배열 (1: 상승, 0: 중립, -1: 하락)
+- `cmf`: Chaikin Money Flow (-1 ~ 1)
+- `fear_greed`: 공포/탐욕 지수 (0-100)
+- `trend`: 종합 추세 ("bullish", "neutral", "bearish")
+
+### Elder Impulse (`indicator/elder.py`)
+EMA13과 MACD 히스토그램을 이용한 캔들 색상 결정
+- `color`: 캔들 색상 ("green", "red", "blue")
+- `ema13`: 13일 지수이동평균
+- `macd_hist`: MACD 히스토그램
+
+### DeMark TD (`indicator/demark.py`)
+DeMark TD Sequential의 Setup 부분
+- `setup_count`: Setup 카운트 (0-9)
+- `setup_type`: Setup 유형 ("buy", "sell", "none")
+- `setup_complete`: 9 완성 여부
+- `perfected`: Perfected Setup 여부
 
 ## Environment Setup
 
