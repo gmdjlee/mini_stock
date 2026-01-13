@@ -369,3 +369,37 @@ class KiwoomClient:
             "/api/dostk/cond",
             {"cond_idx": cond_idx, "cond_nm": cond_name},
         )
+
+    # ========== Market Indicators ==========
+
+    def get_deposit_trend(self, days: int = 30) -> ApiResponse:
+        """
+        Get customer deposit trend (kt00001).
+
+        Args:
+            days: Number of days to retrieve
+
+        Returns:
+            ApiResponse with deposit trend data
+        """
+        return self._call(
+            "kt00001",
+            "/api/dostk/mrktdata",
+            {"inq_cnt": str(days)},
+        )
+
+    def get_credit_trend(self, days: int = 30) -> ApiResponse:
+        """
+        Get credit trading trend (ka10013).
+
+        Args:
+            days: Number of days to retrieve
+
+        Returns:
+            ApiResponse with credit balance trend data
+        """
+        return self._call(
+            "ka10013",
+            "/api/dostk/stkinfo",
+            {"inq_cnt": str(days)},
+        )
