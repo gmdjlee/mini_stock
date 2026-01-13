@@ -11,7 +11,7 @@
 | Phase 0 | ✅ Done | 프로젝트 설정, 키움 API 클라이언트 |
 | Phase 1 | ✅ Done | 종목 검색, 수급 분석, OHLCV |
 | Phase 2 | ✅ Done | 기술적 지표 (Trend, Elder, DeMark) |
-| Phase 3 | ⏳ Pending | 차트 시각화 |
+| Phase 3 | ✅ Done | 차트 시각화 (Candle, Line, Bar) |
 | Phase 4 | ⏳ Pending | 조건검색, 시장 지표 |
 
 ## Quick Commands
@@ -53,10 +53,14 @@ stock-analyzer/
 │   │   ├── trend.py        # Trend Signal (MA, CMF, Fear/Greed)
 │   │   ├── elder.py        # Elder Impulse (EMA13, MACD)
 │   │   └── demark.py       # DeMark TD Setup
+│   ├── chart/              # 차트 시각화
+│   │   ├── candle.py       # 캔들스틱 차트
+│   │   ├── line.py         # 라인 차트
+│   │   └── bar.py          # 바 차트
 │   ├── market/             # (Phase 4) 시장 지표
 │   └── search/             # (Phase 4) 조건검색
 ├── tests/
-│   ├── unit/               # 단위 테스트 (70개)
+│   ├── unit/               # 단위 테스트 (98개)
 │   ├── integration/        # 통합 테스트
 │   └── e2e/                # E2E 테스트
 └── scripts/
@@ -83,12 +87,14 @@ stock-analyzer/
 | `API_ERROR` | 외부 API 오류 |
 | `AUTH_ERROR` | 인증 실패 |
 | `NETWORK_ERROR` | 네트워크 오류 |
+| `CHART_ERROR` | 차트 생성 실패 |
 
 ### 함수 호출 예시
 ```python
 from stock_analyzer.client.kiwoom import KiwoomClient
 from stock_analyzer.stock import search, analysis, ohlcv
 from stock_analyzer.indicator import trend, elder, demark
+from stock_analyzer.chart import candle, line, bar
 
 # 클라이언트 생성
 client = KiwoomClient(app_key, secret_key, base_url)
@@ -106,6 +112,11 @@ result = ohlcv.get_daily(client, "005930", days=30)
 result = trend.calc(client, "005930", days=180)   # Trend Signal
 result = elder.calc(client, "005930", days=180)   # Elder Impulse
 result = demark.calc(client, "005930", days=180)  # DeMark TD
+
+# 차트 생성
+result = candle.plot_from_ohlcv(ohlcv_data)       # 캔들스틱 차트
+result = line.plot_trend(trend_data)              # 트렌드 시그널 차트
+result = bar.plot_supply_demand(analysis_data)    # 수급 분석 차트
 ```
 
 ## Kiwoom API Reference
@@ -142,6 +153,36 @@ DeMark TD Sequential의 Setup 부분
 - `setup_type`: Setup 유형 ("buy", "sell", "none")
 - `setup_complete`: 9 완성 여부
 - `perfected`: Perfected Setup 여부
+
+## Chart Visualization (Phase 3)
+
+### Candlestick Chart (`chart/candle.py`)
+OHLCV 데이터로 캔들스틱 차트 생성
+- `plot()`: 기본 캔들스틱 차트 (MA 오버레이, Elder 색상 지원)
+- `plot_from_ohlcv()`: OHLCV 결과 딕셔너리로 차트 생성
+- 옵션: 거래량 서브플롯, MA 라인 오버레이, Elder Impulse 색상
+
+### Line Chart (`chart/line.py`)
+라인 차트 및 지표 시각화
+- `plot()`: 다중 시리즈 라인 차트
+- `plot_trend()`: Trend Signal 멀티패널 차트 (MA, CMF, Fear/Greed)
+- `plot_elder()`: Elder Impulse 차트 (EMA13, MACD Histogram)
+
+### Bar Chart (`chart/bar.py`)
+바 차트 및 수급 분석 시각화
+- `plot()`: 단일 시리즈 바 차트 (색상별 부호 지원)
+- `plot_multi()`: 그룹/스택 바 차트
+- `plot_supply_demand()`: 수급 분석 차트 (시가총액, 외인/기관 순매수)
+- `plot_demark()`: DeMark TD Setup 바 차트
+
+### 차트 출력
+```python
+# 차트 결과
+result = candle.plot_from_ohlcv(ohlcv_data, save_path="/tmp/chart.png")
+if result["ok"]:
+    image_bytes = result["data"]["image_bytes"]  # PNG 바이트
+    saved_path = result["data"]["save_path"]     # 저장된 파일 경로
+```
 
 ## Environment Setup
 
