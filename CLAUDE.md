@@ -12,7 +12,7 @@
 | Phase 1 | ✅ Done | 종목 검색, 수급 분석, OHLCV |
 | Phase 2 | ✅ Done | 기술적 지표 (Trend, Elder, DeMark) |
 | Phase 3 | ✅ Done | 차트 시각화 (Candle, Line, Bar) |
-| Phase 4 | ⏳ Pending | 조건검색, 시장 지표 |
+| Phase 4 | ✅ Done | 조건검색, 시장 지표 |
 
 ## Quick Commands
 
@@ -57,10 +57,12 @@ stock-analyzer/
 │   │   ├── candle.py       # 캔들스틱 차트
 │   │   ├── line.py         # 라인 차트
 │   │   └── bar.py          # 바 차트
-│   ├── market/             # (Phase 4) 시장 지표
-│   └── search/             # (Phase 4) 조건검색
+│   ├── market/             # 시장 지표
+│   │   └── deposit.py      # 예탁금, 신용잔고
+│   └── search/             # 조건검색
+│       └── condition.py    # HTS 조건검색
 ├── tests/
-│   ├── unit/               # 단위 테스트 (98개)
+│   ├── unit/               # 단위 테스트 (127개)
 │   ├── integration/        # 통합 테스트
 │   └── e2e/                # E2E 테스트
 └── scripts/
@@ -88,6 +90,7 @@ stock-analyzer/
 | `AUTH_ERROR` | 인증 실패 |
 | `NETWORK_ERROR` | 네트워크 오류 |
 | `CHART_ERROR` | 차트 생성 실패 |
+| `CONDITION_NOT_FOUND` | 조건검색 없음 |
 
 ### 함수 호출 예시
 ```python
@@ -95,6 +98,8 @@ from stock_analyzer.client.kiwoom import KiwoomClient
 from stock_analyzer.stock import search, analysis, ohlcv
 from stock_analyzer.indicator import trend, elder, demark
 from stock_analyzer.chart import candle, line, bar
+from stock_analyzer.market import deposit
+from stock_analyzer.search import condition
 
 # 클라이언트 생성
 client = KiwoomClient(app_key, secret_key, base_url)
@@ -117,6 +122,16 @@ result = demark.calc(client, "005930", days=180)  # DeMark TD
 result = candle.plot_from_ohlcv(ohlcv_data)       # 캔들스틱 차트
 result = line.plot_trend(trend_data)              # 트렌드 시그널 차트
 result = bar.plot_supply_demand(analysis_data)    # 수급 분석 차트
+
+# 시장 지표 (Phase 4)
+result = deposit.get_deposit(client, days=30)           # 예탁금 추이
+result = deposit.get_credit(client, days=30)            # 신용잔고 추이
+result = deposit.get_market_indicators(client, days=30) # 통합 시장 지표
+
+# 조건검색 (Phase 4)
+result = condition.get_list(client)                     # 조건검색 목록
+result = condition.search(client, "000", "골든크로스")   # 조건검색 실행
+result = condition.search_by_idx(client, "000")         # 인덱스로 조건검색
 ```
 
 ## Kiwoom API Reference
@@ -131,6 +146,10 @@ result = bar.plot_supply_demand(analysis_data)    # 수급 분석 차트
 | ka10081 | 일봉 차트 | stock/ohlcv.py, indicator/* |
 | ka10082 | 주봉 차트 | stock/ohlcv.py |
 | ka10083 | 월봉 차트 | stock/ohlcv.py |
+| ka10171 | 조건검색 목록 | search/condition.py |
+| ka10172 | 조건검색 실행 | search/condition.py |
+| kt00001 | 예탁금 추이 | market/deposit.py |
+| ka10013 | 신용잔고 추이 | market/deposit.py |
 
 ## Technical Indicators (Phase 2)
 
@@ -182,6 +201,45 @@ result = candle.plot_from_ohlcv(ohlcv_data, save_path="/tmp/chart.png")
 if result["ok"]:
     image_bytes = result["data"]["image_bytes"]  # PNG 바이트
     saved_path = result["data"]["save_path"]     # 저장된 파일 경로
+```
+
+## Market Indicators (Phase 4)
+
+### Deposit (`market/deposit.py`)
+예탁금 및 신용잔고 추이 조회
+- `get_deposit(client, days)`: 고객예탁금, 신용융자 추이
+- `get_credit(client, days)`: 신용잔고, 신용비율 추이
+- `get_market_indicators(client, days)`: 통합 시장 지표
+
+```python
+# 예탁금 데이터
+result = deposit.get_deposit(client, days=30)
+if result["ok"]:
+    dates = result["data"]["dates"]         # ["2025-01-10", ...]
+    deposits = result["data"]["deposit"]    # [50000000000000, ...]
+    credit_loan = result["data"]["credit_loan"]  # [15000000000000, ...]
+```
+
+## Condition Search (Phase 4)
+
+### Condition (`search/condition.py`)
+HTS 조건검색 기능
+- `get_list(client)`: 조건검색 목록 조회
+- `search(client, cond_idx, cond_name)`: 조건검색 실행
+- `search_by_idx(client, cond_idx)`: 인덱스로 조건검색 (자동으로 이름 조회)
+
+```python
+# 조건검색 목록
+result = condition.get_list(client)
+if result["ok"]:
+    for cond in result["data"]:
+        print(f"{cond['idx']}: {cond['name']}")
+
+# 조건검색 실행
+result = condition.search(client, "000", "골든크로스")
+if result["ok"]:
+    for stock in result["data"]["stocks"]:
+        print(f"{stock['ticker']}: {stock['name']} ({stock['change']}%)")
 ```
 
 ## Environment Setup
