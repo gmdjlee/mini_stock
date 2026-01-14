@@ -79,7 +79,8 @@ def get_daily(
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    chart_data = resp.data.get("chart_list", [])
+    # API returns data in 'list' field
+    chart_data = resp.data.get("list", []) or resp.data.get("chart_list", [])
     if not chart_data:
         return {
             "ok": False,
@@ -135,7 +136,8 @@ def get_weekly(
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    chart_data = resp.data.get("chart_list", [])
+    # API returns data in 'list' field
+    chart_data = resp.data.get("list", []) or resp.data.get("chart_list", [])
     if not chart_data:
         return {
             "ok": False,
@@ -191,7 +193,8 @@ def get_monthly(
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    chart_data = resp.data.get("chart_list", [])
+    # API returns data in 'list' field
+    chart_data = resp.data.get("list", []) or resp.data.get("chart_list", [])
     if not chart_data:
         return {
             "ok": False,
@@ -216,11 +219,12 @@ def _parse_chart_data(ticker: str, chart_data: List[Dict]) -> Dict:
 
     for item in chart_data:
         dates.append(item.get("dt", ""))
-        opens.append(_safe_int(item.get("opn_prc", 0)))
-        highs.append(_safe_int(item.get("high_prc", 0)))
-        lows.append(_safe_int(item.get("low_prc", 0)))
-        closes.append(_safe_int(item.get("cls_prc", 0)))
-        volumes.append(_safe_int(item.get("trd_qty", 0)))
+        # Support both official API field names and legacy field names
+        opens.append(_safe_int(_get_field(item, "open_pric", "opn_prc")))
+        highs.append(_safe_int(_get_field(item, "high_pric", "high_prc")))
+        lows.append(_safe_int(_get_field(item, "low_pric", "low_prc")))
+        closes.append(_safe_int(_get_field(item, "cur_prc", "cls_prc")))
+        volumes.append(_safe_int(_get_field(item, "trde_qty", "trd_qty")))
 
     return {
         "ticker": ticker,
@@ -231,6 +235,14 @@ def _parse_chart_data(ticker: str, chart_data: List[Dict]) -> Dict:
         "close": closes,
         "volume": volumes,
     }
+
+
+def _get_field(item: Dict, *field_names):
+    """Get value from item using multiple possible field names."""
+    for name in field_names:
+        if name in item and item[name] is not None:
+            return item[name]
+    return 0
 
 
 def _safe_int(value) -> int:

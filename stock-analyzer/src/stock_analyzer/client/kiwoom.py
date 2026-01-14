@@ -246,38 +246,82 @@ class KiwoomClient:
             {"stk_cd": ticker},
         )
 
-    def get_investor_trend(self, ticker: str, period: str = "1") -> ApiResponse:
+    def get_investor_trend(
+        self,
+        ticker: str,
+        date: str = None,
+        amt_qty_tp: str = "1",
+        trde_tp: str = "0",
+        unit_tp: str = "1000",
+    ) -> ApiResponse:
         """
         Get investor/institution trend by stock (ka10059).
 
         Args:
             ticker: Stock code
-            period: Period (1: Daily, 2: Weekly, 3: Monthly)
+            date: Base date (YYYYMMDD), defaults to today
+            amt_qty_tp: Amount/quantity type (1: Amount, 2: Quantity)
+            trde_tp: Trade type (0: Net buy, 1: Buy, 2: Sell)
+            unit_tp: Unit type (1000, etc.)
 
         Returns:
             ApiResponse with investor trading trend
         """
+        from ..core.date import today_str
+
+        dt = date or today_str()
         return self._call(
             "ka10059",
             "/api/dostk/stkinfo",
-            {"stk_cd": ticker, "inq_cnd": period},
+            {
+                "dt": dt,
+                "stk_cd": ticker,
+                "amt_qty_tp": amt_qty_tp,
+                "trde_tp": trde_tp,
+                "unit_tp": unit_tp,
+            },
         )
 
-    def get_investor_summary(self, ticker: str, period: str = "1") -> ApiResponse:
+    def get_investor_summary(
+        self,
+        ticker: str,
+        start_date: str = None,
+        end_date: str = None,
+        days: int = 30,
+        amt_qty_tp: str = "1",
+        trde_tp: str = "0",
+        unit_tp: str = "1000",
+    ) -> ApiResponse:
         """
         Get investor/institution summary by stock (ka10061).
 
         Args:
             ticker: Stock code
-            period: Period (1: Daily, 2: Weekly, 3: Monthly)
+            start_date: Start date (YYYYMMDD), defaults to `days` ago
+            end_date: End date (YYYYMMDD), defaults to today
+            days: Number of days (used if start_date not provided)
+            amt_qty_tp: Amount/quantity type (1: Amount, 2: Quantity)
+            trde_tp: Trade type (0: Net buy, 1: Buy, 2: Sell)
+            unit_tp: Unit type (1000, etc.)
 
         Returns:
             ApiResponse with investor summary
         """
+        from ..core.date import days_ago, today_str
+
+        end_dt = end_date or today_str()
+        strt_dt = start_date or days_ago(days)
         return self._call(
             "ka10061",
             "/api/dostk/stkinfo",
-            {"stk_cd": ticker, "inq_cnd": period},
+            {
+                "stk_cd": ticker,
+                "strt_dt": strt_dt,
+                "end_dt": end_dt,
+                "amt_qty_tp": amt_qty_tp,
+                "trde_tp": trde_tp,
+                "unit_tp": unit_tp,
+            },
         )
 
     # ========== Chart Data ==========
