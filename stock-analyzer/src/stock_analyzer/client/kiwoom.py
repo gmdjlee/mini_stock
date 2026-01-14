@@ -237,8 +237,8 @@ class KiwoomClient:
 
         Args:
             ticker: Stock code
-            start_date: Start date (YYYYMMDD)
-            end_date: End date (YYYYMMDD)
+            start_date: Start date (YYYYMMDD) - not used by API, kept for interface
+            end_date: End date (YYYYMMDD) - used as base_dt
             adj_price: Adjusted price flag (0: No, 1: Yes)
 
         Returns:
@@ -249,8 +249,7 @@ class KiwoomClient:
             "/api/dostk/chart",
             {
                 "stk_cd": ticker,
-                "strt_dt": start_date,
-                "end_dt": end_date,
+                "base_dt": end_date,
                 "adj_prc_tp": adj_price,
             },
         )
@@ -267,8 +266,8 @@ class KiwoomClient:
 
         Args:
             ticker: Stock code
-            start_date: Start date (YYYYMMDD)
-            end_date: End date (YYYYMMDD)
+            start_date: Start date (YYYYMMDD) - not used by API, kept for interface
+            end_date: End date (YYYYMMDD) - used as base_dt
             adj_price: Adjusted price flag (0: No, 1: Yes)
 
         Returns:
@@ -279,8 +278,7 @@ class KiwoomClient:
             "/api/dostk/chart",
             {
                 "stk_cd": ticker,
-                "strt_dt": start_date,
-                "end_dt": end_date,
+                "base_dt": end_date,
                 "adj_prc_tp": adj_price,
             },
         )
@@ -297,8 +295,8 @@ class KiwoomClient:
 
         Args:
             ticker: Stock code
-            start_date: Start date (YYYYMMDD)
-            end_date: End date (YYYYMMDD)
+            start_date: Start date (YYYYMMDD) - not used by API, kept for interface
+            end_date: End date (YYYYMMDD) - used as base_dt
             adj_price: Adjusted price flag (0: No, 1: Yes)
 
         Returns:
@@ -309,8 +307,7 @@ class KiwoomClient:
             "/api/dostk/chart",
             {
                 "stk_cd": ticker,
-                "strt_dt": start_date,
-                "end_dt": end_date,
+                "base_dt": end_date,
                 "adj_prc_tp": adj_price,
             },
         )
