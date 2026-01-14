@@ -157,12 +157,28 @@ def get_info(client: KiwoomClient, ticker: str) -> Dict:
         "data": {
             "ticker": data.get("stk_cd", ticker),
             "name": data.get("stk_nm", ""),
-            "price": data.get("cur_prc", 0),
-            "mcap": data.get("mrkt_tot_amt", 0),
-            "per": data.get("per", 0),
-            "pbr": data.get("pbr", 0),
+            "price": _to_int(data.get("cur_prc", 0)),
+            "mcap": _to_int(data.get("mrkt_tot_amt", 0)),
+            "per": _to_float(data.get("per", 0)),
+            "pbr": _to_float(data.get("pbr", 0)),
         },
     }
+
+
+def _to_int(value) -> int:
+    """Convert value to int safely."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return 0
+
+
+def _to_float(value) -> float:
+    """Convert value to float safely."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0
 
 
 def _get_market_name(market_tp: str) -> str:
