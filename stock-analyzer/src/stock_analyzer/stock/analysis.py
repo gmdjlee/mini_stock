@@ -63,14 +63,16 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
         return {"ok": False, "error": info_resp.error}
 
     name = info_resp.data.get("stk_nm", ticker)
-    mcap = info_resp.data.get("mrkt_tot_amt", 0)
+    # API field name per official docs: mac (시가총액)
+    mcap = _safe_int(info_resp.data.get("mac", 0))
 
     # 2. Get investor trend
     trend_resp = client.get_investor_trend(ticker)
     if not trend_resp.ok:
         return {"ok": False, "error": trend_resp.error}
 
-    trend_data = trend_resp.data.get("trend_list", [])
+    # API returns data in 'list' field per official docs
+    trend_data = trend_resp.data.get("list", []) or trend_resp.data.get("trend_list", [])
     if not trend_data:
         return {
             "ok": False,
@@ -91,8 +93,9 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
         dates.append(dt)
 
         mcaps.append(_safe_int(item.get("mrkt_tot_amt", mcap)))
-        for_5d.append(_safe_int(item.get("frgn_5d_net", 0)))
-        ins_5d.append(_safe_int(item.get("istt_5d_net", 0)))
+        # API field names per official docs: frgnr_invsr (외국인투자자), orgn (기관계)
+        for_5d.append(_safe_int(item.get("frgnr_invsr", 0)))
+        ins_5d.append(_safe_int(item.get("orgn", 0)))
 
     log_info("stock.analysis", "analyze complete", {"ticker": ticker, "days": len(dates)})
 
