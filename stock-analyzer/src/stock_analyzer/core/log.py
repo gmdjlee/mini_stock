@@ -24,7 +24,16 @@ def log_info(module: str, msg: str, ctx: Optional[Dict[str, Any]] = None) -> Non
         logger.info(msg)
 
 
-def log_err(module: str, error: Exception, ctx: Optional[Dict[str, Any]] = None) -> None:
+def log_warn(module: str, msg: str, ctx: Optional[Dict[str, Any]] = None) -> None:
+    """Log warning message with context."""
+    logger = get_logger(module)
+    if ctx:
+        logger.warning(f"{msg} {ctx}")
+    else:
+        logger.warning(msg)
+
+
+def log_err(module: str, error: Any, ctx: Optional[Dict[str, Any]] = None) -> None:
     """Log error message with context."""
     logger = get_logger(module)
     if ctx:
