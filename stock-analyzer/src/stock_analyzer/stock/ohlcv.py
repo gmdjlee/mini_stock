@@ -79,8 +79,8 @@ def get_daily(
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    # API returns data in 'list' field
-    chart_data = resp.data.get("list", []) or resp.data.get("chart_list", [])
+    # API returns data in 'stk_dt_pole_chart_qry' field for daily chart
+    chart_data = resp.data.get("stk_dt_pole_chart_qry", []) or resp.data.get("list", [])
     if not chart_data:
         return {
             "ok": False,
@@ -136,8 +136,8 @@ def get_weekly(
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    # API returns data in 'list' field
-    chart_data = resp.data.get("list", []) or resp.data.get("chart_list", [])
+    # API returns data in 'stk_stk_pole_chart_qry' field for weekly chart
+    chart_data = resp.data.get("stk_stk_pole_chart_qry", []) or resp.data.get("list", [])
     if not chart_data:
         return {
             "ok": False,
@@ -193,8 +193,8 @@ def get_monthly(
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    # API returns data in 'list' field
-    chart_data = resp.data.get("list", []) or resp.data.get("chart_list", [])
+    # API returns data in 'stk_mth_pole_chart_qry' field for monthly chart
+    chart_data = resp.data.get("stk_mth_pole_chart_qry", []) or resp.data.get("list", [])
     if not chart_data:
         return {
             "ok": False,

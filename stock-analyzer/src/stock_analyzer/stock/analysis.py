@@ -71,8 +71,8 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
     if not trend_resp.ok:
         return {"ok": False, "error": trend_resp.error}
 
-    # API returns data in 'list' field per official docs
-    trend_data = trend_resp.data.get("list", []) or trend_resp.data.get("trend_list", [])
+    # API returns data in 'stk_invsr_orgn' field
+    trend_data = trend_resp.data.get("stk_invsr_orgn", []) or trend_resp.data.get("list", [])
     if not trend_data:
         return {
             "ok": False,
