@@ -1,12 +1,19 @@
 """Kiwoom REST API client."""
 
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import requests
 
-from ..core.log import log_err, log_info
+from ..core.log import log_err, log_info, log_warn
 from .auth import AuthClient
+
+
+# Rate limiting settings
+DEFAULT_MIN_INTERVAL = 0.5  # Minimum seconds between API calls
+DEFAULT_MAX_RETRIES = 3  # Maximum retry attempts for 429 errors
+DEFAULT_RETRY_BASE_DELAY = 1.0  # Base delay for exponential backoff
 
 
 @dataclass
@@ -28,6 +35,9 @@ class KiwoomClient:
         app_key: str,
         secret_key: str,
         base_url: str = "https://api.kiwoom.com",
+        min_interval: float = DEFAULT_MIN_INTERVAL,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        retry_base_delay: float = DEFAULT_RETRY_BASE_DELAY,
     ):
         """
         Initialize Kiwoom client.
@@ -36,9 +46,27 @@ class KiwoomClient:
             app_key: Kiwoom API app key
             secret_key: Kiwoom API secret key
             base_url: API base URL
+            min_interval: Minimum seconds between API calls
+            max_retries: Maximum retry attempts for 429 errors
+            retry_base_delay: Base delay for exponential backoff
         """
         self.base_url = base_url
         self.auth = AuthClient(app_key, secret_key, base_url)
+
+        # Rate limiting
+        self._min_interval = min_interval
+        self._max_retries = max_retries
+        self._retry_base_delay = retry_base_delay
+        self._last_call_time: float = 0
+
+    def _wait_for_rate_limit(self) -> None:
+        """Wait if needed to respect rate limit."""
+        now = time.time()
+        elapsed = now - self._last_call_time
+        if elapsed < self._min_interval:
+            sleep_time = self._min_interval - elapsed
+            time.sleep(sleep_time)
+        self._last_call_time = time.time()
 
     def _call(
         self,
@@ -50,7 +78,7 @@ class KiwoomClient:
         timeout: int = 30,
     ) -> ApiResponse:
         """
-        Call API endpoint.
+        Call API endpoint with rate limiting and retry on 429.
 
         Args:
             api_id: API identifier
@@ -77,49 +105,78 @@ class KiwoomClient:
 
         full_url = f"{self.base_url}{url}"
 
-        try:
-            resp = requests.post(
-                full_url,
-                headers=headers,
-                json=body,
-                timeout=timeout,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        for attempt in range(self._max_retries + 1):
+            # Apply rate limiting
+            self._wait_for_rate_limit()
 
-            # Extract continuation info from headers
-            has_next = resp.headers.get("cont-yn", "N") == "Y"
-            resp_next_key = resp.headers.get("next-key", "")
-
-            if data.get("return_code", 0) != 0:
-                return ApiResponse(
-                    ok=False,
-                    error={
-                        "code": str(data.get("return_code")),
-                        "msg": data.get("return_msg", "Unknown error"),
-                    },
+            try:
+                resp = requests.post(
+                    full_url,
+                    headers=headers,
+                    json=body,
+                    timeout=timeout,
                 )
 
-            log_info("client.kiwoom", "API call", {"api_id": api_id})
+                # Handle 429 rate limit with retry
+                if resp.status_code == 429:
+                    if attempt < self._max_retries:
+                        delay = self._retry_base_delay * (2 ** attempt)
+                        log_warn(
+                            "client.kiwoom",
+                            f"Rate limited, retrying in {delay:.1f}s",
+                            {"api_id": api_id, "attempt": attempt + 1},
+                        )
+                        time.sleep(delay)
+                        continue
+                    else:
+                        log_err("client.kiwoom", "Rate limit exceeded", {"api_id": api_id})
+                        return ApiResponse(
+                            ok=False,
+                            error={"code": "RATE_LIMIT", "msg": "API 호출 한도 초과"},
+                        )
 
-            return ApiResponse(
-                ok=True,
-                data=data,
-                has_next=has_next,
-                next_key=resp_next_key,
-            )
+                resp.raise_for_status()
+                data = resp.json()
 
-        except requests.Timeout:
-            return ApiResponse(
-                ok=False,
-                error={"code": "TIMEOUT", "msg": "Request timeout"},
-            )
-        except requests.RequestException as e:
-            log_err("client.kiwoom", e, {"api_id": api_id, "url": url})
-            return ApiResponse(
-                ok=False,
-                error={"code": "NETWORK_ERROR", "msg": str(e)},
-            )
+                # Extract continuation info from headers
+                has_next = resp.headers.get("cont-yn", "N") == "Y"
+                resp_next_key = resp.headers.get("next-key", "")
+
+                if data.get("return_code", 0) != 0:
+                    return ApiResponse(
+                        ok=False,
+                        error={
+                            "code": str(data.get("return_code")),
+                            "msg": data.get("return_msg", "Unknown error"),
+                        },
+                    )
+
+                log_info("client.kiwoom", "API call", {"api_id": api_id})
+
+                return ApiResponse(
+                    ok=True,
+                    data=data,
+                    has_next=has_next,
+                    next_key=resp_next_key,
+                )
+
+            except requests.Timeout:
+                return ApiResponse(
+                    ok=False,
+                    error={"code": "TIMEOUT", "msg": "Request timeout"},
+                )
+            except requests.RequestException as e:
+                log_err("client.kiwoom", e, {"api_id": api_id, "url": url})
+                return ApiResponse(
+                    ok=False,
+                    error={"code": "NETWORK_ERROR", "msg": str(e)},
+                )
+
+        # Should not reach here, but just in case
+        return ApiResponse(
+            ok=False,
+            error={"code": "UNKNOWN_ERROR", "msg": "Unexpected error"},
+        )
 
     # ========== Stock Search ==========
 
