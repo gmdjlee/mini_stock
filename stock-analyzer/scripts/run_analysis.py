@@ -9,7 +9,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from stock_analyzer.client.kiwoom import KiwoomClient
 from stock_analyzer.config import Config
-from stock_analyzer.stock import analysis, ohlcv, search
+from stock_analyzer.stock import search as search_stock, get_info
+from stock_analyzer.stock import analyze
+from stock_analyzer.stock import get_daily
 
 
 def main():
@@ -32,7 +34,7 @@ def main():
     # Example: Search for Samsung
     print("=" * 50)
     print("Searching for '삼성전자'...")
-    result = search.search(client, "삼성전자")
+    result = search_stock(client, "삼성전자")
     if result["ok"]:
         for stock in result["data"][:5]:
             print(f"  {stock['ticker']} - {stock['name']} ({stock['market']})")
@@ -42,7 +44,7 @@ def main():
     # Example: Get stock info
     print("\n" + "=" * 50)
     print("Getting stock info for 005930...")
-    result = search.get_info(client, "005930")
+    result = get_info(client, "005930")
     if result["ok"]:
         data = result["data"]
         print(f"  Name: {data['name']}")
@@ -56,7 +58,7 @@ def main():
     # Example: Analyze supply/demand
     print("\n" + "=" * 50)
     print("Analyzing supply/demand for 005930...")
-    result = analysis.analyze(client, "005930", days=10)
+    result = analyze(client, "005930", days=10)
     if result["ok"]:
         data = result["data"]
         print(f"  Ticker: {data['ticker']}")
@@ -70,7 +72,7 @@ def main():
     # Example: Get OHLCV data
     print("\n" + "=" * 50)
     print("Getting daily OHLCV for 005930 (last 10 days)...")
-    result = ohlcv.get_daily(client, "005930", days=10)
+    result = get_daily(client, "005930", days=10)
     if result["ok"]:
         data = result["data"]
         print(f"  Ticker: {data['ticker']}")
