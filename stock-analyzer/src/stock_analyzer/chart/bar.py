@@ -5,11 +5,50 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 
 from ..core.log import log_info
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
+
+
+def _configure_korean_font():
+    """Configure matplotlib to use a font that supports Korean characters."""
+    # List of fonts that typically support Korean (excluding DejaVu Sans which doesn't)
+    korean_fonts = [
+        "Malgun Gothic",  # Windows
+        "맑은 고딕",  # Windows (Korean name)
+        "NanumGothic",  # Linux/Mac (commonly installed)
+        "NanumBarunGothic",
+        "AppleGothic",  # Mac
+        "Apple SD Gothic Neo",  # Mac
+        "Noto Sans CJK KR",  # Cross-platform
+    ]
+
+    # Get available system fonts
+    available_fonts = {f.name for f in fm.fontManager.ttflist}
+
+    # Find the first available Korean font
+    for font in korean_fonts:
+        if font in available_fonts:
+            plt.rcParams["font.family"] = font
+            plt.rcParams["axes.unicode_minus"] = False  # Fix minus sign display
+            return font
+
+    return None
+
+
+# Try to configure Korean font at module load
+_configured_font = _configure_korean_font()
+
+
+def _sanitize_text(text: str) -> str:
+    """Remove Korean characters if no Korean font is available."""
+    if _configured_font is not None:
+        return text
+    # Remove Korean characters (Hangul range: U+AC00 to U+D7A3)
+    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def plot(
@@ -93,8 +132,8 @@ def plot(
                 ax.axhline(y=y, color=line_color, linestyle=linestyle, alpha=0.5)
 
         # Formatting
-        ax.set_title(title, fontsize=14, fontweight="bold")
-        ax.set_ylabel(ylabel, fontsize=10)
+        ax.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
+        ax.set_ylabel(_sanitize_text(ylabel), fontsize=10)
         ax.grid(True, alpha=0.3, axis="y")
 
         # Format x-axis
@@ -233,8 +272,8 @@ def plot_multi(
         ax.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
 
         # Formatting
-        ax.set_title(title, fontsize=14, fontweight="bold")
-        ax.set_ylabel(ylabel, fontsize=10)
+        ax.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
+        ax.set_ylabel(_sanitize_text(ylabel), fontsize=10)
         ax.grid(True, alpha=0.3, axis="y")
         ax.legend(loc="upper left")
 
@@ -334,8 +373,9 @@ def plot_supply_demand(
             linewidth=1.5,
         )
 
+        chart_title = title or f"{analysis_data['ticker']} {analysis_data.get('name', '')} Supply/Demand"
         ax_mcap.set_title(
-            title or f"{analysis_data['ticker']} {analysis_data.get('name', '')} Supply/Demand",
+            _sanitize_text(chart_title),
             fontsize=14,
             fontweight="bold",
         )
@@ -483,8 +523,9 @@ def plot_demark(
         ax.set_ylim(0, 10)
 
         # Formatting
+        demark_title = title or f"{demark_data['ticker']} DeMark TD Setup"
         ax.set_title(
-            title or f"{demark_data['ticker']} DeMark TD Setup",
+            _sanitize_text(demark_title),
             fontsize=14,
             fontweight="bold",
         )
