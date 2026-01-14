@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from ..core.date import today_str
 from ..core.log import log_err, log_info, log_warn
 from .auth import AuthClient
 
@@ -197,13 +196,12 @@ class KiwoomClient:
             {"mrkt_tp": market},
         )
 
-    def get_stock_info(self, ticker: str, base_dt: str = None) -> ApiResponse:
+    def get_stock_info(self, ticker: str) -> ApiResponse:
         """
         Get stock basic info (ka10001).
 
         Args:
             ticker: Stock code
-            base_dt: Base date (YYYYMMDD), defaults to today
 
         Returns:
             ApiResponse with stock info (name, price, market cap, PER, PBR, etc.)
@@ -211,7 +209,7 @@ class KiwoomClient:
         return self._call(
             "ka10001",
             "/api/dostk/stkinfo",
-            {"stk_cd": ticker, "base_dt": base_dt or today_str()},
+            {"stk_cd": ticker},
         )
 
     # ========== Supply/Demand Analysis ==========
