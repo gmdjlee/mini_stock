@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from ..core.date import today_str
 from ..core.log import log_err, log_info, log_warn
 from .auth import AuthClient
 
@@ -196,12 +197,13 @@ class KiwoomClient:
             {"mrkt_tp": market},
         )
 
-    def get_stock_info(self, ticker: str) -> ApiResponse:
+    def get_stock_info(self, ticker: str, dt: str = None) -> ApiResponse:
         """
         Get stock basic info (ka10001).
 
         Args:
             ticker: Stock code
+            dt: Base date (YYYYMMDD), defaults to today
 
         Returns:
             ApiResponse with stock info (name, price, market cap, PER, PBR, etc.)
@@ -209,7 +211,7 @@ class KiwoomClient:
         return self._call(
             "ka10001",
             "/api/dostk/stkinfo",
-            {"stk_cd": ticker},
+            {"stk_cd": ticker, "dt": dt or today_str()},
         )
 
     # ========== Supply/Demand Analysis ==========
@@ -288,6 +290,7 @@ class KiwoomClient:
         start_date: str,
         end_date: str,
         adj_price: str = "1",
+        upd_stkpc_tp: str = "0",
     ) -> ApiResponse:
         """
         Get daily chart data (ka10081).
@@ -297,6 +300,7 @@ class KiwoomClient:
             start_date: Start date (YYYYMMDD) - not used by API, kept for interface
             end_date: End date (YYYYMMDD) - used as base_dt
             adj_price: Adjusted price flag (0: No, 1: Yes)
+            upd_stkpc_tp: Updated stock price type (0: default)
 
         Returns:
             ApiResponse with OHLCV data
@@ -308,6 +312,7 @@ class KiwoomClient:
                 "stk_cd": ticker,
                 "base_dt": end_date,
                 "adj_prc_tp": adj_price,
+                "upd_stkpc_tp": upd_stkpc_tp,
             },
         )
 
@@ -317,6 +322,7 @@ class KiwoomClient:
         start_date: str,
         end_date: str,
         adj_price: str = "1",
+        upd_stkpc_tp: str = "0",
     ) -> ApiResponse:
         """
         Get weekly chart data (ka10082).
@@ -326,6 +332,7 @@ class KiwoomClient:
             start_date: Start date (YYYYMMDD) - not used by API, kept for interface
             end_date: End date (YYYYMMDD) - used as base_dt
             adj_price: Adjusted price flag (0: No, 1: Yes)
+            upd_stkpc_tp: Updated stock price type (0: default)
 
         Returns:
             ApiResponse with OHLCV data
@@ -337,6 +344,7 @@ class KiwoomClient:
                 "stk_cd": ticker,
                 "base_dt": end_date,
                 "adj_prc_tp": adj_price,
+                "upd_stkpc_tp": upd_stkpc_tp,
             },
         )
 
@@ -346,6 +354,7 @@ class KiwoomClient:
         start_date: str,
         end_date: str,
         adj_price: str = "1",
+        upd_stkpc_tp: str = "0",
     ) -> ApiResponse:
         """
         Get monthly chart data (ka10083).
@@ -355,6 +364,7 @@ class KiwoomClient:
             start_date: Start date (YYYYMMDD) - not used by API, kept for interface
             end_date: End date (YYYYMMDD) - used as base_dt
             adj_price: Adjusted price flag (0: No, 1: Yes)
+            upd_stkpc_tp: Updated stock price type (0: default)
 
         Returns:
             ApiResponse with OHLCV data
@@ -366,6 +376,7 @@ class KiwoomClient:
                 "stk_cd": ticker,
                 "base_dt": end_date,
                 "adj_prc_tp": adj_price,
+                "upd_stkpc_tp": upd_stkpc_tp,
             },
         )
 
