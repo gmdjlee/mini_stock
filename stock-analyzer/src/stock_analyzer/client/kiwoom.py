@@ -197,13 +197,13 @@ class KiwoomClient:
             {"mrkt_tp": market},
         )
 
-    def get_stock_info(self, ticker: str, dt: str = None) -> ApiResponse:
+    def get_stock_info(self, ticker: str, base_dt: str = None) -> ApiResponse:
         """
         Get stock basic info (ka10001).
 
         Args:
             ticker: Stock code
-            dt: Base date (YYYYMMDD), defaults to today
+            base_dt: Base date (YYYYMMDD), defaults to today
 
         Returns:
             ApiResponse with stock info (name, price, market cap, PER, PBR, etc.)
@@ -211,7 +211,7 @@ class KiwoomClient:
         return self._call(
             "ka10001",
             "/api/dostk/stkinfo",
-            {"stk_cd": ticker, "dt": dt or today_str()},
+            {"stk_cd": ticker, "base_dt": base_dt or today_str()},
         )
 
     # ========== Supply/Demand Analysis ==========
