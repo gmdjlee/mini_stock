@@ -5,11 +5,50 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 
 from ..core.log import log_info
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
+
+
+def _configure_korean_font():
+    """Configure matplotlib to use a font that supports Korean characters."""
+    # List of fonts that typically support Korean (excluding DejaVu Sans which doesn't)
+    korean_fonts = [
+        "Malgun Gothic",  # Windows
+        "맑은 고딕",  # Windows (Korean name)
+        "NanumGothic",  # Linux/Mac (commonly installed)
+        "NanumBarunGothic",
+        "AppleGothic",  # Mac
+        "Apple SD Gothic Neo",  # Mac
+        "Noto Sans CJK KR",  # Cross-platform
+    ]
+
+    # Get available system fonts
+    available_fonts = {f.name for f in fm.fontManager.ttflist}
+
+    # Find the first available Korean font
+    for font in korean_fonts:
+        if font in available_fonts:
+            plt.rcParams["font.family"] = font
+            plt.rcParams["axes.unicode_minus"] = False  # Fix minus sign display
+            return font
+
+    return None
+
+
+# Try to configure Korean font at module load
+_configured_font = _configure_korean_font()
+
+
+def _sanitize_text(text: str) -> str:
+    """Remove Korean characters if no Korean font is available."""
+    if _configured_font is not None:
+        return text
+    # Remove Korean characters (Hangul range: U+AC00 to U+D7A3)
+    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def plot(
@@ -130,8 +169,8 @@ def plot(
                 )
 
         # Formatting
-        ax.set_title(title, fontsize=14, fontweight="bold")
-        ax.set_ylabel(ylabel, fontsize=10)
+        ax.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
+        ax.set_ylabel(_sanitize_text(ylabel), fontsize=10)
         ax.grid(True, alpha=0.3)
         ax.legend(loc="upper left")
 
@@ -228,7 +267,8 @@ def plot_trend(
                 color = {"MA5": "#FF9800", "MA20": "#2196F3", "MA60": "#9C27B0"}[name]
                 ax_ma.plot(x_vals, y_vals, label=name, color=color, linewidth=1.5)
 
-        ax_ma.set_title(title or f"{trend_data['ticker']} Trend Signal", fontsize=14, fontweight="bold")
+        trend_title = title or f"{trend_data['ticker']} Trend Signal"
+        ax_ma.set_title(_sanitize_text(trend_title), fontsize=14, fontweight="bold")
         ax_ma.set_ylabel("Price", fontsize=10)
         ax_ma.grid(True, alpha=0.3)
         ax_ma.legend(loc="upper left")
@@ -352,7 +392,8 @@ def plot_elder(
             color = _elder_to_color(colors[idx] if idx < len(colors) else "blue")
             ax_ema.scatter(x, y, color=color, s=20, alpha=0.8)
 
-        ax_ema.set_title(title or f"{elder_data['ticker']} Elder Impulse", fontsize=14, fontweight="bold")
+        elder_title = title or f"{elder_data['ticker']} Elder Impulse"
+        ax_ema.set_title(_sanitize_text(elder_title), fontsize=14, fontweight="bold")
         ax_ema.set_ylabel("EMA13", fontsize=10)
         ax_ema.grid(True, alpha=0.3)
         ax_ema.legend(loc="upper left")

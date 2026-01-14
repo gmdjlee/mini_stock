@@ -5,12 +5,51 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import pandas as pd
 
 from ..core.log import log_info
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
+
+
+def _configure_korean_font():
+    """Configure matplotlib to use a font that supports Korean characters."""
+    # List of fonts that typically support Korean (excluding DejaVu Sans which doesn't)
+    korean_fonts = [
+        "Malgun Gothic",  # Windows
+        "맑은 고딕",  # Windows (Korean name)
+        "NanumGothic",  # Linux/Mac (commonly installed)
+        "NanumBarunGothic",
+        "AppleGothic",  # Mac
+        "Apple SD Gothic Neo",  # Mac
+        "Noto Sans CJK KR",  # Cross-platform
+    ]
+
+    # Get available system fonts
+    available_fonts = {f.name for f in fm.fontManager.ttflist}
+
+    # Find the first available Korean font
+    for font in korean_fonts:
+        if font in available_fonts:
+            plt.rcParams["font.family"] = font
+            plt.rcParams["axes.unicode_minus"] = False  # Fix minus sign display
+            return font
+
+    return None
+
+
+# Try to configure Korean font at module load
+_configured_font = _configure_korean_font()
+
+
+def _sanitize_text(text: str) -> str:
+    """Remove Korean characters if no Korean font is available."""
+    if _configured_font is not None:
+        return text
+    # Remove Korean characters (Hangul range: U+AC00 to U+D7A3)
+    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def plot(
@@ -102,10 +141,11 @@ def plot(
             _draw_volume_bars(ax_vol, date_objs, volumes, closes)
 
         # Formatting
-        ax_main.set_title(title, fontsize=14, fontweight="bold")
+        ax_main.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
         ax_main.set_ylabel("Price", fontsize=10)
         ax_main.grid(True, alpha=0.3)
-        ax_main.legend(loc="upper left")
+        if ma_lines:
+            ax_main.legend(loc="upper left")
 
         if ax_vol:
             ax_vol.set_ylabel("Volume", fontsize=10)
