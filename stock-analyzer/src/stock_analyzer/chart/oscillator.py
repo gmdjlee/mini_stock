@@ -46,18 +46,31 @@ def _sanitize_text(text: str) -> str:
     return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
+def _format_mcap_label(mcap_value: float) -> str:
+    """Format market cap Y-axis label with appropriate unit."""
+    if mcap_value >= 1000:
+        return "Market Cap (1000조)"
+    elif mcap_value >= 100:
+        return "Market Cap (조)"
+    elif mcap_value >= 1:
+        return "Market Cap (조)"
+    else:
+        return "Market Cap (억원)"
+
+
 def plot(
     osc_data: Dict,
     title: str = "",
-    figsize: tuple = (14, 10),
+    figsize: tuple = (14, 12),
     save_path: Optional[str] = None,
 ) -> Dict:
     """
-    Create oscillator chart with 3 panels.
+    Create oscillator chart with 4 panels (spec-compliant).
 
-    Panel 1: Market Cap trend
-    Panel 2: MACD and Signal line
-    Panel 3: Oscillator histogram
+    Panel 1: Market Cap + Oscillator (Dual-Axis)
+    Panel 2: Foreign/Institution 5D Net Buy
+    Panel 3: MACD and Signal line
+    Panel 4: Oscillator histogram
 
     Args:
         osc_data: Oscillator data from indicator.oscillator.calc()
@@ -94,61 +107,140 @@ def plot(
 
     try:
         fig, axes = plt.subplots(
-            nrows=3,
+            nrows=4,
             ncols=1,
             figsize=figsize,
-            sharex=True,
-            gridspec_kw={"height_ratios": [2, 2, 1.5]},
+            sharex=False,  # Don't share x-axis to allow individual date labels
+            gridspec_kw={"height_ratios": [2.5, 1.5, 2, 1.5]},
         )
 
         date_objs = [_parse_date(d) for d in dates]
         x = range(len(dates))
 
-        # Panel 1: Market Cap
+        # Panel 1: Market Cap + Oscillator (Dual-Axis per spec)
         ax_mcap = axes[0]
         market_cap = osc_data.get("market_cap", [])
+        oscillator = osc_data.get("oscillator", [])
 
-        ax_mcap.fill_between(x, market_cap, color="#1976D2", alpha=0.3)
-        ax_mcap.plot(x, market_cap, color="#1976D2", linewidth=1.5)
+        # Calculate market cap range for proper scaling
+        mcap_min, mcap_max = (min(market_cap), max(market_cap)) if market_cap else (0, 0)
+        mcap_range = mcap_max - mcap_min
+        if mcap_range > 0:
+            padding = mcap_range * 0.1
+            y_min = mcap_min - padding
+            y_max = mcap_max + padding
+        else:
+            # If all values are the same, add 1% padding
+            padding = mcap_max * 0.01 if mcap_max > 0 else 1
+            y_min = mcap_min - padding
+            y_max = mcap_max + padding
+
+        # Left axis: Market Cap - fill from y_min instead of 0 to show variation
+        ax_mcap.fill_between(x, y_min, market_cap, color="#1976D2", alpha=0.2)
+        line1 = ax_mcap.plot(x, market_cap, color="#1976D2", linewidth=2, label="Market Cap")
 
         chart_title = title or f"{osc_data['ticker']} {osc_data.get('name', '')} Supply Oscillator"
         ax_mcap.set_title(_sanitize_text(chart_title), fontsize=14, fontweight="bold")
-        ax_mcap.set_ylabel("Market Cap (Trillion KRW)", fontsize=10)
+
+        # Format Y-axis label with appropriate unit
+        mcap_label = _format_mcap_label(mcap_max)
+        ax_mcap.set_ylabel(mcap_label, fontsize=10, color="#1976D2")
+        ax_mcap.tick_params(axis="y", labelcolor="#1976D2")
         ax_mcap.grid(True, alpha=0.3)
 
-        # Panel 2: MACD and Signal
-        ax_macd = axes[1]
+        # Set y-axis limits and disable scientific notation
+        ax_mcap.set_ylim(y_min, y_max)
+        ax_mcap.ticklabel_format(useOffset=False, style='plain', axis='y')
+
+        # Right axis: Oscillator (%)
+        ax_osc_right = ax_mcap.twinx()
+        osc_pct = [v * 100 for v in oscillator]  # Convert to percentage
+
+        # Ensure oscillator line is visible with appropriate scale
+        line2 = ax_osc_right.plot(x, osc_pct, color="#FF5722", linewidth=2, label="Oscillator (%)")
+        ax_osc_right.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
+        ax_osc_right.set_ylabel("Oscillator (%)", fontsize=10, color="#FF5722")
+        ax_osc_right.tick_params(axis="y", labelcolor="#FF5722")
+
+        # Auto-scale right axis based on data range
+        if osc_pct:
+            osc_min, osc_max = min(osc_pct), max(osc_pct)
+            osc_range = osc_max - osc_min
+            if osc_range > 0:
+                padding = osc_range * 0.1
+                ax_osc_right.set_ylim(osc_min - padding, osc_max + padding)
+
+        # Combined legend
+        lines = line1 + line2
+        labels = [l.get_label() for l in lines]
+        ax_mcap.legend(lines, labels, loc="upper left")
+
+        # Format x-axis for Panel 1
+        _format_xaxis(ax_mcap, date_objs)
+
+        # Panel 2: Foreign/Institution 5D Net Buy
+        ax_supply = axes[1]
+        foreign_5d = osc_data.get("foreign_5d", [])
+        institution_5d = osc_data.get("institution_5d", [])
+
+        if foreign_5d and institution_5d:
+            width = 0.35
+            x_for = [i - width / 2 for i in x]
+            x_ins = [i + width / 2 for i in x]
+
+            colors_for = ["#4CAF50" if v >= 0 else "#A5D6A7" for v in foreign_5d]
+            colors_ins = ["#2196F3" if v >= 0 else "#90CAF9" for v in institution_5d]
+
+            ax_supply.bar(x_for, foreign_5d, width, color=colors_for, alpha=0.8, label="Foreign 5D")
+            ax_supply.bar(x_ins, institution_5d, width, color=colors_ins, alpha=0.8, label="Inst. 5D")
+            ax_supply.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
+            ax_supply.set_ylabel("Net Buy (Billion KRW)", fontsize=10)
+            ax_supply.grid(True, alpha=0.3, axis="y")
+            ax_supply.legend(loc="upper left", fontsize=8)
+            _format_xaxis(ax_supply, date_objs)
+
+        # Panel 3: MACD and Signal
+        ax_macd = axes[2]
         macd = osc_data.get("macd", [])
         signal = osc_data.get("signal", [])
 
-        ax_macd.plot(x, macd, color="#2196F3", linewidth=1.5, label="MACD")
-        ax_macd.plot(x, signal, color="#FF9800", linewidth=1.5, label="Signal")
+        # Convert to percentage for display
+        macd_pct = [v * 100 for v in macd]
+        signal_pct = [v * 100 for v in signal]
+
+        ax_macd.plot(x, macd_pct, color="#2196F3", linewidth=1.5, label="MACD")
+        ax_macd.plot(x, signal_pct, color="#FF9800", linewidth=1.5, linestyle="--", label="Signal")
         ax_macd.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
-        ax_macd.set_ylabel("MACD", fontsize=10)
+        ax_macd.set_ylabel("MACD (%)", fontsize=10)
         ax_macd.grid(True, alpha=0.3)
-        ax_macd.legend(loc="upper left")
+        ax_macd.legend(loc="upper left", fontsize=8)
 
         # Highlight cross points
         for i in range(1, len(macd)):
             if macd[i] > signal[i] and macd[i - 1] <= signal[i - 1]:
                 # Golden Cross
-                ax_macd.scatter([i], [macd[i]], color="#4CAF50", s=50, zorder=5, marker="^")
+                ax_macd.scatter([i], [macd_pct[i]], color="#4CAF50", s=80, zorder=5, marker="^")
+                ax_macd.annotate("GC", (i, macd_pct[i]), textcoords="offset points",
+                               xytext=(0, 10), ha="center", fontsize=8, color="#4CAF50")
             elif macd[i] < signal[i] and macd[i - 1] >= signal[i - 1]:
                 # Dead Cross
-                ax_macd.scatter([i], [macd[i]], color="#F44336", s=50, zorder=5, marker="v")
+                ax_macd.scatter([i], [macd_pct[i]], color="#F44336", s=80, zorder=5, marker="v")
+                ax_macd.annotate("DC", (i, macd_pct[i]), textcoords="offset points",
+                               xytext=(0, -15), ha="center", fontsize=8, color="#F44336")
 
-        # Panel 3: Oscillator Histogram
-        ax_osc = axes[2]
-        oscillator = osc_data.get("oscillator", [])
+        _format_xaxis(ax_macd, date_objs)
 
-        colors = ["#26A69A" if v >= 0 else "#EF5350" for v in oscillator]
-        ax_osc.bar(x, oscillator, color=colors, alpha=0.8, width=0.8)
-        ax_osc.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
-        ax_osc.set_ylabel("Histogram", fontsize=10)
-        ax_osc.grid(True, alpha=0.3, axis="y")
+        # Panel 4: Oscillator Histogram
+        ax_hist = axes[3]
+
+        colors = ["#26A69A" if v >= 0 else "#EF5350" for v in osc_pct]
+        ax_hist.bar(x, osc_pct, color=colors, alpha=0.8, width=0.8)
+        ax_hist.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
+        ax_hist.set_ylabel("Histogram (%)", fontsize=10)
+        ax_hist.grid(True, alpha=0.3, axis="y")
 
         # Format x-axis
-        _format_xaxis(ax_osc, date_objs)
+        _format_xaxis(ax_hist, date_objs)
 
         plt.tight_layout()
 
@@ -194,7 +286,7 @@ def plot_with_signal(
     """
     Create oscillator chart with signal analysis panel.
 
-    Panel 1: Market Cap trend
+    Panel 1: Market Cap + Oscillator (Dual-Axis)
     Panel 2: MACD and Signal line
     Panel 3: Oscillator histogram
     Panel 4: Signal analysis summary
@@ -231,51 +323,110 @@ def plot_with_signal(
             nrows=4,
             ncols=1,
             figsize=figsize,
+            sharex=False,  # Don't share x-axis to allow individual date labels
             gridspec_kw={"height_ratios": [2, 2, 1.5, 0.8]},
         )
 
         date_objs = [_parse_date(d) for d in dates]
         x = range(len(dates))
 
-        # Panel 1: Market Cap
+        # Panel 1: Market Cap + Oscillator (Dual-Axis per spec)
         ax_mcap = axes[0]
         market_cap = osc_data.get("market_cap", [])
+        oscillator = osc_data.get("oscillator", [])
 
-        ax_mcap.fill_between(x, market_cap, color="#1976D2", alpha=0.3)
-        ax_mcap.plot(x, market_cap, color="#1976D2", linewidth=1.5)
+        # Calculate market cap range for proper scaling
+        mcap_min, mcap_max = (min(market_cap), max(market_cap)) if market_cap else (0, 0)
+        mcap_range = mcap_max - mcap_min
+        if mcap_range > 0:
+            padding = mcap_range * 0.1
+            y_min = mcap_min - padding
+            y_max = mcap_max + padding
+        else:
+            # If all values are the same, add 1% padding
+            padding = mcap_max * 0.01 if mcap_max > 0 else 1
+            y_min = mcap_min - padding
+            y_max = mcap_max + padding
+
+        # Left axis: Market Cap - fill from y_min instead of 0 to show variation
+        ax_mcap.fill_between(x, y_min, market_cap, color="#1976D2", alpha=0.2)
+        line1 = ax_mcap.plot(x, market_cap, color="#1976D2", linewidth=2, label="Market Cap")
 
         chart_title = title or f"{osc_data['ticker']} {osc_data.get('name', '')} Supply Oscillator"
         ax_mcap.set_title(_sanitize_text(chart_title), fontsize=14, fontweight="bold")
-        ax_mcap.set_ylabel("Market Cap (Trillion KRW)", fontsize=10)
+
+        # Format Y-axis label with appropriate unit
+        mcap_label = _format_mcap_label(mcap_max)
+        ax_mcap.set_ylabel(mcap_label, fontsize=10, color="#1976D2")
+        ax_mcap.tick_params(axis="y", labelcolor="#1976D2")
         ax_mcap.grid(True, alpha=0.3)
+
+        # Set y-axis limits and disable scientific notation
+        ax_mcap.set_ylim(y_min, y_max)
+        ax_mcap.ticklabel_format(useOffset=False, style='plain', axis='y')
+
+        # Right axis: Oscillator (%)
+        ax_osc_right = ax_mcap.twinx()
+        osc_pct = [v * 100 for v in oscillator]  # Convert to percentage
+
+        line2 = ax_osc_right.plot(x, osc_pct, color="#FF5722", linewidth=2, label="Oscillator (%)")
+        ax_osc_right.axhline(y=0, color="gray", linestyle="--", alpha=0.7)
+        ax_osc_right.set_ylabel("Oscillator (%)", fontsize=10, color="#FF5722")
+        ax_osc_right.tick_params(axis="y", labelcolor="#FF5722")
+
+        # Auto-scale right axis based on data range
+        if osc_pct:
+            osc_min, osc_max = min(osc_pct), max(osc_pct)
+            osc_range = osc_max - osc_min
+            if osc_range > 0:
+                padding = osc_range * 0.1
+                ax_osc_right.set_ylim(osc_min - padding, osc_max + padding)
+
+        # Combined legend
+        lines = line1 + line2
+        labels = [l.get_label() for l in lines]
+        ax_mcap.legend(lines, labels, loc="upper left")
+
+        _format_xaxis(ax_mcap, date_objs)
 
         # Panel 2: MACD and Signal
         ax_macd = axes[1]
         macd = osc_data.get("macd", [])
         signal = osc_data.get("signal", [])
 
-        ax_macd.plot(x, macd, color="#2196F3", linewidth=1.5, label="MACD")
-        ax_macd.plot(x, signal, color="#FF9800", linewidth=1.5, label="Signal")
+        # Convert to percentage for display
+        macd_pct = [v * 100 for v in macd]
+        signal_pct = [v * 100 for v in signal]
+
+        ax_macd.plot(x, macd_pct, color="#2196F3", linewidth=1.5, label="MACD")
+        ax_macd.plot(x, signal_pct, color="#FF9800", linewidth=1.5, linestyle="--", label="Signal")
         ax_macd.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
-        ax_macd.set_ylabel("MACD", fontsize=10)
+        ax_macd.set_ylabel("MACD (%)", fontsize=10)
         ax_macd.grid(True, alpha=0.3)
-        ax_macd.legend(loc="upper left")
+        ax_macd.legend(loc="upper left", fontsize=8)
 
         # Highlight cross points
         for i in range(1, len(macd)):
             if macd[i] > signal[i] and macd[i - 1] <= signal[i - 1]:
-                ax_macd.scatter([i], [macd[i]], color="#4CAF50", s=50, zorder=5, marker="^")
+                # Golden Cross
+                ax_macd.scatter([i], [macd_pct[i]], color="#4CAF50", s=80, zorder=5, marker="^")
+                ax_macd.annotate("GC", (i, macd_pct[i]), textcoords="offset points",
+                               xytext=(0, 10), ha="center", fontsize=8, color="#4CAF50")
             elif macd[i] < signal[i] and macd[i - 1] >= signal[i - 1]:
-                ax_macd.scatter([i], [macd[i]], color="#F44336", s=50, zorder=5, marker="v")
+                # Dead Cross
+                ax_macd.scatter([i], [macd_pct[i]], color="#F44336", s=80, zorder=5, marker="v")
+                ax_macd.annotate("DC", (i, macd_pct[i]), textcoords="offset points",
+                               xytext=(0, -15), ha="center", fontsize=8, color="#F44336")
+
+        _format_xaxis(ax_macd, date_objs)
 
         # Panel 3: Oscillator Histogram
         ax_osc = axes[2]
-        oscillator = osc_data.get("oscillator", [])
 
-        colors = ["#26A69A" if v >= 0 else "#EF5350" for v in oscillator]
-        ax_osc.bar(x, oscillator, color=colors, alpha=0.8, width=0.8)
+        colors = ["#26A69A" if v >= 0 else "#EF5350" for v in osc_pct]
+        ax_osc.bar(x, osc_pct, color=colors, alpha=0.8, width=0.8)
         ax_osc.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
-        ax_osc.set_ylabel("Histogram", fontsize=10)
+        ax_osc.set_ylabel("Histogram (%)", fontsize=10)
         ax_osc.grid(True, alpha=0.3, axis="y")
         _format_xaxis(ax_osc, date_objs)
 

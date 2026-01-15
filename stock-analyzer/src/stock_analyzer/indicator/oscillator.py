@@ -24,7 +24,9 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
                 "name": "삼성전자",
                 "dates": ["2025-01-02", ...],
                 "market_cap": [380.0, ...],          # Trillion KRW
-                "supply_ratio": [0.0015, ...],       # Supply ratio
+                "foreign_5d": [1500.0, ...],         # 5-day cumulative (억원)
+                "institution_5d": [-500.0, ...],     # 5-day cumulative (억원)
+                "supply_ratio": [0.0015, ...],       # Supply ratio (%)
                 "ema12": [0.0012, ...],
                 "ema26": [0.0010, ...],
                 "macd": [0.0002, ...],
@@ -35,7 +37,7 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
 
     Errors:
         - INVALID_ARG: Invalid argument
-        - INSUFFICIENT_DATA: Minimum 26 days required
+        - INSUFFICIENT_DATA: Minimum 30 days required (26 + 5 for rolling)
         - API_ERROR: API call failed
     """
     if not ticker or not ticker.strip():
@@ -52,37 +54,47 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
     data = analysis_result["data"]
     n = len(data["dates"])
 
-    if n < 26:
+    if n < 30:
         return {
             "ok": False,
-            "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 26일 데이터 필요"},
+            "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 30일 데이터 필요"},
         }
 
-    # 2. Calculate Supply Ratio
+    # 2. Calculate 5-day rolling sum for foreign and institution
+    # API returns daily values, we need 5-day cumulative
+    foreign_daily = data["for_5d"]
+    institution_daily = data["ins_5d"]
+
+    foreign_5d = _calc_rolling_sum(foreign_daily, 5)
+    institution_5d = _calc_rolling_sum(institution_daily, 5)
+
+    # 3. Calculate Supply Ratio = (Foreign5d + Institution5d) / MarketCap
     supply_ratio = []
     for i in range(n):
         mcap = data["mcap"][i]
         if mcap == 0:
             supply_ratio.append(0.0)
         else:
-            supply = data["for_5d"][i] + data["ins_5d"][i]
+            supply = foreign_5d[i] + institution_5d[i]
             supply_ratio.append(supply / mcap)
 
-    # 3. Calculate EMA
+    # 4. Calculate EMA of Supply Ratio
     ema12 = _calc_ema(supply_ratio, 12)
     ema26 = _calc_ema(supply_ratio, 26)
 
-    # 4. Calculate MACD
+    # 5. Calculate MACD
     macd = [ema12[i] - ema26[i] for i in range(n)]
 
-    # 5. Calculate Signal Line
+    # 6. Calculate Signal Line
     signal = _calc_ema(macd, 9)
 
-    # 6. Calculate Oscillator (Histogram)
+    # 7. Calculate Oscillator (Histogram)
     oscillator = [macd[i] - signal[i] for i in range(n)]
 
-    # 7. Normalize market cap (Trillion KRW)
+    # 8. Normalize values for display
     market_cap_trillion = [m / 1_000_000_000_000 for m in data["mcap"]]
+    foreign_5d_billion = [f / 100_000_000 for f in foreign_5d]  # 억원
+    institution_5d_billion = [i / 100_000_000 for i in institution_5d]  # 억원
 
     log_info("indicator.oscillator", "calc complete", {"ticker": ticker, "days": n})
 
@@ -93,6 +105,8 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             "name": data["name"],
             "dates": data["dates"],
             "market_cap": market_cap_trillion,
+            "foreign_5d": foreign_5d_billion,
+            "institution_5d": institution_5d_billion,
             "supply_ratio": supply_ratio,
             "ema12": ema12,
             "ema26": ema26,
@@ -108,8 +122,9 @@ def calc_from_analysis(
     name: str,
     dates: List[str],
     mcap: List[int],
-    for_5d: List[int],
-    ins_5d: List[int],
+    foreign_daily: List[int],
+    institution_daily: List[int],
+    apply_rolling: bool = True,
 ) -> Dict:
     """
     Calculate oscillator from pre-fetched analysis data.
@@ -119,27 +134,36 @@ def calc_from_analysis(
         name: Stock name
         dates: Date list
         mcap: Market cap list
-        for_5d: Foreign 5-day net buy list
-        ins_5d: Institution 5-day net buy list
+        foreign_daily: Foreign daily net buy list
+        institution_daily: Institution daily net buy list
+        apply_rolling: If True, calculate 5-day rolling sum (default: True)
 
     Returns:
         Same format as calc()
     """
     n = len(dates)
 
-    if n < 26:
+    if n < 30:
         return {
             "ok": False,
-            "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 26일 데이터 필요"},
+            "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 30일 데이터 필요"},
         }
 
-    # Calculate Supply Ratio
+    # Calculate 5-day rolling sum if needed
+    if apply_rolling:
+        foreign_5d = _calc_rolling_sum(foreign_daily, 5)
+        institution_5d = _calc_rolling_sum(institution_daily, 5)
+    else:
+        foreign_5d = list(foreign_daily)
+        institution_5d = list(institution_daily)
+
+    # Calculate Supply Ratio = (Foreign5d + Institution5d) / MarketCap
     supply_ratio = []
     for i in range(n):
         if mcap[i] == 0:
             supply_ratio.append(0.0)
         else:
-            supply = for_5d[i] + ins_5d[i]
+            supply = foreign_5d[i] + institution_5d[i]
             supply_ratio.append(supply / mcap[i])
 
     # Calculate EMA
@@ -155,8 +179,10 @@ def calc_from_analysis(
     # Calculate Oscillator (Histogram)
     oscillator = [macd_line[i] - signal[i] for i in range(n)]
 
-    # Normalize market cap (Trillion KRW)
+    # Normalize values for display
     market_cap_trillion = [m / 1_000_000_000_000 for m in mcap]
+    foreign_5d_billion = [f / 100_000_000 for f in foreign_5d]  # 억원
+    institution_5d_billion = [i / 100_000_000 for i in institution_5d]  # 억원
 
     return {
         "ok": True,
@@ -165,6 +191,8 @@ def calc_from_analysis(
             "name": name,
             "dates": dates,
             "market_cap": market_cap_trillion,
+            "foreign_5d": foreign_5d_billion,
+            "institution_5d": institution_5d_billion,
             "supply_ratio": supply_ratio,
             "ema12": ema12,
             "ema26": ema26,
@@ -271,6 +299,16 @@ def analyze_signal(osc_result: Dict) -> Dict:
             "description": _generate_description(signal_type, osc_score, cross_score),
         },
     }
+
+
+def _calc_rolling_sum(values: List[float], window: int) -> List[float]:
+    """Calculate rolling sum with specified window."""
+    n = len(values)
+    result = []
+    for i in range(n):
+        start = max(0, i - window + 1)
+        result.append(sum(values[start:i + 1]))
+    return result
 
 
 def _calc_ema(values: List[float], period: int) -> List[float]:

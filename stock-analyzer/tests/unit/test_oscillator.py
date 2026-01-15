@@ -16,7 +16,8 @@ from stock_analyzer.chart import oscillator as osc_chart
 def mock_investor_trend_extended():
     """Generate extended investor trend data (50 days)."""
     trend_list = []
-    base_mcap = 380_000_000_000_000  # 380 trillion
+    # API returns market cap in 백만원 (million won), e.g., 380_000_000 = 380조원
+    base_mcap = 380_000_000  # 380 trillion in 백만원 unit
 
     for i in range(50):
         # Simulate varying supply/demand
@@ -25,7 +26,7 @@ def mock_investor_trend_extended():
 
         trend_list.append({
             "dt": f"202501{50-i:02d}",
-            "mrkt_tot_amt": base_mcap + (i * 100_000_000_000),
+            "mrkt_tot_amt": base_mcap + (i * 100),  # ~100억원 increments in 백만원
             "frgnr_invsr": foreign * (50 - i) // 50,
             "orgn": institution * (50 - i) // 50,
         })
@@ -44,7 +45,8 @@ def mock_stock_info_response():
         "stk_cd": "005930",
         "stk_nm": "삼성전자",
         "cur_prc": 55000,
-        "mac": 380_000_000_000_000,
+        # ka10001 API returns market cap in 억원 (100 million won)
+        "mac": 3_800_000,  # 380조원 in 억원 unit (380조 = 3,800,000억원)
         "return_code": 0,
         "return_msg": "정상적으로 처리되었습니다",
     }
@@ -111,6 +113,8 @@ class TestOscillatorCalc:
         assert data["ticker"] == "005930"
         assert "dates" in data
         assert "market_cap" in data
+        assert "foreign_5d" in data  # New: 5-day cumulative foreign (억원)
+        assert "institution_5d" in data  # New: 5-day cumulative institution (억원)
         assert "supply_ratio" in data
         assert "ema12" in data
         assert "ema26" in data
@@ -126,6 +130,8 @@ class TestOscillatorCalc:
         data = result["data"]
         n = len(data["dates"])
         assert len(data["market_cap"]) == n
+        assert len(data["foreign_5d"]) == n  # New field
+        assert len(data["institution_5d"]) == n  # New field
         assert len(data["supply_ratio"]) == n
         assert len(data["ema12"]) == n
         assert len(data["ema26"]) == n
@@ -143,26 +149,28 @@ class TestOscillatorCalc:
             assert 100 < mcap < 1000  # Reasonable range for Korean large caps
 
     def test_insufficient_data(self, mock_kiwoom_client_oscillator):
-        """Test with insufficient data (less than 26 days)."""
+        """Test with insufficient data (less than 30 days - 26 for EMA + 5 for rolling)."""
         from unittest.mock import Mock
         from stock_analyzer.client.kiwoom import KiwoomClient
 
         client = Mock(spec=KiwoomClient)
         client.get_stock_info.return_value = ApiResponse(
             ok=True,
-            data={"stk_nm": "삼성전자", "mac": 380_000_000_000_000},
+            # ka10001 API returns market cap in 억원 (100 million won)
+            data={"stk_nm": "삼성전자", "mac": 3_800_000},  # 380조원 in 억원
         )
         client.get_investor_trend.return_value = ApiResponse(
             ok=True,
             data={
                 "stk_invsr_orgn": [
-                    {"dt": f"202501{20-i:02d}", "mrkt_tot_amt": 380_000_000_000_000, "frgnr_invsr": 0, "orgn": 0}
-                    for i in range(20)
+                    # ka10059 API returns market cap in 백만원 (million won)
+                    {"dt": f"202501{25-i:02d}", "mrkt_tot_amt": 380_000_000, "frgnr_invsr": 0, "orgn": 0}
+                    for i in range(25)  # 25 days is less than required 30
                 ]
             },
         )
 
-        result = oscillator.calc(client, "005930", days=20)
+        result = oscillator.calc(client, "005930", days=25)
         assert result["ok"] is False
         assert result["error"]["code"] == "INSUFFICIENT_DATA"
 
@@ -171,14 +179,14 @@ class TestOscillatorCalcFromAnalysis:
     """Tests for oscillator.calc_from_analysis function."""
 
     def test_insufficient_data(self):
-        """Test with insufficient data."""
+        """Test with insufficient data (less than 30 days)."""
         result = oscillator.calc_from_analysis(
             ticker="005930",
             name="삼성전자",
-            dates=["20250101"] * 20,
-            mcap=[380_000_000_000_000] * 20,
-            for_5d=[5_000_000_000] * 20,
-            ins_5d=[3_000_000_000] * 20,
+            dates=["20250101"] * 25,  # 25 days is less than required 30
+            mcap=[380_000_000_000_000] * 25,
+            foreign_daily=[5_000_000_000] * 25,
+            institution_daily=[3_000_000_000] * 25,
         )
         assert result["ok"] is False
         assert result["error"]["code"] == "INSUFFICIENT_DATA"
@@ -190,11 +198,30 @@ class TestOscillatorCalcFromAnalysis:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
         assert result["ok"] is True
         assert result["data"]["ticker"] == "005930"
+        # Check new 5-day cumulative fields exist
+        assert "foreign_5d" in result["data"]
+        assert "institution_5d" in result["data"]
+
+    def test_apply_rolling_false(self, sample_oscillator_data):
+        """Test with apply_rolling=False (data already has 5-day cumulative)."""
+        result = oscillator.calc_from_analysis(
+            ticker=sample_oscillator_data["ticker"],
+            name=sample_oscillator_data["name"],
+            dates=sample_oscillator_data["dates"],
+            mcap=sample_oscillator_data["mcap"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
+            apply_rolling=False,  # Skip rolling sum calculation
+        )
+        assert result["ok"] is True
+        # Values should be directly converted without rolling sum
+        assert "foreign_5d" in result["data"]
+        assert "institution_5d" in result["data"]
 
 
 # ============================================================
@@ -230,8 +257,8 @@ class TestAnalyzeSignal:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         result = oscillator.analyze_signal(osc_result)
@@ -252,8 +279,8 @@ class TestAnalyzeSignal:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         result = oscillator.analyze_signal(osc_result)
@@ -267,8 +294,8 @@ class TestAnalyzeSignal:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         result = oscillator.analyze_signal(osc_result)
@@ -279,8 +306,50 @@ class TestAnalyzeSignal:
 
 
 # ============================================================
-# EMA Calculation Tests
+# Helper Function Tests
 # ============================================================
+
+
+class TestRollingSumCalculation:
+    """Tests for rolling sum calculation helper."""
+
+    def test_empty_values(self):
+        """Test with empty values."""
+        result = oscillator._calc_rolling_sum([], 5)
+        assert result == []
+
+    def test_single_value(self):
+        """Test with single value."""
+        result = oscillator._calc_rolling_sum([100.0], 5)
+        assert result == [100.0]
+
+    def test_rolling_sum_calculation(self):
+        """Test rolling sum calculation accuracy."""
+        values = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0]
+        result = oscillator._calc_rolling_sum(values, 5)
+
+        # Result should be list of same length
+        assert len(result) == len(values)
+
+        # Check rolling sums
+        assert result[0] == 10.0  # Only 1 value
+        assert result[1] == 30.0  # 10 + 20
+        assert result[2] == 60.0  # 10 + 20 + 30
+        assert result[3] == 100.0  # 10 + 20 + 30 + 40
+        assert result[4] == 150.0  # 10 + 20 + 30 + 40 + 50 (first full window)
+        assert result[5] == 200.0  # 20 + 30 + 40 + 50 + 60 (window slides)
+        assert result[6] == 250.0  # 30 + 40 + 50 + 60 + 70
+
+    def test_window_larger_than_data(self):
+        """Test with window larger than data."""
+        values = [10.0, 20.0, 30.0]
+        result = oscillator._calc_rolling_sum(values, 5)
+
+        # Should sum all available values
+        assert len(result) == 3
+        assert result[0] == 10.0
+        assert result[1] == 30.0
+        assert result[2] == 60.0
 
 
 class TestEmaCalculation:
@@ -356,8 +425,8 @@ class TestOscillatorChartPlot:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         result = osc_chart.plot(osc_result["data"])
@@ -373,8 +442,8 @@ class TestOscillatorChartPlot:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         result = osc_chart.plot(osc_result["data"], title="Custom Title")
@@ -397,8 +466,8 @@ class TestOscillatorChartPlotWithSignal:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         # Invalid signal data
@@ -412,8 +481,8 @@ class TestOscillatorChartPlotWithSignal:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
 
         signal_result = oscillator.analyze_signal(osc_result)
@@ -455,7 +524,8 @@ class TestOscillatorApiErrors:
         client = Mock(spec=KiwoomClient)
         client.get_stock_info.return_value = ApiResponse(
             ok=True,
-            data={"stk_nm": "삼성전자", "mac": 380_000_000_000_000},
+            # ka10001 API returns market cap in 억원 (100 million won)
+            data={"stk_nm": "삼성전자", "mac": 3_800_000},  # 380조원 in 억원
         )
         client.get_investor_trend.return_value = ApiResponse(
             ok=False,
@@ -494,10 +564,13 @@ class TestOscillatorIntegration:
             name=sample_oscillator_data["name"],
             dates=sample_oscillator_data["dates"],
             mcap=sample_oscillator_data["mcap"],
-            for_5d=sample_oscillator_data["for_5d"],
-            ins_5d=sample_oscillator_data["ins_5d"],
+            foreign_daily=sample_oscillator_data["for_5d"],
+            institution_daily=sample_oscillator_data["ins_5d"],
         )
         assert osc_result["ok"] is True
+        # Verify 5-day rolling sum fields
+        assert "foreign_5d" in osc_result["data"]
+        assert "institution_5d" in osc_result["data"]
 
         # 2. Analyze signal
         signal_result = oscillator.analyze_signal(osc_result)

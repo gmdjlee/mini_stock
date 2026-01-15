@@ -64,7 +64,8 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
 
     name = info_resp.data.get("stk_nm", ticker)
     # API field name per official docs: mac (시가총액)
-    mcap = _safe_int(info_resp.data.get("mac", 0))
+    # ka10001 API returns market cap in 억원 (100 million won), convert to raw won
+    mcap = _safe_int(info_resp.data.get("mac", 0)) * 100_000_000
 
     # 2. Get investor trend
     trend_resp = client.get_investor_trend(ticker)
@@ -92,7 +93,12 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
         dates.append(dt)
 
-        mcaps.append(_safe_int(item.get("mrkt_tot_amt", mcap)))
+        # mrkt_tot_amt is in 백만원 (million won), convert to raw won
+        mrkt_tot_amt = _safe_int(item.get("mrkt_tot_amt", 0))
+        if mrkt_tot_amt > 0:
+            mcaps.append(mrkt_tot_amt * 1_000_000)
+        else:
+            mcaps.append(mcap)  # fallback to basic info mcap (already converted)
         # API field names per official docs: frgnr_invsr (외국인투자자), orgn (기관계)
         for_5d.append(_safe_int(item.get("frgnr_invsr", 0)))
         ins_5d.append(_safe_int(item.get("orgn", 0)))
