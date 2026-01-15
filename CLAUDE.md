@@ -136,20 +136,54 @@ result = condition.search_by_idx(client, "000")         # 인덱스로 조건검
 
 ## Kiwoom API Reference
 
-| API ID | 기능 | 모듈 |
-|--------|------|------|
-| au10001 | 토큰 발급 | client/auth.py |
-| ka10099 | 종목 리스트 | stock/search.py |
-| ka10001 | 주식 기본정보 | stock/search.py |
-| ka10008 | 외국인 매매동향 | stock/analysis.py |
-| ka10059 | 투자자별 매매 | stock/analysis.py |
-| ka10081 | 일봉 차트 | stock/ohlcv.py, indicator/* |
-| ka10082 | 주봉 차트 | stock/ohlcv.py |
-| ka10083 | 월봉 차트 | stock/ohlcv.py |
-| ka10171 | 조건검색 목록 | search/condition.py |
-| ka10172 | 조건검색 실행 | search/condition.py |
-| kt00001 | 예탁금 추이 | market/deposit.py |
-| ka10013 | 신용잔고 추이 | market/deposit.py |
+| API ID | 기능 | 모듈 | 응답 필드 |
+|--------|------|------|----------|
+| au10001 | 토큰 발급 | client/auth.py | `token`, `expires_dt` |
+| ka10099 | 종목 리스트 | stock/search.py | `stk_list` |
+| ka10001 | 주식 기본정보 | stock/search.py | `stk_nm`, `cur_prc`, `mac` |
+| ka10008 | 외국인 매매동향 | stock/analysis.py | - |
+| ka10059 | 투자자별 매매 | stock/analysis.py | `stk_invsr_orgn` |
+| ka10081 | 일봉 차트 | stock/ohlcv.py, indicator/* | `stk_dt_pole_chart_qry` |
+| ka10082 | 주봉 차트 | stock/ohlcv.py | `stk_stk_pole_chart_qry` |
+| ka10083 | 월봉 차트 | stock/ohlcv.py | `stk_mth_pole_chart_qry` |
+| ka10171 | 조건검색 목록 | search/condition.py | `cond_list` |
+| ka10172 | 조건검색 실행 | search/condition.py | `stk_list` |
+| kt00001 | 예탁금 추이 | market/deposit.py | `deposit_list` |
+| ka10013 | 신용잔고 추이 | market/deposit.py | `credit_list` |
+
+### API 응답 필드명 (실제 API 기준)
+
+**차트 API (ka10081/82/83)**
+```python
+# 응답 구조
+{
+    "stk_dt_pole_chart_qry": [  # 일봉: stk_dt_pole_chart_qry
+        {                       # 주봉: stk_stk_pole_chart_qry
+            "dt": "20260114",   # 월봉: stk_mth_pole_chart_qry
+            "open_pric": 137000,
+            "high_pric": 140300,
+            "low_pric": 136800,
+            "cur_prc": 140300,   # 종가 (close)
+            "trde_qty": 18444394 # 거래량 (volume)
+        }
+    ]
+}
+```
+
+**투자자별 매매 API (ka10059)**
+```python
+# 응답 구조
+{
+    "stk_invsr_orgn": [
+        {
+            "dt": "20260114",
+            "frgnr_invsr": 23987,     # 외국인 순매수
+            "orgn": 264048,            # 기관 순매수
+            "ind_invsr": -496193,      # 개인 순매수
+            "mrkt_tot_amt": 328000000  # 시가총액
+        }
+    ]
+}
 
 ## Technical Indicators (Phase 2)
 

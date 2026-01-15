@@ -61,14 +61,14 @@ class TestGetWeekly:
         mock_kiwoom_client.get_weekly_chart.return_value = ApiResponse(
             ok=True,
             data={
-                "chart_list": [
+                "stk_stk_pole_chart_qry": [
                     {
                         "dt": "20250110",
-                        "opn_prc": 53000,
-                        "high_prc": 56000,
-                        "low_prc": 52500,
-                        "cls_prc": 55000,
-                        "trd_qty": 75000000,
+                        "open_pric": 53000,
+                        "high_pric": 56000,
+                        "low_pric": 52500,
+                        "cur_prc": 55000,
+                        "trde_qty": 75000000,
                     },
                 ],
                 "return_code": 0,
@@ -93,14 +93,14 @@ class TestGetMonthly:
         mock_kiwoom_client.get_monthly_chart.return_value = ApiResponse(
             ok=True,
             data={
-                "chart_list": [
+                "stk_mth_pole_chart_qry": [
                     {
                         "dt": "202501",
-                        "opn_prc": 52000,
-                        "high_prc": 58000,
-                        "low_prc": 51000,
-                        "cls_prc": 55000,
-                        "trd_qty": 300000000,
+                        "open_pric": 52000,
+                        "high_pric": 58000,
+                        "low_pric": 51000,
+                        "cur_prc": 55000,
+                        "trde_qty": 300000000,
                     },
                 ],
                 "return_code": 0,

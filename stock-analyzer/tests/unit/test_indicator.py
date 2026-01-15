@@ -52,7 +52,7 @@ def sample_ohlcv_data():
 
 @pytest.fixture
 def mock_chart_response_extended():
-    """Extended chart data for indicator testing."""
+    """Extended chart data for indicator testing (matches ka10081 API response)."""
     # Generate 100 days of data
     chart_list = []
     base_price = 50000
@@ -65,15 +65,15 @@ def mock_chart_response_extended():
 
         chart_list.append({
             "dt": f"202501{100-i:02d}",
-            "opn_prc": price + 100,
-            "high_prc": price + 500,
-            "low_prc": price - 500,
-            "cls_prc": price,
-            "trd_qty": 1000000 + i * 10000,
+            "open_pric": price + 100,
+            "high_pric": price + 500,
+            "low_pric": price - 500,
+            "cur_prc": price,
+            "trde_qty": 1000000 + i * 10000,
         })
 
     return {
-        "chart_list": chart_list,
+        "stk_dt_pole_chart_qry": chart_list,
         "return_code": 0,
         "return_msg": "정상적으로 처리되었습니다",
     }

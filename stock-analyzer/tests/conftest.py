@@ -50,20 +50,20 @@ def mock_stock_info_response():
 
 @pytest.fixture
 def mock_investor_trend_response():
-    """Mock investor trend response data."""
+    """Mock investor trend response data (matches ka10059 API response)."""
     return {
-        "trend_list": [
+        "stk_invsr_orgn": [
             {
                 "dt": "20250110",
                 "mrkt_tot_amt": 328000000000000,
-                "frgn_5d_net": 7500000000,
-                "istt_5d_net": -2500000000,
+                "frgnr_invsr": 7500000000,
+                "orgn": -2500000000,
             },
             {
                 "dt": "20250109",
                 "mrkt_tot_amt": 327000000000000,
-                "frgn_5d_net": 6500000000,
-                "istt_5d_net": -2000000000,
+                "frgnr_invsr": 6500000000,
+                "orgn": -2000000000,
             },
         ],
         "return_code": 0,
@@ -73,24 +73,24 @@ def mock_investor_trend_response():
 
 @pytest.fixture
 def mock_chart_response():
-    """Mock chart response data."""
+    """Mock chart response data (matches ka10081 API response)."""
     return {
-        "chart_list": [
+        "stk_dt_pole_chart_qry": [
             {
                 "dt": "20250110",
-                "opn_prc": 54000,
-                "high_prc": 55500,
-                "low_prc": 53800,
-                "cls_prc": 55000,
-                "trd_qty": 15000000,
+                "open_pric": 54000,
+                "high_pric": 55500,
+                "low_pric": 53800,
+                "cur_prc": 55000,
+                "trde_qty": 15000000,
             },
             {
                 "dt": "20250109",
-                "opn_prc": 53500,
-                "high_prc": 54500,
-                "low_prc": 53000,
-                "cls_prc": 54000,
-                "trd_qty": 12000000,
+                "open_pric": 53500,
+                "high_pric": 54500,
+                "low_pric": 53000,
+                "cur_prc": 54000,
+                "trde_qty": 12000000,
             },
         ],
         "return_code": 0,

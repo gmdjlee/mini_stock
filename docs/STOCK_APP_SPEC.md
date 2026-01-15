@@ -781,7 +781,8 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> dict:
     if not trend_resp.ok:
         return {"ok": False, "error": trend_resp.error}
 
-    trend_data = trend_resp.data.get("trend_list", [])
+    # API 응답 필드명: stk_invsr_orgn (실제 API) 또는 list (대체)
+    trend_data = trend_resp.data.get("stk_invsr_orgn", []) or trend_resp.data.get("list", [])
     if not trend_data:
         return {
             "ok": False,
@@ -797,8 +798,9 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> dict:
     for item in trend_data[:days]:
         dates.append(item.get("dt", ""))
         mcaps.append(int(item.get("mrkt_tot_amt", 0)))
-        for_5d.append(int(item.get("frgn_5d_net", 0)))
-        ins_5d.append(int(item.get("istt_5d_net", 0)))
+        # API 필드명: frgnr_invsr (외국인), orgn (기관)
+        for_5d.append(int(item.get("frgnr_invsr", 0)))
+        ins_5d.append(int(item.get("orgn", 0)))
 
     return {
         "ok": True,
@@ -1471,23 +1473,26 @@ authorization: Bearer {token}
 }
 ```
 
-**Response**
+**Response** (실제 API 응답 기준)
 ```json
 {
-  "chart_list": [
+  "stk_cd": "005930",
+  "stk_dt_pole_chart_qry": [
     {
       "dt": "20250102",
-      "opn_prc": 54000,
-      "high_prc": 55500,
-      "low_prc": 53800,
-      "cls_prc": 55000,
-      "trd_qty": 15000000
+      "open_pric": 54000,
+      "high_pric": 55500,
+      "low_pric": 53800,
+      "cur_prc": 55000,
+      "trde_qty": 15000000
     }
   ],
   "return_code": 0,
   "return_msg": "정상적으로 처리되었습니다"
 }
 ```
+
+> **Note**: 주봉(ka10082)은 `stk_stk_pole_chart_qry`, 월봉(ka10083)은 `stk_mth_pole_chart_qry` 필드 사용
 
 ### A.4 종목별투자자기관별요청 (ka10059)
 
@@ -1499,31 +1504,41 @@ api-id: ka10059
 authorization: Bearer {token}
 ```
 
-**Request**
+**Request** (실제 API 파라미터 기준)
 ```json
 {
+  "dt": "20260115",
   "stk_cd": "005930",
-  "inq_cnd": "1"
+  "amt_qty_tp": "1",
+  "trde_tp": "0",
+  "unit_tp": "1000"
 }
 ```
 
-**Response**
+**Response** (실제 API 응답 기준)
 ```json
 {
-  "trend_list": [
+  "stk_invsr_orgn": [
     {
-      "dt": "20250102",
-      "frgn_net": 1500000000,
-      "frgn_5d_net": 7500000000,
-      "istt_net": -500000000,
-      "istt_5d_net": -2500000000,
-      "prsn_net": -1000000000
+      "dt": "20260114",
+      "cur_prc": "+140300",
+      "frgnr_invsr": 23987,
+      "orgn": 264048,
+      "ind_invsr": -496193,
+      "fnnc_invt": 244662,
+      "insrnc": -15212,
+      "invtrt": 152,
+      "penfnd_etc": 12531,
+      "natn": 0,
+      "etc_corp": 209417
     }
   ],
   "return_code": 0,
   "return_msg": "정상적으로 처리되었습니다"
 }
 ```
+
+> **Note**: `frgnr_invsr`=외국인, `orgn`=기관계, `ind_invsr`=개인
 
 ---
 
