@@ -228,7 +228,7 @@ Python 단일 프로젝트에서 데이터 수집 로직을 먼저 검증한 후
 ### Phase 4: 시장 지표 + 조건검색 (Market)
 
 ```
-[Python] 
+[Python]
 ├── market/deposit.py        # 예탁금, 신용잔고
 └── search/condition.py      # 조건검색
 
@@ -237,6 +237,52 @@ Python 단일 프로젝트에서 데이터 수집 로직을 먼저 검증한 후
 ├── ui/DepositScreen.kt
 └── ui/ConditionScreen.kt
 ```
+
+### Phase 5: 시가총액 & 수급 오실레이터 (Oscillator)
+
+```
+[Python]
+├── indicator/oscillator.py  # 수급 오실레이터 계산
+│   ├── calc()               # 오실레이터 계산 (Supply Ratio MACD)
+│   ├── analyze_signal()     # 매매 신호 분석
+│   └── get_signal_score()   # 신호 점수 (-100 ~ +100)
+└── chart/oscillator.py      # 오실레이터 차트
+    └── plot()               # 듀얼 축 차트 (시가총액 + 오실레이터)
+
+[App]
+├── domain/model/Oscillator.kt
+├── ui/OscillatorScreen.kt
+└── ui/component/OscillatorChart.kt
+```
+
+**핵심 계산:**
+```python
+# Supply Ratio = (외국인 순매수 + 기관 순매수) / 시가총액
+supply_ratio = (foreign_5d + institution_5d) / market_cap
+
+# MACD 스타일 오실레이터
+ema12 = EMA(supply_ratio, 12)
+ema26 = EMA(supply_ratio, 26)
+macd = ema12 - ema26
+signal = EMA(macd, 9)
+oscillator = macd - signal  # Histogram
+```
+
+**신호 점수:**
+| 항목 | 점수 범위 | 설명 |
+|------|----------|------|
+| 오실레이터 값 | ±40 | >0.5%: +40, >0.2%: +20, <-0.5%: -40 |
+| MACD 크로스 | ±30 | 골든크로스: +30, 데드크로스: -30 |
+| 히스토그램 추세 | ±30 | 상승 지속: +30, 하락 지속: -30 |
+
+**매매 신호:**
+| Score | Signal | 설명 |
+|-------|--------|------|
+| >= 60 | STRONG_BUY | 강력 매수 |
+| >= 20 | BUY | 매수 |
+| -20 ~ 20 | NEUTRAL | 중립 |
+| <= -20 | SELL | 매도 |
+| <= -60 | STRONG_SELL | 강력 매도 |
 
 ---
 
@@ -277,7 +323,15 @@ stock-analyzer/
 │       │   ├── __init__.py
 │       │   ├── trend.py     # Trend Signal
 │       │   ├── elder.py     # Elder Impulse
-│       │   └── demark.py    # DeMark TD
+│       │   ├── demark.py    # DeMark TD
+│       │   └── oscillator.py # 수급 오실레이터 (Phase 5)
+│       │
+│       ├── chart/           # 차트 시각화
+│       │   ├── __init__.py
+│       │   ├── candle.py    # 캔들스틱 차트
+│       │   ├── line.py      # 라인 차트
+│       │   ├── bar.py       # 바 차트
+│       │   └── oscillator.py # 오실레이터 차트 (Phase 5)
 │       │
 │       ├── market/          # 시장 지표
 │       │   ├── __init__.py
@@ -815,6 +869,263 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> dict:
     }
 ```
 
+#### 5.3.5 indicator/oscillator.py (Phase 5)
+
+```python
+"""시가총액 & 수급 오실레이터 (MACD 스타일)."""
+from dataclasses import dataclass
+from typing import List, Optional
+from enum import Enum
+from ..client.kiwoom import KiwoomClient
+from ..stock import analysis
+
+
+class SignalType(Enum):
+    STRONG_BUY = "STRONG_BUY"
+    BUY = "BUY"
+    NEUTRAL = "NEUTRAL"
+    SELL = "SELL"
+    STRONG_SELL = "STRONG_SELL"
+
+
+@dataclass
+class OscillatorResult:
+    ticker: str
+    name: str
+    dates: List[str]
+    market_cap: List[float]      # 시가총액 (정규화)
+    supply_ratio: List[float]    # 수급 비율
+    ema12: List[float]           # Supply Ratio EMA12
+    ema26: List[float]           # Supply Ratio EMA26
+    macd: List[float]            # MACD (ema12 - ema26)
+    signal: List[float]          # Signal Line (EMA9 of MACD)
+    oscillator: List[float]      # Oscillator (MACD - Signal)
+
+
+@dataclass
+class SignalAnalysis:
+    total_score: int             # -100 ~ +100
+    signal_type: SignalType
+    oscillator_score: int        # ±40
+    cross_score: int             # ±30
+    trend_score: int             # ±30
+    description: str
+
+
+def calc(client: KiwoomClient, ticker: str, days: int = 180) -> dict:
+    """
+    수급 오실레이터 계산.
+
+    Args:
+        client: 키움 API 클라이언트
+        ticker: 종목코드
+        days: 조회 기간 (일)
+
+    Returns:
+        {
+            "ok": True,
+            "data": {
+                "ticker": "005930",
+                "name": "삼성전자",
+                "dates": ["2025-01-02", ...],
+                "market_cap": [380.0, ...],          # 조 단위
+                "supply_ratio": [0.0015, ...],       # 수급 비율
+                "ema12": [0.0012, ...],
+                "ema26": [0.0010, ...],
+                "macd": [0.0002, ...],
+                "signal": [0.00015, ...],
+                "oscillator": [0.00005, ...]         # 히스토그램
+            }
+        }
+    """
+    # 1. 수급 데이터 조회
+    analysis_result = analysis.analyze(client, ticker, days)
+    if not analysis_result["ok"]:
+        return analysis_result
+
+    data = analysis_result["data"]
+    n = len(data["dates"])
+
+    if n < 26:
+        return {
+            "ok": False,
+            "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 26일 데이터 필요"}
+        }
+
+    # 2. Supply Ratio 계산
+    supply_ratio = []
+    for i in range(n):
+        mcap = data["mcap"][i]
+        if mcap == 0:
+            supply_ratio.append(0.0)
+        else:
+            supply = data["for_5d"][i] + data["ins_5d"][i]
+            supply_ratio.append(supply / mcap)
+
+    # 3. EMA 계산
+    ema12 = _calc_ema(supply_ratio, 12)
+    ema26 = _calc_ema(supply_ratio, 26)
+
+    # 4. MACD 계산
+    macd = [ema12[i] - ema26[i] for i in range(n)]
+
+    # 5. Signal Line 계산
+    signal = _calc_ema(macd, 9)
+
+    # 6. Oscillator (Histogram) 계산
+    oscillator = [macd[i] - signal[i] for i in range(n)]
+
+    # 7. 시가총액 정규화 (조 단위)
+    market_cap_trillion = [m / 1_000_000_000_000 for m in data["mcap"]]
+
+    return {
+        "ok": True,
+        "data": {
+            "ticker": ticker,
+            "name": data["name"],
+            "dates": data["dates"],
+            "market_cap": market_cap_trillion,
+            "supply_ratio": supply_ratio,
+            "ema12": ema12,
+            "ema26": ema26,
+            "macd": macd,
+            "signal": signal,
+            "oscillator": oscillator
+        }
+    }
+
+
+def analyze_signal(osc_result: dict) -> dict:
+    """
+    오실레이터 결과로 매매 신호 분석.
+
+    Returns:
+        {
+            "ok": True,
+            "data": {
+                "total_score": 67,
+                "signal_type": "STRONG_BUY",
+                "oscillator_score": 40,
+                "cross_score": 15,
+                "trend_score": 12,
+                "description": "수급 강세, MACD 시그널 상향"
+            }
+        }
+    """
+    if not osc_result.get("ok"):
+        return osc_result
+
+    data = osc_result["data"]
+    osc = data["oscillator"]
+    macd = data["macd"]
+    signal = data["signal"]
+
+    n = len(osc)
+    if n < 3:
+        return {
+            "ok": False,
+            "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 3일 데이터 필요"}
+        }
+
+    score = 0
+
+    # 1. Oscillator Value (±40)
+    latest_osc = osc[-1]
+    if latest_osc > 0.005:
+        osc_score = 40
+    elif latest_osc > 0.002:
+        osc_score = 20
+    elif latest_osc < -0.005:
+        osc_score = -40
+    elif latest_osc < -0.002:
+        osc_score = -20
+    else:
+        osc_score = 0
+    score += osc_score
+
+    # 2. MACD Cross (±30)
+    if macd[-1] > signal[-1] and macd[-2] <= signal[-2]:
+        cross_score = 30  # Golden Cross
+    elif macd[-1] < signal[-1] and macd[-2] >= signal[-2]:
+        cross_score = -30  # Dead Cross
+    elif macd[-1] > signal[-1]:
+        cross_score = 15  # Above Signal
+    else:
+        cross_score = -15  # Below Signal
+    score += cross_score
+
+    # 3. Histogram Trend (±30)
+    recent_hist = osc[-3:]
+    if all(h > 0 for h in recent_hist) and _is_increasing(recent_hist):
+        trend_score = 30
+    elif all(h < 0 for h in recent_hist) and _is_decreasing(recent_hist):
+        trend_score = -30
+    else:
+        trend_score = 0
+    score += trend_score
+
+    # Signal Type 결정
+    score = max(-100, min(100, score))
+    if score >= 60:
+        signal_type = "STRONG_BUY"
+    elif score >= 20:
+        signal_type = "BUY"
+    elif score <= -60:
+        signal_type = "STRONG_SELL"
+    elif score <= -20:
+        signal_type = "SELL"
+    else:
+        signal_type = "NEUTRAL"
+
+    return {
+        "ok": True,
+        "data": {
+            "total_score": score,
+            "signal_type": signal_type,
+            "oscillator_score": osc_score,
+            "cross_score": cross_score,
+            "trend_score": trend_score,
+            "description": _generate_description(signal_type, osc_score, cross_score)
+        }
+    }
+
+
+def _calc_ema(values: List[float], period: int) -> List[float]:
+    """EMA 계산."""
+    alpha = 2 / (period + 1)
+    ema = [values[0]]
+    for i in range(1, len(values)):
+        ema.append(alpha * values[i] + (1 - alpha) * ema[i - 1])
+    return ema
+
+
+def _is_increasing(values: List[float]) -> bool:
+    return all(values[i] > values[i - 1] for i in range(1, len(values)))
+
+
+def _is_decreasing(values: List[float]) -> bool:
+    return all(values[i] < values[i - 1] for i in range(1, len(values)))
+
+
+def _generate_description(signal_type: str, osc_score: int, cross_score: int) -> str:
+    parts = []
+    if osc_score > 0:
+        parts.append("수급 강세")
+    elif osc_score < 0:
+        parts.append("수급 약세")
+
+    if cross_score == 30:
+        parts.append("골든크로스 발생")
+    elif cross_score == -30:
+        parts.append("데드크로스 발생")
+    elif cross_score > 0:
+        parts.append("MACD 시그널 상향")
+    else:
+        parts.append("MACD 시그널 하향")
+
+    return ", ".join(parts) if parts else "중립"
+```
+
 ### 5.4 JSON 응답 규격
 
 #### 성공 응답
@@ -1338,8 +1649,8 @@ chaquopy = "15.0.1"
 | P1 | 종목 검색 + 수급 | 검색 화면, 분석 화면 | 3일 |
 | P2 | 기술적 지표 | 지표 화면 (3 tabs) | 3일 |
 | P3 | 차트 시각화 | 캔들/라인 차트 | 2일 |
-| P4 | 조건검색 | 조건검색 화면 | 2일 |
-| P5 | 시장 지표 | 예탁금 화면 | 1일 |
+| P4 | 조건검색 + 시장 지표 | 조건검색, 예탁금 화면 | 2일 |
+| P5 | **수급 오실레이터** | 오실레이터 계산, 매매신호, 차트 | 2일 |
 | P6 | 최적화 | 캐싱, 성능 개선 | 2일 |
 
 ---

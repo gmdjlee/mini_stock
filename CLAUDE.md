@@ -13,6 +13,7 @@
 | Phase 2 | ✅ Done | 기술적 지표 (Trend, Elder, DeMark) |
 | Phase 3 | ✅ Done | 차트 시각화 (Candle, Line, Bar) |
 | Phase 4 | ✅ Done | 조건검색, 시장 지표 |
+| Phase 5 | 📋 Pending | 시가총액 & 수급 오실레이터 |
 
 ## Quick Commands
 
@@ -52,11 +53,13 @@ stock-analyzer/
 │   ├── indicator/          # 기술적 지표
 │   │   ├── trend.py        # Trend Signal (MA, CMF, Fear/Greed)
 │   │   ├── elder.py        # Elder Impulse (EMA13, MACD)
-│   │   └── demark.py       # DeMark TD Setup
+│   │   ├── demark.py       # DeMark TD Setup
+│   │   └── oscillator.py   # 수급 오실레이터 (Phase 5)
 │   ├── chart/              # 차트 시각화
 │   │   ├── candle.py       # 캔들스틱 차트
 │   │   ├── line.py         # 라인 차트
-│   │   └── bar.py          # 바 차트
+│   │   ├── bar.py          # 바 차트
+│   │   └── oscillator.py   # 오실레이터 차트 (Phase 5)
 │   ├── market/             # 시장 지표
 │   │   └── deposit.py      # 예탁금, 신용잔고
 │   └── search/             # 조건검색
@@ -91,13 +94,15 @@ stock-analyzer/
 | `NETWORK_ERROR` | 네트워크 오류 |
 | `CHART_ERROR` | 차트 생성 실패 |
 | `CONDITION_NOT_FOUND` | 조건검색 없음 |
+| `INSUFFICIENT_DATA` | 데이터 부족 (오실레이터 계산용) |
 
 ### 함수 호출 예시
 ```python
 from stock_analyzer.client.kiwoom import KiwoomClient
 from stock_analyzer.stock import search, analysis, ohlcv
-from stock_analyzer.indicator import trend, elder, demark
+from stock_analyzer.indicator import trend, elder, demark, oscillator
 from stock_analyzer.chart import candle, line, bar
+from stock_analyzer.chart import oscillator as osc_chart  # Phase 5
 from stock_analyzer.market import deposit
 from stock_analyzer.search import condition
 
@@ -132,6 +137,11 @@ result = deposit.get_market_indicators(client, days=30) # 통합 시장 지표
 result = condition.get_list(client)                     # 조건검색 목록
 result = condition.search(client, "000", "골든크로스")   # 조건검색 실행
 result = condition.search_by_idx(client, "000")         # 인덱스로 조건검색
+
+# 수급 오실레이터 (Phase 5 - Pending)
+result = oscillator.calc(client, "005930", days=180)    # 오실레이터 계산
+signal = oscillator.analyze_signal(result)              # 매매 신호 분석
+result = osc_chart.plot(osc_data)                       # 오실레이터 차트
 ```
 
 ## Kiwoom API Reference
@@ -275,6 +285,67 @@ if result["ok"]:
     for stock in result["data"]["stocks"]:
         print(f"{stock['ticker']}: {stock['name']} ({stock['change']}%)")
 ```
+
+## Market Cap Oscillator (Phase 5) - Pending
+
+### 개요
+시가총액과 외국인/기관 수급 데이터를 기반으로 MACD 스타일 오실레이터를 계산하여 매매 신호 생성
+
+### Oscillator (`indicator/oscillator.py`)
+수급 기반 오실레이터 계산
+- `calc(client, ticker, days)`: 오실레이터 계산
+- `analyze_signal(osc_result)`: 매매 신호 분석 (-100 ~ +100 점수)
+
+### 핵심 계산
+```python
+# Supply Ratio = (외국인 + 기관 순매수) / 시가총액
+supply_ratio = (foreign_5d + institution_5d) / market_cap
+
+# MACD 스타일 오실레이터
+ema12 = EMA(supply_ratio, 12)
+ema26 = EMA(supply_ratio, 26)
+macd = ema12 - ema26
+signal = EMA(macd, 9)
+oscillator = macd - signal  # Histogram
+```
+
+### 매매 신호 점수
+| 항목 | 점수 | 설명 |
+|------|------|------|
+| 오실레이터 값 | ±40 | >0.5%: +40, >0.2%: +20 |
+| MACD 크로스 | ±30 | 골든크로스: +30, 데드크로스: -30 |
+| 히스토그램 추세 | ±30 | 상승 지속: +30, 하락 지속: -30 |
+
+### 신호 유형
+| Score | Signal | 설명 |
+|-------|--------|------|
+| >= 60 | STRONG_BUY | 강력 매수 |
+| >= 20 | BUY | 매수 |
+| -20 ~ 20 | NEUTRAL | 중립 |
+| <= -20 | SELL | 매도 |
+| <= -60 | STRONG_SELL | 강력 매도 |
+
+### 사용 예시
+```python
+from stock_analyzer.indicator import oscillator
+
+# 오실레이터 계산
+result = oscillator.calc(client, "005930", days=180)
+if result["ok"]:
+    data = result["data"]
+    print(f"시가총액: {data['market_cap'][-1]:.1f}조")
+    print(f"오실레이터: {data['oscillator'][-1]:.6f}")
+
+# 매매 신호 분석
+signal = oscillator.analyze_signal(result)
+if signal["ok"]:
+    print(f"점수: {signal['data']['total_score']}")
+    print(f"신호: {signal['data']['signal_type']}")
+    print(f"설명: {signal['data']['description']}")
+```
+
+### 차트 (`chart/oscillator.py`)
+- `plot(osc_data)`: 듀얼 축 차트 (시가총액 + 오실레이터)
 
 ## Environment Setup
 
