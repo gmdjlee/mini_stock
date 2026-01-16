@@ -6,6 +6,8 @@
 
 ## Current Status
 
+### Python 패키지 (stock-analyzer)
+
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 0 | ✅ Done | 프로젝트 설정, 키움 API 클라이언트 |
@@ -13,7 +15,21 @@
 | Phase 2 | ✅ Done | 기술적 지표 (Trend, Elder, DeMark) |
 | Phase 3 | ✅ Done | 차트 시각화 (Candle, Line, Bar) |
 | Phase 4 | ✅ Done | 조건검색, 시장 지표 |
-| Phase 5 | 📋 Pending | 시가총액 & 수급 오실레이터 |
+| Phase 5 | ✅ Done | 시가총액 & 수급 오실레이터 |
+
+**테스트**: 160개 (11 테스트 파일, 모두 통과)
+**코드**: ~5,437 lines (28 Python 파일)
+
+### Android 앱 (StockApp)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| App Phase 0 | 📋 Ready | Android 프로젝트 설정, Chaquopy 통합 |
+| App Phase 1 | 📋 Pending | 종목 검색, 수급 분석 화면 |
+| App Phase 2 | 📋 Pending | 기술적 지표 화면 (Vico Charts) |
+| App Phase 3 | 📋 Pending | 시장 지표, 조건검색 화면 |
+
+**사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ## Quick Commands
 
@@ -301,7 +317,7 @@ if result["ok"]:
         print(f"{stock['ticker']}: {stock['name']} ({stock['change']}%)")
 ```
 
-## Market Cap Oscillator (Phase 5) - Pending
+## Market Cap Oscillator (Phase 5)
 
 ### 개요
 시가총액과 외국인/기관 수급 데이터를 기반으로 MACD 스타일 오실레이터를 계산하여 매매 신호 생성
@@ -385,3 +401,102 @@ KIWOOM_BASE_URL=https://api.kiwoom.com
 ## Spec Document
 
 상세 명세서: `docs/STOCK_APP_SPEC.md`
+
+---
+
+## Android 앱 개발 가이드
+
+### 사전 준비 요약
+
+**상세 문서**: `docs/ANDROID_PREPARATION.md`
+
+#### 핵심 기술 스택
+| 기술 | 용도 | 버전 |
+|------|------|------|
+| Kotlin | 앱 개발 언어 | 2.1.0+ |
+| Jetpack Compose | UI 프레임워크 | BOM 2024.12 |
+| Chaquopy | Python 통합 | 15.0.1+ |
+| Hilt | 의존성 주입 | 2.54 |
+| Room | 로컬 DB | 2.8.3 |
+| Vico | 차트 라이브러리 | 2.0.0 |
+
+#### Chaquopy 호환성
+
+| 패키지 | 지원 | 앱에서 처리 |
+|--------|------|-------------|
+| `requests` | ✅ | Python |
+| `python-dotenv` | ✅ | Python |
+| `numpy` | ⚠️ | Python (wheel 필요) |
+| `pandas` | ⚠️ | Python (wheel 필요) |
+| `matplotlib` | ❌ | **Vico Charts로 대체** |
+| `mplfinance` | ❌ | **Vico Charts로 대체** |
+
+#### Python 모듈 → Android 매핑
+
+```
+Python (Android용)           Kotlin (Android)
+├── client/kiwoom.py    →   PyClient 호출
+├── stock/search.py     →   SearchScreen
+├── stock/analysis.py   →   AnalysisScreen
+├── stock/ohlcv.py      →   ChartScreen (Vico)
+├── indicator/trend.py  →   IndicatorScreen
+├── indicator/elder.py  →   IndicatorScreen
+├── indicator/demark.py →   IndicatorScreen
+├── market/deposit.py   →   MarketScreen
+├── search/condition.py →   ConditionScreen
+│
+└── chart/*             ✗   Vico Charts로 대체
+```
+
+#### 개발 순서
+
+1. **Android Studio 프로젝트 생성** (Empty Compose Activity)
+2. **Gradle 설정** (Chaquopy, Hilt, Room, Vico)
+3. **Python 패키지 복사** (`chart/` 제외)
+4. **PyClient 브릿지 구현**
+5. **Feature별 화면 구현**
+
+#### Quick Commands (Android)
+
+```bash
+# 프로젝트 생성 후
+cd StockApp
+
+# 빌드
+./gradlew build
+
+# 단위 테스트
+./gradlew test
+
+# 앱 설치 및 실행
+./gradlew installDebug
+```
+
+### PyClient 사용 예시
+
+```kotlin
+// Python 함수 호출
+val result = pyClient.call(
+    module = "stock_analyzer.stock.search",
+    func = "search",
+    args = listOf(client, "삼성전자")
+) { json ->
+    json.decodeFromString<SearchResponse>(json)
+}
+
+when (result) {
+    is Result.Success -> {
+        // data 처리
+    }
+    is Result.Failure -> {
+        // error 처리
+    }
+}
+```
+
+### 참고 문서
+
+- Android 사전 준비: `docs/ANDROID_PREPARATION.md`
+- 상세 명세서: `docs/STOCK_APP_SPEC.md`
+- Chaquopy: https://chaquo.com/chaquopy/
+- Vico Charts: https://github.com/patrykandpatrick/vico

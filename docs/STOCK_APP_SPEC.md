@@ -1643,15 +1643,28 @@ chaquopy = "15.0.1"
 
 ## 13. 마일스톤
 
-| Phase | 목표 | 산출물 | 예상 기간 |
-|-------|------|--------|----------|
-| P0 | 프로젝트 설정 | Python/App 프로젝트 구조, 키움 클라이언트 | 1일 |
-| P1 | 종목 검색 + 수급 | 검색 화면, 분석 화면 | 3일 |
-| P2 | 기술적 지표 | 지표 화면 (3 tabs) | 3일 |
-| P3 | 차트 시각화 | 캔들/라인 차트 | 2일 |
-| P4 | 조건검색 + 시장 지표 | 조건검색, 예탁금 화면 | 2일 |
-| P5 | **수급 오실레이터** | 오실레이터 계산, 매매신호, 차트 | 2일 |
-| P6 | 최적화 | 캐싱, 성능 개선 | 2일 |
+### Python 패키지 (완료)
+
+| Phase | 목표 | 상태 |
+|-------|------|------|
+| P0 | 프로젝트 설정, 키움 API 클라이언트 | ✅ 완료 |
+| P1 | 종목 검색 + 수급 분석 | ✅ 완료 |
+| P2 | 기술적 지표 (Trend, Elder, DeMark) | ✅ 완료 |
+| P3 | 차트 시각화 (Candle, Line, Bar) | ✅ 완료 |
+| P4 | 조건검색 + 시장 지표 | ✅ 완료 |
+| P5 | 수급 오실레이터 | ✅ 완료 |
+
+### Android 앱
+
+| Phase | 목표 | 산출물 | 상태 |
+|-------|------|--------|------|
+| App P0 | Android 프로젝트 설정 | Chaquopy, Hilt, Room, Vico 설정 | 📋 Ready |
+| App P1 | 종목 검색 + 수급 분석 | SearchScreen, AnalysisScreen | 📋 Pending |
+| App P2 | 기술적 지표 + 차트 | IndicatorScreen, Vico Charts | 📋 Pending |
+| App P3 | 시장 지표 + 조건검색 | MarketScreen, ConditionScreen | 📋 Pending |
+| App P4 | 최적화 | 캐싱, 성능 개선 | 📋 Pending |
+
+**사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ---
 

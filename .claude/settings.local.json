@@ -4,7 +4,11 @@
       "Bash(uv run pytest:*)",
       "Bash(cd:*)",
       "Bash(uv run python:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(python3:*)"
     ]
   }
 }
