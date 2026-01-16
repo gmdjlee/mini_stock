@@ -5,45 +5,12 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 
 from ..core.log import log_info
+from .utils import format_xaxis, parse_date, sanitize_text
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
-
-
-def _configure_korean_font():
-    """Configure matplotlib to use a font that supports Korean characters."""
-    korean_fonts = [
-        "Malgun Gothic",
-        "맑은 고딕",
-        "NanumGothic",
-        "NanumBarunGothic",
-        "AppleGothic",
-        "Apple SD Gothic Neo",
-        "Noto Sans CJK KR",
-    ]
-
-    available_fonts = {f.name for f in fm.fontManager.ttflist}
-
-    for font in korean_fonts:
-        if font in available_fonts:
-            plt.rcParams["font.family"] = font
-            plt.rcParams["axes.unicode_minus"] = False
-            return font
-
-    return None
-
-
-_configured_font = _configure_korean_font()
-
-
-def _sanitize_text(text: str) -> str:
-    """Remove Korean characters if no Korean font is available."""
-    if _configured_font is not None:
-        return text
-    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def _format_mcap_label(mcap_value: float) -> str:
@@ -114,7 +81,7 @@ def plot(
             gridspec_kw={"height_ratios": [2.5, 1.5, 2, 1.5]},
         )
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
         x = range(len(dates))
 
         # Panel 1: Market Cap + Oscillator (Dual-Axis per spec)
@@ -140,7 +107,7 @@ def plot(
         line1 = ax_mcap.plot(x, market_cap, color="#1976D2", linewidth=2, label="Market Cap")
 
         chart_title = title or f"{osc_data['ticker']} {osc_data.get('name', '')} Supply Oscillator"
-        ax_mcap.set_title(_sanitize_text(chart_title), fontsize=14, fontweight="bold")
+        ax_mcap.set_title(sanitize_text(chart_title), fontsize=14, fontweight="bold")
 
         # Format Y-axis label with appropriate unit
         mcap_label = _format_mcap_label(mcap_max)
@@ -176,7 +143,7 @@ def plot(
         ax_mcap.legend(lines, labels, loc="upper left")
 
         # Format x-axis for Panel 1
-        _format_xaxis(ax_mcap, date_objs)
+        format_xaxis(ax_mcap, date_objs)
 
         # Panel 2: Foreign/Institution 5D Net Buy
         ax_supply = axes[1]
@@ -197,7 +164,7 @@ def plot(
             ax_supply.set_ylabel("Net Buy (Billion KRW)", fontsize=10)
             ax_supply.grid(True, alpha=0.3, axis="y")
             ax_supply.legend(loc="upper left", fontsize=8)
-            _format_xaxis(ax_supply, date_objs)
+            format_xaxis(ax_supply, date_objs)
 
         # Panel 3: MACD and Signal
         ax_macd = axes[2]
@@ -228,7 +195,7 @@ def plot(
                 ax_macd.annotate("DC", (i, macd_pct[i]), textcoords="offset points",
                                xytext=(0, -15), ha="center", fontsize=8, color="#F44336")
 
-        _format_xaxis(ax_macd, date_objs)
+        format_xaxis(ax_macd, date_objs)
 
         # Panel 4: Oscillator Histogram
         ax_hist = axes[3]
@@ -240,7 +207,7 @@ def plot(
         ax_hist.grid(True, alpha=0.3, axis="y")
 
         # Format x-axis
-        _format_xaxis(ax_hist, date_objs)
+        format_xaxis(ax_hist, date_objs)
 
         plt.tight_layout()
 
@@ -327,7 +294,7 @@ def plot_with_signal(
             gridspec_kw={"height_ratios": [2, 2, 1.5, 0.8]},
         )
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
         x = range(len(dates))
 
         # Panel 1: Market Cap + Oscillator (Dual-Axis per spec)
@@ -353,7 +320,7 @@ def plot_with_signal(
         line1 = ax_mcap.plot(x, market_cap, color="#1976D2", linewidth=2, label="Market Cap")
 
         chart_title = title or f"{osc_data['ticker']} {osc_data.get('name', '')} Supply Oscillator"
-        ax_mcap.set_title(_sanitize_text(chart_title), fontsize=14, fontweight="bold")
+        ax_mcap.set_title(sanitize_text(chart_title), fontsize=14, fontweight="bold")
 
         # Format Y-axis label with appropriate unit
         mcap_label = _format_mcap_label(mcap_max)
@@ -387,7 +354,7 @@ def plot_with_signal(
         labels = [l.get_label() for l in lines]
         ax_mcap.legend(lines, labels, loc="upper left")
 
-        _format_xaxis(ax_mcap, date_objs)
+        format_xaxis(ax_mcap, date_objs)
 
         # Panel 2: MACD and Signal
         ax_macd = axes[1]
@@ -418,7 +385,7 @@ def plot_with_signal(
                 ax_macd.annotate("DC", (i, macd_pct[i]), textcoords="offset points",
                                xytext=(0, -15), ha="center", fontsize=8, color="#F44336")
 
-        _format_xaxis(ax_macd, date_objs)
+        format_xaxis(ax_macd, date_objs)
 
         # Panel 3: Oscillator Histogram
         ax_osc = axes[2]
@@ -428,7 +395,7 @@ def plot_with_signal(
         ax_osc.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
         ax_osc.set_ylabel("Histogram (%)", fontsize=10)
         ax_osc.grid(True, alpha=0.3, axis="y")
-        _format_xaxis(ax_osc, date_objs)
+        format_xaxis(ax_osc, date_objs)
 
         # Panel 4: Signal Summary
         ax_signal = axes[3]
@@ -454,14 +421,14 @@ def plot_with_signal(
         ax_signal.add_patch(plt.Rectangle((0.05, 0.1), 0.9, 0.8, facecolor=bg_color, edgecolor="none"))
         ax_signal.text(
             0.5, 0.6,
-            f"{_sanitize_text(signal_type)} (Score: {total_score})",
+            f"{sanitize_text(signal_type)} (Score: {total_score})",
             ha="center", va="center",
             fontsize=14, fontweight="bold", color=text_color,
             transform=ax_signal.transAxes
         )
         ax_signal.text(
             0.5, 0.25,
-            _sanitize_text(description),
+            sanitize_text(description),
             ha="center", va="center",
             fontsize=11, color=text_color,
             transform=ax_signal.transAxes
@@ -501,33 +468,3 @@ def plot_with_signal(
             "ok": False,
             "error": {"code": "CHART_ERROR", "msg": f"차트 생성 실패: {str(e)}"},
         }
-
-
-def _parse_date(date_str: str) -> datetime:
-    """Parse date string to datetime."""
-    try:
-        # Handle YYYY-MM-DD format
-        if "-" in date_str:
-            return datetime.strptime(date_str, "%Y-%m-%d")
-        # Handle YYYYMMDD format
-        return datetime.strptime(date_str, "%Y%m%d")
-    except ValueError:
-        return datetime.now()
-
-
-def _format_xaxis(ax, dates: List[datetime]):
-    """Format x-axis with date labels."""
-    n = len(dates)
-    if n <= 30:
-        step = 5
-    elif n <= 90:
-        step = 10
-    else:
-        step = 20
-
-    tick_positions = list(range(0, n, step))
-    tick_labels = [dates[i].strftime("%m/%d") for i in tick_positions if i < n]
-
-    ax.set_xticks(tick_positions[: len(tick_labels)])
-    ax.set_xticklabels(tick_labels, rotation=45, ha="right")
-    ax.set_xlim(-1, n)

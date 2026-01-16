@@ -5,50 +5,12 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 
 from ..core.log import log_info
+from .utils import format_xaxis, parse_date, sanitize_text
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
-
-
-def _configure_korean_font():
-    """Configure matplotlib to use a font that supports Korean characters."""
-    # List of fonts that typically support Korean (excluding DejaVu Sans which doesn't)
-    korean_fonts = [
-        "Malgun Gothic",  # Windows
-        "맑은 고딕",  # Windows (Korean name)
-        "NanumGothic",  # Linux/Mac (commonly installed)
-        "NanumBarunGothic",
-        "AppleGothic",  # Mac
-        "Apple SD Gothic Neo",  # Mac
-        "Noto Sans CJK KR",  # Cross-platform
-    ]
-
-    # Get available system fonts
-    available_fonts = {f.name for f in fm.fontManager.ttflist}
-
-    # Find the first available Korean font
-    for font in korean_fonts:
-        if font in available_fonts:
-            plt.rcParams["font.family"] = font
-            plt.rcParams["axes.unicode_minus"] = False  # Fix minus sign display
-            return font
-
-    return None
-
-
-# Try to configure Korean font at module load
-_configured_font = _configure_korean_font()
-
-
-def _sanitize_text(text: str) -> str:
-    """Remove Korean characters if no Korean font is available."""
-    if _configured_font is not None:
-        return text
-    # Remove Korean characters (Hangul range: U+AC00 to U+D7A3)
-    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def plot(
@@ -110,7 +72,7 @@ def plot(
         fig, ax = plt.subplots(figsize=figsize)
 
         # Parse dates
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Determine colors
         if color_by_sign:
@@ -132,12 +94,12 @@ def plot(
                 ax.axhline(y=y, color=line_color, linestyle=linestyle, alpha=0.5)
 
         # Formatting
-        ax.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
-        ax.set_ylabel(_sanitize_text(ylabel), fontsize=10)
+        ax.set_title(sanitize_text(title), fontsize=14, fontweight="bold")
+        ax.set_ylabel(sanitize_text(ylabel), fontsize=10)
         ax.grid(True, alpha=0.3, axis="y")
 
         # Format x-axis
-        _format_xaxis(ax, date_objs)
+        format_xaxis(ax, date_objs)
 
         plt.tight_layout()
 
@@ -209,7 +171,7 @@ def plot_multi(
     try:
         fig, ax = plt.subplots(figsize=figsize)
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Default colors
         default_colors = {
@@ -272,13 +234,13 @@ def plot_multi(
         ax.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
 
         # Formatting
-        ax.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
-        ax.set_ylabel(_sanitize_text(ylabel), fontsize=10)
+        ax.set_title(sanitize_text(title), fontsize=14, fontweight="bold")
+        ax.set_ylabel(sanitize_text(ylabel), fontsize=10)
         ax.grid(True, alpha=0.3, axis="y")
         ax.legend(loc="upper left")
 
         # Format x-axis
-        _format_xaxis(ax, date_objs)
+        format_xaxis(ax, date_objs)
 
         plt.tight_layout()
 
@@ -353,7 +315,7 @@ def plot_supply_demand(
             sharex=True,
         )
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Panel 1: Market Cap
         ax_mcap = axes[0]
@@ -375,7 +337,7 @@ def plot_supply_demand(
 
         chart_title = title or f"{analysis_data['ticker']} {analysis_data.get('name', '')} Supply/Demand"
         ax_mcap.set_title(
-            _sanitize_text(chart_title),
+            sanitize_text(chart_title),
             fontsize=14,
             fontweight="bold",
         )
@@ -408,7 +370,7 @@ def plot_supply_demand(
         ax_flow.legend(loc="upper left")
 
         # Format x-axis
-        _format_xaxis(ax_flow, date_objs)
+        format_xaxis(ax_flow, date_objs)
 
         plt.tight_layout()
 
@@ -478,7 +440,7 @@ def plot_demark(
     try:
         fig, ax = plt.subplots(figsize=figsize)
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         setup_count = demark_data.get("setup_count", [])
         setup_type = demark_data.get("setup_type", [])
@@ -525,7 +487,7 @@ def plot_demark(
         # Formatting
         demark_title = title or f"{demark_data['ticker']} DeMark TD Setup"
         ax.set_title(
-            _sanitize_text(demark_title),
+            sanitize_text(demark_title),
             fontsize=14,
             fontweight="bold",
         )
@@ -534,7 +496,7 @@ def plot_demark(
         ax.legend(loc="upper left")
 
         # Format x-axis
-        _format_xaxis(ax, date_objs)
+        format_xaxis(ax, date_objs)
 
         plt.tight_layout()
 
@@ -568,29 +530,3 @@ def plot_demark(
             "ok": False,
             "error": {"code": "CHART_ERROR", "msg": f"차트 생성 실패: {str(e)}"},
         }
-
-
-def _parse_date(date_str: str) -> datetime:
-    """Parse date string (YYYYMMDD) to datetime."""
-    try:
-        return datetime.strptime(date_str, "%Y%m%d")
-    except ValueError:
-        return datetime.now()
-
-
-def _format_xaxis(ax, dates: List[datetime]):
-    """Format x-axis with date labels."""
-    n = len(dates)
-    if n <= 30:
-        step = 5
-    elif n <= 90:
-        step = 10
-    else:
-        step = 20
-
-    tick_positions = list(range(0, n, step))
-    tick_labels = [dates[i].strftime("%m/%d") for i in tick_positions if i < n]
-
-    ax.set_xticks(tick_positions[: len(tick_labels)])
-    ax.set_xticklabels(tick_labels, rotation=45, ha="right")
-    ax.set_xlim(-1, n)

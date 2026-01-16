@@ -2,53 +2,21 @@
 
 import io
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 
 from ..core.log import log_info
+from .utils import (
+    COLORS,
+    elder_to_color,
+    format_xaxis,
+    parse_date,
+    sanitize_text,
+)
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
-
-
-def _configure_korean_font():
-    """Configure matplotlib to use a font that supports Korean characters."""
-    # List of fonts that typically support Korean (excluding DejaVu Sans which doesn't)
-    korean_fonts = [
-        "Malgun Gothic",  # Windows
-        "맑은 고딕",  # Windows (Korean name)
-        "NanumGothic",  # Linux/Mac (commonly installed)
-        "NanumBarunGothic",
-        "AppleGothic",  # Mac
-        "Apple SD Gothic Neo",  # Mac
-        "Noto Sans CJK KR",  # Cross-platform
-    ]
-
-    # Get available system fonts
-    available_fonts = {f.name for f in fm.fontManager.ttflist}
-
-    # Find the first available Korean font
-    for font in korean_fonts:
-        if font in available_fonts:
-            plt.rcParams["font.family"] = font
-            plt.rcParams["axes.unicode_minus"] = False  # Fix minus sign display
-            return font
-
-    return None
-
-
-# Try to configure Korean font at module load
-_configured_font = _configure_korean_font()
-
-
-def _sanitize_text(text: str) -> str:
-    """Remove Korean characters if no Korean font is available."""
-    if _configured_font is not None:
-        return text
-    # Remove Korean characters (Hangul range: U+AC00 to U+D7A3)
-    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def plot(
@@ -59,7 +27,7 @@ def plot(
     colors: Optional[Dict[str, str]] = None,
     figsize: tuple = (12, 6),
     fill_between: Optional[Dict[str, tuple]] = None,
-    hlines: Optional[List[Dict[str, Any]]] = None,
+    hlines: Optional[List[Dict]] = None,
     save_path: Optional[str] = None,
 ) -> Dict:
     """
@@ -106,14 +74,14 @@ def plot(
         fig, ax = plt.subplots(figsize=figsize)
 
         # Parse dates
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Default colors
         default_colors = {
-            "MA5": "#FF9800",
-            "MA20": "#2196F3",
-            "MA60": "#9C27B0",
-            "MA120": "#795548",
+            "ma5": COLORS["ma5"],
+            "ma20": COLORS["ma20"],
+            "ma60": COLORS["ma60"],
+            "ma120": COLORS["ma120"],
             "close": "#1976D2",
             "price": "#1976D2",
             "cmf": "#00BCD4",
@@ -123,21 +91,18 @@ def plot(
         }
 
         if colors:
-            default_colors.update(colors)
+            default_colors.update({k.lower(): v for k, v in colors.items()})
 
         # Draw lines
         for name, values in series.items():
             if not values:
                 continue
 
-            x_vals = []
-            y_vals = []
-            for i, v in enumerate(values):
-                if v is not None:
-                    x_vals.append(i)
-                    y_vals.append(v)
+            x_vals, y_vals = _filter_none(values)
+            if not x_vals:
+                continue
 
-            color = default_colors.get(name.lower(), "#607D8B")
+            color = default_colors.get(name.lower(), COLORS["ma_default"])
             ax.plot(x_vals, y_vals, label=name, color=color, linewidth=1.5)
 
         # Fill between if specified
@@ -169,13 +134,13 @@ def plot(
                 )
 
         # Formatting
-        ax.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
-        ax.set_ylabel(_sanitize_text(ylabel), fontsize=10)
+        ax.set_title(sanitize_text(title), fontsize=14, fontweight="bold")
+        ax.set_ylabel(sanitize_text(ylabel), fontsize=10)
         ax.grid(True, alpha=0.3)
         ax.legend(loc="upper left")
 
         # Format x-axis
-        _format_xaxis(ax, date_objs)
+        format_xaxis(ax, date_objs)
 
         plt.tight_layout()
 
@@ -252,7 +217,7 @@ def plot_trend(
             sharex=True,
         )
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Panel 1: MA lines
         ax_ma = axes[0]
@@ -261,14 +226,15 @@ def plot_trend(
             "MA20": trend_data.get("ma20", []),
             "MA60": trend_data.get("ma60", []),
         }
+        ma_colors = {"MA5": COLORS["ma5"], "MA20": COLORS["ma20"], "MA60": COLORS["ma60"]}
+
         for name, values in ma_series.items():
             x_vals, y_vals = _filter_none(values)
             if x_vals:
-                color = {"MA5": "#FF9800", "MA20": "#2196F3", "MA60": "#9C27B0"}[name]
-                ax_ma.plot(x_vals, y_vals, label=name, color=color, linewidth=1.5)
+                ax_ma.plot(x_vals, y_vals, label=name, color=ma_colors[name], linewidth=1.5)
 
         trend_title = title or f"{trend_data['ticker']} Trend Signal"
-        ax_ma.set_title(_sanitize_text(trend_title), fontsize=14, fontweight="bold")
+        ax_ma.set_title(sanitize_text(trend_title), fontsize=14, fontweight="bold")
         ax_ma.set_ylabel("Price", fontsize=10)
         ax_ma.grid(True, alpha=0.3)
         ax_ma.legend(loc="upper left")
@@ -277,11 +243,11 @@ def plot_trend(
         ax_cmf = axes[1]
         cmf_values = trend_data.get("cmf", [])
         x_vals = list(range(len(cmf_values)))
-        colors = ["#26A69A" if v >= 0 else "#EF5350" for v in cmf_values]
-        ax_cmf.bar(x_vals, cmf_values, color=colors, alpha=0.7)
+        bar_colors = [COLORS["up"] if v >= 0 else COLORS["down"] for v in cmf_values]
+        ax_cmf.bar(x_vals, cmf_values, color=bar_colors, alpha=0.7)
         ax_cmf.axhline(y=0, color="gray", linestyle="-", alpha=0.5)
-        ax_cmf.axhline(y=0.05, color="#26A69A", linestyle="--", alpha=0.5)
-        ax_cmf.axhline(y=-0.05, color="#EF5350", linestyle="--", alpha=0.5)
+        ax_cmf.axhline(y=0.05, color=COLORS["up"], linestyle="--", alpha=0.5)
+        ax_cmf.axhline(y=-0.05, color=COLORS["down"], linestyle="--", alpha=0.5)
         ax_cmf.set_ylabel("CMF", fontsize=10)
         ax_cmf.set_ylim(-0.5, 0.5)
         ax_cmf.grid(True, alpha=0.3)
@@ -289,9 +255,9 @@ def plot_trend(
         # Panel 3: Fear/Greed Index
         ax_fg = axes[2]
         fg_values = trend_data.get("fear_greed", [])
-        ax_fg.fill_between(range(len(fg_values)), 0, 40, color="#EF5350", alpha=0.2)
+        ax_fg.fill_between(range(len(fg_values)), 0, 40, color=COLORS["down"], alpha=0.2)
         ax_fg.fill_between(range(len(fg_values)), 40, 60, color="#9E9E9E", alpha=0.2)
-        ax_fg.fill_between(range(len(fg_values)), 60, 100, color="#26A69A", alpha=0.2)
+        ax_fg.fill_between(range(len(fg_values)), 60, 100, color=COLORS["up"], alpha=0.2)
         ax_fg.plot(range(len(fg_values)), fg_values, color="#FF5722", linewidth=1.5)
         ax_fg.axhline(y=50, color="gray", linestyle="-", alpha=0.5)
         ax_fg.set_ylabel("Fear/Greed", fontsize=10)
@@ -299,7 +265,7 @@ def plot_trend(
         ax_fg.grid(True, alpha=0.3)
 
         # Format x-axis
-        _format_xaxis(ax_fg, date_objs)
+        format_xaxis(ax_fg, date_objs)
 
         plt.tight_layout()
 
@@ -375,7 +341,7 @@ def plot_elder(
             sharex=True,
         )
 
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Panel 1: EMA13 with color markers
         ax_ema = axes[0]
@@ -389,11 +355,11 @@ def plot_elder(
         # Color markers based on Elder colors
         for i, (x, y) in enumerate(zip(x_vals, y_vals)):
             idx = x if x < len(colors) else 0
-            color = _elder_to_color(colors[idx] if idx < len(colors) else "blue")
+            color = elder_to_color(colors[idx] if idx < len(colors) else "blue")
             ax_ema.scatter(x, y, color=color, s=20, alpha=0.8)
 
         elder_title = title or f"{elder_data['ticker']} Elder Impulse"
-        ax_ema.set_title(_sanitize_text(elder_title), fontsize=14, fontweight="bold")
+        ax_ema.set_title(sanitize_text(elder_title), fontsize=14, fontweight="bold")
         ax_ema.set_ylabel("EMA13", fontsize=10)
         ax_ema.grid(True, alpha=0.3)
         ax_ema.legend(loc="upper left")
@@ -407,15 +373,13 @@ def plot_elder(
             if val is None:
                 bar_colors.append("#9E9E9E")
             elif val >= 0:
-                # Green if rising, lighter if falling
                 if i > 0 and macd_hist[i - 1] is not None and val > macd_hist[i - 1]:
-                    bar_colors.append("#26A69A")
+                    bar_colors.append(COLORS["up"])
                 else:
                     bar_colors.append("#80CBC4")
             else:
-                # Red if falling, lighter if rising
                 if i > 0 and macd_hist[i - 1] is not None and val < macd_hist[i - 1]:
-                    bar_colors.append("#EF5350")
+                    bar_colors.append(COLORS["down"])
                 else:
                     bar_colors.append("#FFCDD2")
 
@@ -426,7 +390,7 @@ def plot_elder(
         ax_macd.grid(True, alpha=0.3)
 
         # Format x-axis
-        _format_xaxis(ax_macd, date_objs)
+        format_xaxis(ax_macd, date_objs)
 
         plt.tight_layout()
 
@@ -462,14 +426,6 @@ def plot_elder(
         }
 
 
-def _parse_date(date_str: str) -> datetime:
-    """Parse date string (YYYYMMDD) to datetime."""
-    try:
-        return datetime.strptime(date_str, "%Y%m%d")
-    except ValueError:
-        return datetime.now()
-
-
 def _filter_none(values: List) -> tuple:
     """Filter None values and return x, y lists."""
     x_vals = []
@@ -479,31 +435,3 @@ def _filter_none(values: List) -> tuple:
             x_vals.append(i)
             y_vals.append(v)
     return x_vals, y_vals
-
-
-def _elder_to_color(elder: str) -> str:
-    """Convert Elder Impulse color name to matplotlib color."""
-    colors = {
-        "green": "#26A69A",
-        "red": "#EF5350",
-        "blue": "#42A5F5",
-    }
-    return colors.get(elder, "#42A5F5")
-
-
-def _format_xaxis(ax, dates: List[datetime]):
-    """Format x-axis with date labels."""
-    n = len(dates)
-    if n <= 30:
-        step = 5
-    elif n <= 90:
-        step = 10
-    else:
-        step = 20
-
-    tick_positions = list(range(0, n, step))
-    tick_labels = [dates[i].strftime("%m/%d") for i in tick_positions if i < n]
-
-    ax.set_xticks(tick_positions[: len(tick_labels)])
-    ax.set_xticklabels(tick_labels, rotation=45, ha="right")
-    ax.set_xlim(-1, n)

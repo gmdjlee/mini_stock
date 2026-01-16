@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from ..client.kiwoom import KiwoomClient
+from ..core import safe_float, safe_int
 from ..core.log import log_info
 
 
@@ -119,8 +120,8 @@ def search(client: KiwoomClient, cond_idx: str, cond_name: str) -> Dict:
         stocks.append({
             "ticker": item.get("stk_cd", ""),
             "name": item.get("stk_nm", ""),
-            "price": _safe_int(item.get("cur_prc", 0)),
-            "change": _safe_float(item.get("chg_rt", 0)),
+            "price": safe_int(item.get("cur_prc", 0)),
+            "change": safe_float(item.get("chg_rt", 0)),
         })
 
     log_info("search.condition", "search complete", {
@@ -182,19 +183,3 @@ def search_by_idx(client: KiwoomClient, cond_idx: str) -> Dict:
         }
 
     return search(client, cond_idx, cond_name)
-
-
-def _safe_int(value) -> int:
-    """Safely convert value to int."""
-    try:
-        return int(value) if value is not None else 0
-    except (ValueError, TypeError):
-        return 0
-
-
-def _safe_float(value) -> float:
-    """Safely convert value to float."""
-    try:
-        return float(value) if value is not None else 0.0
-    except (ValueError, TypeError):
-        return 0.0

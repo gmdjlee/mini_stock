@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from ..client.kiwoom import KiwoomClient
+from ..core import safe_float, safe_int
 from ..core.log import log_info
 
 
@@ -74,8 +75,8 @@ def get_deposit(client: KiwoomClient, days: int = 30) -> Dict:
         if len(dt) == 8:
             dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
         dates.append(dt)
-        deposit.append(_safe_int(item.get("cust_deposit", 0)))
-        credit_loan.append(_safe_int(item.get("credit_loan", 0)))
+        deposit.append(safe_int(item.get("cust_deposit", 0)))
+        credit_loan.append(safe_int(item.get("credit_loan", 0)))
 
     log_info("market.deposit", "get_deposit complete", {"days": len(dates)})
 
@@ -138,8 +139,8 @@ def get_credit(client: KiwoomClient, days: int = 30) -> Dict:
         if len(dt) == 8:
             dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
         dates.append(dt)
-        credit_balance.append(_safe_int(item.get("credit_bal", 0)))
-        credit_ratio.append(_safe_float(item.get("credit_rt", 0)))
+        credit_balance.append(safe_int(item.get("credit_bal", 0)))
+        credit_ratio.append(safe_float(item.get("credit_rt", 0)))
 
     log_info("market.deposit", "get_credit complete", {"days": len(dates)})
 
@@ -208,19 +209,3 @@ def get_market_indicators(client: KiwoomClient, days: int = 30) -> Dict:
             "credit_ratio": credit_data["credit_ratio"],
         },
     }
-
-
-def _safe_int(value) -> int:
-    """Safely convert value to int."""
-    try:
-        return int(value) if value is not None else 0
-    except (ValueError, TypeError):
-        return 0
-
-
-def _safe_float(value) -> float:
-    """Safely convert value to float."""
-    try:
-        return float(value) if value is not None else 0.0
-    except (ValueError, TypeError):
-        return 0.0

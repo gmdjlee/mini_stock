@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from ..client.kiwoom import KiwoomClient
+from ..core import safe_int
 from ..core.date import days_ago, today_str
 from ..core.log import log_info
 
@@ -220,11 +221,11 @@ def _parse_chart_data(ticker: str, chart_data: List[Dict]) -> Dict:
     for item in chart_data:
         dates.append(item.get("dt", ""))
         # Support both official API field names and legacy field names
-        opens.append(_safe_int(_get_field(item, "open_pric", "opn_prc")))
-        highs.append(_safe_int(_get_field(item, "high_pric", "high_prc")))
-        lows.append(_safe_int(_get_field(item, "low_pric", "low_prc")))
-        closes.append(_safe_int(_get_field(item, "cur_prc", "cls_prc")))
-        volumes.append(_safe_int(_get_field(item, "trde_qty", "trd_qty")))
+        opens.append(safe_int(_get_field(item, "open_pric", "opn_prc")))
+        highs.append(safe_int(_get_field(item, "high_pric", "high_prc")))
+        lows.append(safe_int(_get_field(item, "low_pric", "low_prc")))
+        closes.append(safe_int(_get_field(item, "cur_prc", "cls_prc")))
+        volumes.append(safe_int(_get_field(item, "trde_qty", "trd_qty")))
 
     return {
         "ticker": ticker,
@@ -243,11 +244,3 @@ def _get_field(item: Dict, *field_names):
         if name in item and item[name] is not None:
             return item[name]
     return 0
-
-
-def _safe_int(value) -> int:
-    """Safely convert value to int."""
-    try:
-        return int(value) if value is not None else 0
-    except (ValueError, TypeError):
-        return 0

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from ..client.kiwoom import KiwoomClient
+from ..core import safe_float, safe_int
 from ..core.log import log_err, log_info
 
 
@@ -65,7 +66,7 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
     name = info_resp.data.get("stk_nm", ticker)
     # API field name per official docs: mac (시가총액)
     # ka10001 API returns market cap in 억원 (100 million won), convert to raw won
-    mcap = _safe_int(info_resp.data.get("mac", 0)) * 100_000_000
+    mcap = safe_int(info_resp.data.get("mac", 0)) * 100_000_000
 
     # 2. Get investor trend
     trend_resp = client.get_investor_trend(ticker)
@@ -94,14 +95,14 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
         dates.append(dt)
 
         # mrkt_tot_amt is in 백만원 (million won), convert to raw won
-        mrkt_tot_amt = _safe_int(item.get("mrkt_tot_amt", 0))
+        mrkt_tot_amt = safe_int(item.get("mrkt_tot_amt", 0))
         if mrkt_tot_amt > 0:
             mcaps.append(mrkt_tot_amt * 1_000_000)
         else:
             mcaps.append(mcap)  # fallback to basic info mcap (already converted)
         # API field names per official docs: frgnr_invsr (외국인투자자), orgn (기관계)
-        for_5d.append(_safe_int(item.get("frgnr_invsr", 0)))
-        ins_5d.append(_safe_int(item.get("orgn", 0)))
+        for_5d.append(safe_int(item.get("frgnr_invsr", 0)))
+        ins_5d.append(safe_int(item.get("orgn", 0)))
 
     log_info("stock.analysis", "analyze complete", {"ticker": ticker, "days": len(dates)})
 
@@ -152,9 +153,9 @@ def get_foreign_trend(client: KiwoomClient, ticker: str) -> Dict:
         "ok": True,
         "data": {
             "ticker": ticker,
-            "net_buy": _safe_int(data.get("frgn_net", 0)),
-            "holding_qty": _safe_int(data.get("frgn_hold_qty", 0)),
-            "holding_ratio": _safe_float(data.get("frgn_hold_rt", 0)),
+            "net_buy": safe_int(data.get("frgn_net", 0)),
+            "holding_qty": safe_int(data.get("frgn_hold_qty", 0)),
+            "holding_ratio": safe_float(data.get("frgn_hold_rt", 0)),
         },
     }
 
@@ -194,10 +195,10 @@ def get_institution_trend(client: KiwoomClient, ticker: str) -> Dict:
         "ok": True,
         "data": {
             "ticker": ticker,
-            "net_buy": _safe_int(data.get("istt_net", 0)),
-            "finance": _safe_int(data.get("fin_inv_net", 0)),
-            "insurance": _safe_int(data.get("insur_net", 0)),
-            "invest_trust": _safe_int(data.get("inv_trust_net", 0)),
+            "net_buy": safe_int(data.get("istt_net", 0)),
+            "finance": safe_int(data.get("fin_inv_net", 0)),
+            "insurance": safe_int(data.get("insur_net", 0)),
+            "invest_trust": safe_int(data.get("inv_trust_net", 0)),
         },
     }
 
@@ -237,24 +238,8 @@ def get_investor_summary(client: KiwoomClient, ticker: str, period: str = "1") -
         "ok": True,
         "data": {
             "ticker": ticker,
-            "foreign_net": _safe_int(data.get("frgn_net_sum", 0)),
-            "institution_net": _safe_int(data.get("istt_net_sum", 0)),
-            "individual_net": _safe_int(data.get("prsn_net_sum", 0)),
+            "foreign_net": safe_int(data.get("frgn_net_sum", 0)),
+            "institution_net": safe_int(data.get("istt_net_sum", 0)),
+            "individual_net": safe_int(data.get("prsn_net_sum", 0)),
         },
     }
-
-
-def _safe_int(value) -> int:
-    """Safely convert value to int."""
-    try:
-        return int(value) if value is not None else 0
-    except (ValueError, TypeError):
-        return 0
-
-
-def _safe_float(value) -> float:
-    """Safely convert value to float."""
-    try:
-        return float(value) if value is not None else 0.0
-    except (ValueError, TypeError):
-        return 0.0

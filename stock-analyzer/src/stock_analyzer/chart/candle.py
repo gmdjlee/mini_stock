@@ -5,51 +5,18 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-import pandas as pd
 
 from ..core.log import log_info
+from .utils import (
+    COLORS,
+    elder_to_color,
+    format_xaxis,
+    parse_date,
+    sanitize_text,
+)
 
 # Configure matplotlib for non-GUI backend
 plt.switch_backend("Agg")
-
-
-def _configure_korean_font():
-    """Configure matplotlib to use a font that supports Korean characters."""
-    # List of fonts that typically support Korean (excluding DejaVu Sans which doesn't)
-    korean_fonts = [
-        "Malgun Gothic",  # Windows
-        "맑은 고딕",  # Windows (Korean name)
-        "NanumGothic",  # Linux/Mac (commonly installed)
-        "NanumBarunGothic",
-        "AppleGothic",  # Mac
-        "Apple SD Gothic Neo",  # Mac
-        "Noto Sans CJK KR",  # Cross-platform
-    ]
-
-    # Get available system fonts
-    available_fonts = {f.name for f in fm.fontManager.ttflist}
-
-    # Find the first available Korean font
-    for font in korean_fonts:
-        if font in available_fonts:
-            plt.rcParams["font.family"] = font
-            plt.rcParams["axes.unicode_minus"] = False  # Fix minus sign display
-            return font
-
-    return None
-
-
-# Try to configure Korean font at module load
-_configured_font = _configure_korean_font()
-
-
-def _sanitize_text(text: str) -> str:
-    """Remove Korean characters if no Korean font is available."""
-    if _configured_font is not None:
-        return text
-    # Remove Korean characters (Hangul range: U+AC00 to U+D7A3)
-    return "".join(c for c in text if not ("\uac00" <= c <= "\ud7a3")).strip()
 
 
 def plot(
@@ -125,7 +92,7 @@ def plot(
         ax_vol = axes[1] if has_volume else None
 
         # Parse dates
-        date_objs = [_parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates]
 
         # Draw candlesticks
         _draw_candlesticks(
@@ -141,7 +108,7 @@ def plot(
             _draw_volume_bars(ax_vol, date_objs, volumes, closes)
 
         # Formatting
-        ax_main.set_title(_sanitize_text(title), fontsize=14, fontweight="bold")
+        ax_main.set_title(sanitize_text(title), fontsize=14, fontweight="bold")
         ax_main.set_ylabel("Price", fontsize=10)
         ax_main.grid(True, alpha=0.3)
         if ma_lines:
@@ -152,7 +119,7 @@ def plot(
             ax_vol.grid(True, alpha=0.3)
 
         # Format x-axis
-        _format_xaxis(ax_vol or ax_main, date_objs)
+        format_xaxis(ax_vol or ax_main, date_objs)
 
         plt.tight_layout()
 
@@ -235,14 +202,6 @@ def plot_from_ohlcv(
     )
 
 
-def _parse_date(date_str: str) -> datetime:
-    """Parse date string (YYYYMMDD) to datetime."""
-    try:
-        return datetime.strptime(date_str, "%Y%m%d")
-    except ValueError:
-        return datetime.now()
-
-
 def _draw_candlesticks(
     ax,
     dates: List[datetime],
@@ -254,16 +213,13 @@ def _draw_candlesticks(
 ):
     """Draw candlestick bars."""
     width = 0.6
-    width2 = 0.1
 
     for i, (dt, o, h, l, c) in enumerate(zip(dates, opens, highs, lows, closes)):
         # Determine candle color
         if elder_colors and i < len(elder_colors):
-            color = _elder_to_color(elder_colors[i])
+            color = elder_to_color(elder_colors[i])
         else:
-            color = "green" if c >= o else "red"
-
-        edge_color = color
+            color = COLORS["up"] if c >= o else COLORS["down"]
 
         # Draw the body
         bottom = min(o, c)
@@ -275,33 +231,23 @@ def _draw_candlesticks(
             width,
             bottom=bottom,
             color=color,
-            edgecolor=edge_color,
+            edgecolor=color,
             linewidth=1,
         )
 
         # Draw the wicks
-        ax.vlines(i, l, h, color=edge_color, linewidth=1)
-
-
-def _elder_to_color(elder: str) -> str:
-    """Convert Elder Impulse color name to matplotlib color."""
-    colors = {
-        "green": "#26A69A",  # Teal green
-        "red": "#EF5350",  # Material red
-        "blue": "#42A5F5",  # Material blue
-    }
-    return colors.get(elder, "#42A5F5")
+        ax.vlines(i, l, h, color=color, linewidth=1)
 
 
 def _draw_ma_lines(
     ax, dates: List[datetime], ma_lines: Dict[str, List[Optional[int]]]
 ):
     """Draw moving average lines."""
-    colors = {
-        "MA5": "#FF9800",  # Orange
-        "MA20": "#2196F3",  # Blue
-        "MA60": "#9C27B0",  # Purple
-        "MA120": "#795548",  # Brown
+    ma_colors = {
+        "MA5": COLORS["ma5"],
+        "MA20": COLORS["ma20"],
+        "MA60": COLORS["ma60"],
+        "MA120": COLORS["ma120"],
     }
 
     for name, values in ma_lines.items():
@@ -315,7 +261,7 @@ def _draw_ma_lines(
                 x_vals.append(i)
                 y_vals.append(v)
 
-        color = colors.get(name, "#607D8B")
+        color = ma_colors.get(name, COLORS["ma_default"])
         ax.plot(x_vals, y_vals, label=name, color=color, linewidth=1.5, alpha=0.8)
 
 
@@ -324,28 +270,10 @@ def _draw_volume_bars(ax, dates: List[datetime], volumes: List[int], closes: Lis
     colors = []
     for i in range(len(closes)):
         if i == len(closes) - 1:
-            colors.append("#26A69A")  # First/last bar green
+            colors.append(COLORS["up"])
         elif closes[i] >= closes[i + 1]:
-            colors.append("#26A69A")  # Green for up
+            colors.append(COLORS["up"])
         else:
-            colors.append("#EF5350")  # Red for down
+            colors.append(COLORS["down"])
 
     ax.bar(range(len(volumes)), volumes, color=colors, alpha=0.7, width=0.8)
-
-
-def _format_xaxis(ax, dates: List[datetime]):
-    """Format x-axis with date labels."""
-    n = len(dates)
-    if n <= 30:
-        step = 5
-    elif n <= 90:
-        step = 10
-    else:
-        step = 20
-
-    tick_positions = list(range(0, n, step))
-    tick_labels = [dates[i].strftime("%m/%d") for i in tick_positions if i < n]
-
-    ax.set_xticks(tick_positions[: len(tick_labels)])
-    ax.set_xticklabels(tick_labels, rotation=45, ha="right")
-    ax.set_xlim(-1, n)
