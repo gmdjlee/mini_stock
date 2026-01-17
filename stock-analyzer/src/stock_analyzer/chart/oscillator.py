@@ -81,15 +81,15 @@ def plot(
             gridspec_kw={"height_ratios": [2.5, 1.5, 2, 1.5]},
         )
 
-        # Reverse data for chart display (oldest first on left, newest on right)
-        dates_display = list(reversed(dates))
-        date_objs = [parse_date(d) for d in dates_display]
-        x = range(len(dates_display))
+        # Data is already in chronological order (oldest first, newest last)
+        # No need to reverse - display as-is for correct x-axis
+        date_objs = [parse_date(d) for d in dates]
+        x = range(len(dates))
 
         # Panel 1: Market Cap + Oscillator (Dual-Axis per spec)
         ax_mcap = axes[0]
-        market_cap = list(reversed(osc_data.get("market_cap", [])))
-        oscillator = list(reversed(osc_data.get("oscillator", [])))
+        market_cap = osc_data.get("market_cap", [])
+        oscillator = osc_data.get("oscillator", [])
 
         # Calculate market cap range for proper scaling
         mcap_min, mcap_max = (min(market_cap), max(market_cap)) if market_cap else (0, 0)
@@ -149,8 +149,8 @@ def plot(
 
         # Panel 2: Foreign/Institution 5D Net Buy
         ax_supply = axes[1]
-        foreign_5d = list(reversed(osc_data.get("foreign_5d", [])))
-        institution_5d = list(reversed(osc_data.get("institution_5d", [])))
+        foreign_5d = osc_data.get("foreign_5d", [])
+        institution_5d = osc_data.get("institution_5d", [])
 
         if foreign_5d and institution_5d:
             width = 0.35
@@ -170,8 +170,8 @@ def plot(
 
         # Panel 3: MACD and Signal
         ax_macd = axes[2]
-        macd = list(reversed(osc_data.get("macd", [])))
-        signal = list(reversed(osc_data.get("signal", [])))
+        macd = osc_data.get("macd", [])
+        signal = osc_data.get("signal", [])
 
         # Convert to percentage for display
         macd_pct = [v * 100 for v in macd]
@@ -296,15 +296,15 @@ def plot_with_signal(
             gridspec_kw={"height_ratios": [2, 2, 1.5, 0.8]},
         )
 
-        # Reverse data for chart display (oldest first on left, newest on right)
-        dates_display = list(reversed(dates))
-        date_objs = [parse_date(d) for d in dates_display]
-        x = range(len(dates_display))
+        # Data is already in chronological order (oldest first, newest last)
+        # No need to reverse - display as-is for correct x-axis
+        date_objs = [parse_date(d) for d in dates]
+        x = range(len(dates))
 
         # Panel 1: Market Cap + Oscillator (Dual-Axis per spec)
         ax_mcap = axes[0]
-        market_cap = list(reversed(osc_data.get("market_cap", [])))
-        oscillator = list(reversed(osc_data.get("oscillator", [])))
+        market_cap = osc_data.get("market_cap", [])
+        oscillator = osc_data.get("oscillator", [])
 
         # Calculate market cap range for proper scaling
         mcap_min, mcap_max = (min(market_cap), max(market_cap)) if market_cap else (0, 0)
@@ -362,8 +362,8 @@ def plot_with_signal(
 
         # Panel 2: MACD and Signal
         ax_macd = axes[1]
-        macd = list(reversed(osc_data.get("macd", [])))
-        signal_line = list(reversed(osc_data.get("signal", [])))
+        macd = osc_data.get("macd", [])
+        signal_line = osc_data.get("signal", [])
 
         # Convert to percentage for display
         macd_pct = [v * 100 for v in macd]

@@ -26,7 +26,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def generate_mock_data(days: int = 60):
-    """Mock 수급 데이터 생성."""
+    """Mock 수급 데이터 생성.
+
+    Note: 날짜는 시간순(oldest first)으로 생성됩니다.
+    calc_from_analysis()는 자동으로 날짜 순서를 감지하여 정렬합니다.
+    """
     import random
     random.seed(42)  # 재현 가능한 결과
 
@@ -38,9 +42,9 @@ def generate_mock_data(days: int = 60):
     ins_5d = []
 
     for i in range(days):
-        # 날짜 생성 (역순)
-        day = days - i
-        dates.append(f"2025-01-{day:02d}" if day <= 31 else f"2024-12-{day-31:02d}")
+        # 날짜 생성 (시간순: oldest first)
+        day = i + 1
+        dates.append(f"2024-11-{day:02d}" if day <= 30 else f"2024-12-{day-30:02d}")
 
         # 시가총액 (약간의 변동)
         mcap.append(base_mcap + random.randint(-5, 5) * 1_000_000_000_000)
@@ -77,7 +81,7 @@ def test_with_mock(show: bool = False, save: bool = False):
     print("\n[1] Mock 데이터 생성...")
     mock_data = generate_mock_data(60)
     print(f"    - 종목: {mock_data['ticker']} ({mock_data['name']})")
-    print(f"    - 기간: {mock_data['dates'][-1]} ~ {mock_data['dates'][0]}")
+    print(f"    - 기간: {mock_data['dates'][0]} ~ {mock_data['dates'][-1]}")
     print(f"    - 데이터 수: {len(mock_data['dates'])}일")
 
     # 2. 오실레이터 계산
@@ -196,7 +200,7 @@ def test_with_api(ticker: str, show: bool = False, save: bool = False):
 
     data = osc_result["data"]
     print(f"    - 종목: {data['ticker']} ({data['name']})")
-    print(f"    - 기간: {data['dates'][-1]} ~ {data['dates'][0]}")
+    print(f"    - 기간: {data['dates'][0]} ~ {data['dates'][-1]}")
     print(f"    - 데이터 수: {len(data['dates'])}일")
     print(f"    - MACD 최신값: {data['macd'][-1]:.2e}")
     print(f"    - Signal 최신값: {data['signal'][-1]:.2e}")
