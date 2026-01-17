@@ -14,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.stockapp.feature.analysis.ui.AnalysisScreen
+import com.stockapp.feature.indicator.ui.IndicatorScreen
 import com.stockapp.feature.search.ui.SearchScreen
 
 /**
@@ -66,7 +67,10 @@ fun NavGraph(
             )
         ) {
             AnalysisScreen(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onIndicatorClick = { ticker ->
+                    navController.navigate(Screen.IndicatorDetail.createRoute(ticker))
+                }
             )
         }
 
@@ -74,13 +78,12 @@ fun NavGraph(
         composable(
             route = Screen.IndicatorDetail.route,
             arguments = listOf(
-                navArgument(NavArgs.TICKER) { type = NavType.StringType },
-                navArgument(NavArgs.TYPE) { type = NavType.StringType }
+                navArgument(NavArgs.TICKER) { type = NavType.StringType }
             )
-        ) { backStackEntry ->
-            val ticker = backStackEntry.arguments?.getString(NavArgs.TICKER) ?: ""
-            val type = backStackEntry.arguments?.getString(NavArgs.TYPE) ?: ""
-            PlaceholderScreen(title = "지표 상세: $ticker - $type")
+        ) {
+            IndicatorScreen(
+                onBackClick = { navController.popBackStack() }
+            )
         }
     }
 }
