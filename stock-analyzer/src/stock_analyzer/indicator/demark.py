@@ -1,6 +1,13 @@
-"""DeMark TD Sequential indicator (TD Setup)."""
+"""DeMark TD Setup indicator (Custom version).
 
-from typing import Dict, List, Optional
+Custom TD Setup rules (based on reference):
+- Sell Setup: Close(t) > Close(t-4) 연속이면 +1, 아니면 0으로 리셋
+- Buy Setup: Close(t) < Close(t-2) 연속이면 +1, 아니면 0으로 리셋
+- Sell과 Buy는 독립적으로 카운트 (동시에 값이 있을 수 있음)
+- 카운트 한도 없음 (무한 증가)
+"""
+
+from typing import Dict, List
 
 from ..client.kiwoom import KiwoomClient
 from ..core.log import log_info
@@ -13,14 +20,12 @@ def calc(
     days: int = 180,
 ) -> Dict:
     """
-    Calculate DeMark TD Sequential Setup.
+    Calculate Custom DeMark TD Setup.
 
-    TD Sequential consists of:
-    1. TD Setup: 9 consecutive closes compared to close 4 bars earlier
-       - Buy Setup: 9 consecutive closes < close[4]
-       - Sell Setup: 9 consecutive closes > close[4]
-
-    2. TD Countdown: Follows completed Setup (not implemented here)
+    Custom TD Setup Rules:
+    - Sell Setup: Close > Close[4] 연속이면 +1, 아니면 0으로 리셋 (상승 피로)
+    - Buy Setup: Close < Close[2] 연속이면 +1, 아니면 0으로 리셋 (하락 피로)
+    - Sell과 Buy는 독립적으로 카운트 (동시에 값이 있을 수 있음)
 
     Args:
         client: Kiwoom API client
@@ -33,10 +38,8 @@ def calc(
             "data": {
                 "ticker": "005930",
                 "dates": ["20250110", ...],
-                "setup_count": [0, 1, 2, ..., 9, 0, ...],  # 1-9 or 0
-                "setup_type": ["none", "buy", "sell", ...],
-                "setup_complete": [False, False, ..., True, False, ...],
-                "perfected": [False, ..., True, ...],  # TD Perfected Setup
+                "sell_setup": [0, 1, 2, 3, ...],  # Sell 카운트 (무한)
+                "buy_setup": [0, 0, 1, 2, ...],   # Buy 카운트 (무한)
             }
         }
 
@@ -54,7 +57,7 @@ def calc(
     ticker = ticker.strip()
 
     # Fetch OHLCV data with extra days for lookback
-    fetch_days = days + 20
+    fetch_days = days + 10
     ohlcv_result = ohlcv.get_daily(client, ticker, days=fetch_days)
 
     if not ohlcv_result["ok"]:
@@ -62,31 +65,24 @@ def calc(
 
     data = ohlcv_result["data"]
     closes = data["close"]
-    highs = data["high"]
-    lows = data["low"]
     dates = data["dates"]
 
-    if len(closes) < 14:
+    if len(closes) < 5:
         return {
             "ok": False,
-            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 14일 필요)"},
+            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 5일 필요)"},
         }
 
     # Calculate TD Setup
-    setup_count, setup_type, setup_complete = _calc_td_setup(closes)
-
-    # Calculate Perfected Setup
-    perfected = _calc_perfected(closes, highs, lows, setup_count, setup_type)
+    sell_setup, buy_setup = _calc_td_setup(closes)
 
     # Trim to requested days
     trim_len = min(days, len(dates) - 4)
     result = {
         "ticker": ticker,
         "dates": dates[:trim_len],
-        "setup_count": setup_count[:trim_len],
-        "setup_type": setup_type[:trim_len],
-        "setup_complete": setup_complete[:trim_len],
-        "perfected": perfected[:trim_len],
+        "sell_setup": sell_setup[:trim_len],
+        "buy_setup": buy_setup[:trim_len],
     }
 
     log_info("indicator.demark", "calc complete", {"ticker": ticker, "days": trim_len})
@@ -98,38 +94,31 @@ def calc_from_ohlcv(
     ticker: str,
     dates: List[str],
     closes: List[int],
-    highs: List[int],
-    lows: List[int],
 ) -> Dict:
     """
-    Calculate DeMark TD Setup from OHLCV data directly.
+    Calculate Custom DeMark TD Setup from OHLCV data directly.
 
     Args:
         ticker: Stock code
         dates: Date list
         closes: Close prices
-        highs: High prices
-        lows: Low prices
 
     Returns:
         Same format as calc()
     """
-    if len(closes) < 14:
+    if len(closes) < 5:
         return {
             "ok": False,
-            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 14일 필요)"},
+            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 5일 필요)"},
         }
 
-    setup_count, setup_type, setup_complete = _calc_td_setup(closes)
-    perfected = _calc_perfected(closes, highs, lows, setup_count, setup_type)
+    sell_setup, buy_setup = _calc_td_setup(closes)
 
     result = {
         "ticker": ticker,
         "dates": dates,
-        "setup_count": setup_count,
-        "setup_type": setup_type,
-        "setup_complete": setup_complete,
-        "perfected": perfected,
+        "sell_setup": sell_setup,
+        "buy_setup": buy_setup,
     }
 
     return {"ok": True, "data": result}
@@ -137,13 +126,12 @@ def calc_from_ohlcv(
 
 def _calc_td_setup(closes: List[int]) -> tuple:
     """
-    Calculate TD Setup counts.
+    Calculate Custom TD Setup counts.
 
-    TD Setup Rules:
-    - Compare current close to close 4 bars earlier
-    - Buy Setup: Close < Close[4] for 9 consecutive bars
-    - Sell Setup: Close > Close[4] for 9 consecutive bars
-    - Setup resets when condition breaks or reaches 9
+    Custom TD Setup Rules:
+    - Sell Setup: Close > Close[4] 연속이면 +1, 아니면 0으로 리셋
+    - Buy Setup: Close < Close[2] 연속이면 +1, 아니면 0으로 리셋
+    - 둘은 독립적으로 계산 (동시에 값이 있을 수 있음)
 
     Note: Data is in reverse order (newest first)
 
@@ -151,197 +139,88 @@ def _calc_td_setup(closes: List[int]) -> tuple:
         closes: Close prices (newest first)
 
     Returns:
-        Tuple of (setup_count, setup_type, setup_complete)
+        Tuple of (sell_setup, buy_setup)
     """
     n = len(closes)
-    setup_count = [0] * n
-    setup_type = ["none"] * n
-    setup_complete = [False] * n
-
-    # Need at least 4 bars of lookback
-    if n < 5:
-        return setup_count, setup_type, setup_complete
+    sell_setup = [0] * n
+    buy_setup = [0] * n
 
     # Process in chronological order (reverse the list)
     closes_chrono = list(reversed(closes))
-    counts_chrono = [0] * n
-    types_chrono = ["none"] * n
-    complete_chrono = [False] * n
+    sell_chrono = [0] * n
+    buy_chrono = [0] * n
 
-    current_count = 0
-    current_type = "none"
-
-    for i in range(4, n):
-        prev_close = closes_chrono[i - 4]
-        curr_close = closes_chrono[i]
-
-        if curr_close < prev_close:
-            # Buy setup condition
-            if current_type == "buy":
-                current_count += 1
-            else:
-                current_type = "buy"
-                current_count = 1
-        elif curr_close > prev_close:
-            # Sell setup condition
-            if current_type == "sell":
-                current_count += 1
-            else:
-                current_type = "sell"
-                current_count = 1
+    for i in range(n):
+        # Sell Setup: 4일 전보다 위에 있으면 카운트 증가
+        if i >= 4 and closes_chrono[i] > closes_chrono[i - 4]:
+            sell_chrono[i] = sell_chrono[i - 1] + 1
         else:
-            # Equal - continue current setup
-            if current_type != "none":
-                current_count += 1
+            sell_chrono[i] = 0
 
-        # Cap at 9 and mark complete
-        if current_count >= 9:
-            counts_chrono[i] = 9
-            types_chrono[i] = current_type
-            complete_chrono[i] = True
-            # Reset after completion
-            current_count = 0
-            current_type = "none"
+        # Buy Setup: 2일 전보다 아래 있으면 카운트 증가
+        if i >= 2 and closes_chrono[i] < closes_chrono[i - 2]:
+            buy_chrono[i] = buy_chrono[i - 1] + 1
         else:
-            counts_chrono[i] = current_count
-            types_chrono[i] = current_type if current_count > 0 else "none"
+            buy_chrono[i] = 0
 
     # Reverse back to newest-first order
-    setup_count = list(reversed(counts_chrono))
-    setup_type = list(reversed(types_chrono))
-    setup_complete = list(reversed(complete_chrono))
+    sell_setup = list(reversed(sell_chrono))
+    buy_setup = list(reversed(buy_chrono))
 
-    return setup_count, setup_type, setup_complete
-
-
-def _calc_perfected(
-    closes: List[int],
-    highs: List[int],
-    lows: List[int],
-    setup_count: List[int],
-    setup_type: List[str],
-) -> List[bool]:
-    """
-    Check for TD Perfected Setup.
-
-    Perfected Buy Setup:
-    - Setup 9 is complete
-    - Low of bar 8 or 9 is less than lows of bars 6 and 7
-
-    Perfected Sell Setup:
-    - Setup 9 is complete
-    - High of bar 8 or 9 is greater than highs of bars 6 and 7
-
-    Args:
-        closes: Close prices
-        highs: High prices
-        lows: Low prices
-        setup_count: Setup count for each bar
-        setup_type: Setup type for each bar
-
-    Returns:
-        Perfected flags for each bar
-    """
-    n = len(closes)
-    perfected = [False] * n
-
-    # Process in chronological order
-    closes_chrono = list(reversed(closes))
-    highs_chrono = list(reversed(highs))
-    lows_chrono = list(reversed(lows))
-    counts_chrono = list(reversed(setup_count))
-    types_chrono = list(reversed(setup_type))
-    perfected_chrono = [False] * n
-
-    for i in range(8, n):
-        if counts_chrono[i] != 9:
-            continue
-
-        if types_chrono[i] == "buy":
-            # Check if low of bar 8 or 9 < lows of bars 6 and 7
-            low_8 = lows_chrono[i - 1] if i >= 1 else float("inf")
-            low_9 = lows_chrono[i]
-            low_6 = lows_chrono[i - 3] if i >= 3 else 0
-            low_7 = lows_chrono[i - 2] if i >= 2 else 0
-
-            min_low_8_9 = min(low_8, low_9)
-            if min_low_8_9 < low_6 and min_low_8_9 < low_7:
-                perfected_chrono[i] = True
-
-        elif types_chrono[i] == "sell":
-            # Check if high of bar 8 or 9 > highs of bars 6 and 7
-            high_8 = highs_chrono[i - 1] if i >= 1 else 0
-            high_9 = highs_chrono[i]
-            high_6 = highs_chrono[i - 3] if i >= 3 else float("inf")
-            high_7 = highs_chrono[i - 2] if i >= 2 else float("inf")
-
-            max_high_8_9 = max(high_8, high_9)
-            if max_high_8_9 > high_6 and max_high_8_9 > high_7:
-                perfected_chrono[i] = True
-
-    perfected = list(reversed(perfected_chrono))
-    return perfected
+    return sell_setup, buy_setup
 
 
 def get_active_setups(
-    setup_count: List[int],
-    setup_type: List[str],
-    setup_complete: List[bool],
+    sell_setup: List[int],
+    buy_setup: List[int],
     dates: List[str],
 ) -> Dict:
     """
-    Get summary of active and completed setups.
+    Get summary of current TD Setup status.
 
     Args:
-        setup_count: Setup count list
-        setup_type: Setup type list
-        setup_complete: Setup complete flags
+        sell_setup: Sell setup count list
+        buy_setup: Buy setup count list
         dates: Date list
 
     Returns:
         {
-            "current_count": 5,
-            "current_type": "buy",
-            "last_complete": {
-                "type": "sell",
-                "date": "20250105",
-            },
-            "active_setups": [
-                {"date": "20250110", "count": 5, "type": "buy"},
+            "current_sell": 5,
+            "current_buy": 3,
+            "max_sell": 12,
+            "max_buy": 8,
+            "recent_setups": [
+                {"date": "20250110", "sell": 5, "buy": 3},
                 ...
             ]
         }
     """
     result = {
-        "current_count": 0,
-        "current_type": "none",
-        "last_complete": None,
-        "active_setups": [],
+        "current_sell": 0,
+        "current_buy": 0,
+        "max_sell": 0,
+        "max_buy": 0,
+        "recent_setups": [],
     }
 
-    if not setup_count:
+    if not sell_setup or not buy_setup:
         return result
 
-    # Current status
-    result["current_count"] = setup_count[0]
-    result["current_type"] = setup_type[0]
+    # Current status (newest first)
+    result["current_sell"] = sell_setup[0]
+    result["current_buy"] = buy_setup[0]
 
-    # Find last completed setup
-    for i in range(len(setup_complete)):
-        if setup_complete[i]:
-            result["last_complete"] = {
-                "type": setup_type[i],
-                "date": dates[i] if i < len(dates) else "",
-            }
-            break
+    # Max values
+    result["max_sell"] = max(sell_setup) if sell_setup else 0
+    result["max_buy"] = max(buy_setup) if buy_setup else 0
 
-    # List active setups (count > 0)
-    for i in range(min(20, len(setup_count))):  # Last 20 bars
-        if setup_count[i] > 0:
-            result["active_setups"].append({
+    # List recent setups (last 20 bars)
+    for i in range(min(20, len(sell_setup))):
+        if sell_setup[i] > 0 or buy_setup[i] > 0:
+            result["recent_setups"].append({
                 "date": dates[i] if i < len(dates) else "",
-                "count": setup_count[i],
-                "type": setup_type[i],
+                "sell": sell_setup[i],
+                "buy": buy_setup[i],
             })
 
     return result

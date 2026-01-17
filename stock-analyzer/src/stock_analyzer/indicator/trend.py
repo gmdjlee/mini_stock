@@ -81,7 +81,7 @@ def calc(
     ma_signal = _calc_ma_signal(ma5, ma20, ma60)
 
     cmf = _calc_cmf(highs, lows, closes, volumes, period=20)
-    fear_greed = _calc_fear_greed(closes, volumes, ma20, cmf)
+    fear_greed = _calc_fear_greed(closes, volumes)
     trend = _calc_trend(ma_signal, cmf, fear_greed)
 
     # Trim to requested days
@@ -139,7 +139,7 @@ def calc_from_ohlcv(
     ma_signal = _calc_ma_signal(ma5, ma20, ma60)
 
     cmf = _calc_cmf(highs, lows, closes, volumes, period=20)
-    fear_greed = _calc_fear_greed(closes, volumes, ma20, cmf)
+    fear_greed = _calc_fear_greed(closes, volumes)
     trend = _calc_trend(ma_signal, cmf, fear_greed)
 
     result = {
@@ -256,52 +256,145 @@ def _calc_cmf(
 def _calc_fear_greed(
     closes: List[int],
     volumes: List[int],
-    ma20: List[Optional[int]],
-    cmf: List[float],
-) -> List[int]:
+) -> List[float]:
     """
-    Calculate Fear/Greed Index.
+    Calculate Fear/Greed Index (Reference formula).
 
-    Components (simplified version):
-    - Price vs MA20 (40%): Above = greed, Below = fear
-    - Momentum (30%): Recent price change
-    - CMF (30%): Money flow direction
+    Components:
+    - Momentum5 (45%): 5-day log return (상승 피로도)
+    - Pos52 (45%): Position within 52-day high/low range
+    - VolSurge (5%): Recent volume surge vs past volume
+    - VolSpike (5%): Recent volatility vs past volatility (negative)
+
+    Formula:
+    FG = 0.45*m + 0.45*p + 0.05*v + 0.05*vs
 
     Returns:
-        Fear/Greed index (0-100, 50 = neutral)
+        Fear/Greed index (approximately -1 to 1.5)
     """
-    result = []
+    import math
 
-    for i in range(len(closes)):
-        score = 50  # Start at neutral
+    n = len(closes)
+    result = [0.0] * n
 
-        # Price vs MA20 (40 points max)
-        if ma20[i] is not None and ma20[i] > 0:
-            deviation = (closes[i] - ma20[i]) / ma20[i]
-            # Cap at +/- 20%
-            deviation = max(-0.2, min(0.2, deviation))
-            score += int(deviation * 200)  # -40 to +40
+    if n < 52:
+        return result
 
-        # Momentum: 5-day change (30 points max)
-        if i + 5 < len(closes) and closes[i + 5] > 0:
-            momentum = (closes[i] - closes[i + 5]) / closes[i + 5]
-            momentum = max(-0.15, min(0.15, momentum))
-            score += int(momentum * 200)  # -30 to +30
+    # Process in chronological order
+    closes_chrono = list(reversed(closes))
+    volumes_chrono = list(reversed(volumes))
 
-        # CMF (30 points max)
-        cmf_score = int(cmf[i] * 30)
-        score += cmf_score
+    # Calculate components
+    momentum5 = [0.0] * n
+    pos52 = [0.0] * n
+    vol_surge = [1.0] * n
+    vol_spike = [1.0] * n
+    returns = [0.0] * n
 
-        # Clamp to 0-100
-        result.append(max(0, min(100, score)))
+    for i in range(n):
+        # Momentum5: log return over 5 periods * 100
+        if i >= 5 and closes_chrono[i] > 0 and closes_chrono[i - 5] > 0:
+            momentum5[i] = (math.log(closes_chrono[i]) - math.log(closes_chrono[i - 5])) * 100
 
+        # Pos52: Position within 52-day range
+        if i >= 51:
+            window = closes_chrono[max(0, i - 51) : i + 1]
+            low52 = min(window)
+            high52 = max(window)
+            if high52 > low52:
+                pos52[i] = (closes_chrono[i] - low52) / (high52 - low52)
+            else:
+                pos52[i] = 0.5
+        else:
+            # Use available data
+            window = closes_chrono[: i + 1]
+            if window:
+                low_val = min(window)
+                high_val = max(window)
+                if high_val > low_val:
+                    pos52[i] = (closes_chrono[i] - low_val) / (high_val - low_val)
+                else:
+                    pos52[i] = 0.5
+
+        # Returns for volatility calculation
+        if i >= 1 and closes_chrono[i - 1] > 0:
+            returns[i] = (closes_chrono[i] - closes_chrono[i - 1]) / closes_chrono[i - 1]
+
+    # VolSurge: recent 5-day avg volume / past 20-day avg volume
+    for i in range(n):
+        if i >= 20:
+            recent_vol = sum(volumes_chrono[i - 4 : i + 1]) / 5
+            past_vol = sum(volumes_chrono[i - 19 : i + 1]) / 20
+            if past_vol > 0:
+                vol_surge[i] = max(0, min(3, recent_vol / past_vol))
+        elif i >= 5:
+            recent_vol = sum(volumes_chrono[: i + 1]) / (i + 1)
+            if recent_vol > 0:
+                vol_surge[i] = 1.0
+
+    # VolSpike: recent 5-day volatility / past 20-day volatility
+    for i in range(n):
+        if i >= 20:
+            recent_returns = returns[i - 4 : i + 1]
+            past_returns = returns[i - 19 : i + 1]
+
+            recent_std = _calc_std(recent_returns)
+            past_std = _calc_std(past_returns)
+
+            if past_std > 0:
+                vol_spike[i] = max(0, min(3, recent_std / past_std))
+        elif i >= 5:
+            vol_spike[i] = 1.0
+
+    # Calculate FG with smoothing
+    fg_chrono = [0.0] * n
+
+    for i in range(n):
+        if i < 10:
+            fg_chrono[i] = 0.0
+            continue
+
+        # Smoothed momentum (7-period mean, then /10)
+        m_window = momentum5[max(0, i - 6) : i + 1]
+        m = (sum(m_window) / len(m_window) / 10) if m_window else 0
+        m = max(-1, min(1.5, m))
+
+        # Smoothed position (7-period mean, then *2 - 1)
+        p_window = pos52[max(0, i - 6) : i + 1]
+        p = (2 * sum(p_window) / len(p_window) - 1) if p_window else 0
+        p = max(-1, min(1.5, p))
+
+        # Smoothed volume surge (10-period mean, then -1)
+        v_window = vol_surge[max(0, i - 9) : i + 1]
+        v = (sum(v_window) / len(v_window) - 1) if v_window else 0
+        v = max(-0.5, min(1.2, v))
+
+        # Smoothed volatility spike (10-period mean, then -1, negative)
+        vs_window = vol_spike[max(0, i - 9) : i + 1]
+        vs = -((sum(vs_window) / len(vs_window) - 1)) if vs_window else 0
+        vs = max(-0.5, min(1.2, vs))
+
+        # Final FG
+        fg_chrono[i] = 0.45 * m + 0.45 * p + 0.05 * v + 0.05 * vs
+
+    # Reverse back to newest-first order
+    result = list(reversed(fg_chrono))
     return result
+
+
+def _calc_std(values: List[float]) -> float:
+    """Calculate standard deviation."""
+    if len(values) < 2:
+        return 0.0
+    mean = sum(values) / len(values)
+    variance = sum((x - mean) ** 2 for x in values) / len(values)
+    return variance ** 0.5
 
 
 def _calc_trend(
     ma_signal: List[int],
     cmf: List[float],
-    fear_greed: List[int],
+    fear_greed: List[float],
 ) -> List[str]:
     """
     Determine overall trend.
@@ -310,6 +403,10 @@ def _calc_trend(
     - "bullish": Strong uptrend signals
     - "bearish": Strong downtrend signals
     - "neutral": Mixed signals
+
+    Fear/Greed thresholds (reference):
+    - > 0.5: Greed (탐욕, 상승 과열)
+    - < -0.5: Fear (공포, 하락 과열)
 
     Returns:
         Trend labels
@@ -332,10 +429,12 @@ def _calc_trend(
         elif cmf[i] < -0.05:
             bear_count += 1
 
-        # Fear/Greed
-        if fear_greed[i] >= 60:
+        # Fear/Greed (new range: -1 ~ 1.5)
+        # > 0.5: Greed (bullish momentum)
+        # < -0.5: Fear (bearish momentum)
+        if fear_greed[i] > 0.5:
             bull_count += 1
-        elif fear_greed[i] <= 40:
+        elif fear_greed[i] < -0.5:
             bear_count += 1
 
         if bull_count >= 2:

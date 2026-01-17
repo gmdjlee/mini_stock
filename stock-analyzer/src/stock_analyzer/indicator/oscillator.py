@@ -3,8 +3,9 @@
 from typing import Dict, List
 
 from ..client.kiwoom import KiwoomClient
+from ..core import safe_int
 from ..core.log import log_info
-from ..stock import analysis
+from ..stock import analysis, ohlcv
 
 
 def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
@@ -46,6 +47,8 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             "error": {"code": "INVALID_ARG", "msg": "종목코드가 필요합니다"},
         }
 
+    ticker = ticker.strip()
+
     # 1. Get supply/demand data
     analysis_result = analysis.analyze(client, ticker, days)
     if not analysis_result["ok"]:
@@ -60,41 +63,78 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 30일 데이터 필요"},
         }
 
-    # 2. Calculate 5-day rolling sum for foreign and institution
-    # API returns daily values, we need 5-day cumulative
-    foreign_daily = data["for_5d"]
-    institution_daily = data["ins_5d"]
+    # 1.5. Reverse data to chronological order (oldest first) for correct EMA calculation
+    # API returns data in reverse chronological order (newest first)
+    dates_chrono = list(reversed(data["dates"]))
+    mcap_chrono = list(reversed(data["mcap"]))
+    for_5d_chrono = list(reversed(data["for_5d"]))
+    ins_5d_chrono = list(reversed(data["ins_5d"]))
 
-    foreign_5d = _calc_rolling_sum(foreign_daily, 5)
-    institution_5d = _calc_rolling_sum(institution_daily, 5)
+    # 2. Get OHLCV data and shares outstanding for daily market cap calculation
+    ohlcv_result = ohlcv.get_daily(client, ticker, days=days)
+    stock_info = client.get_stock_info(ticker)
 
-    # 3. Calculate Supply Ratio = (Foreign5d + Institution5d) / MarketCap
+    # Get floating shares (in 천주 units)
+    flo_stk = 0
+    if stock_info.ok:
+        flo_stk = safe_int(stock_info.data.get("flo_stk", 0))
+
+    # Build date -> close price mapping from OHLCV
+    date_to_close = {}
+    if ohlcv_result["ok"]:
+        ohlcv_data = ohlcv_result["data"]
+        for i, dt in enumerate(ohlcv_data["dates"]):
+            # Convert YYYYMMDD to YYYY-MM-DD if needed
+            if len(dt) == 8:
+                dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
+            date_to_close[dt] = ohlcv_data["close"][i]
+
+    # 3. Calculate daily market cap from OHLCV (close * shares)
+    # flo_stk is in 천주 (1000 shares), so multiply by 1000 to get actual shares
+    shares = flo_stk * 1000 if flo_stk > 0 else 0
+    daily_mcap = []
+    for i, dt in enumerate(dates_chrono):
+        if shares > 0 and dt in date_to_close:
+            mcap = shares * date_to_close[dt]
+        else:
+            # Fallback to analysis mcap (already in chronological order)
+            mcap = mcap_chrono[i] if i < len(mcap_chrono) else 0
+        daily_mcap.append(mcap)
+
+    # 4. Calculate 5-day rolling sum for foreign and institution
+    # Data is now in chronological order (oldest first)
+    foreign_5d = _calc_rolling_sum(for_5d_chrono, 5)
+    institution_5d = _calc_rolling_sum(ins_5d_chrono, 5)
+
+    # 5. Calculate Supply Ratio = (Foreign5d + Institution5d) / MarketCap
+    # Note: API returns amounts in 백만원 (million KRW) via unit_tp="1000"
+    # mcap is in 원 (KRW), so multiply by 1,000,000 to convert
     supply_ratio = []
     for i in range(n):
-        mcap = data["mcap"][i]
+        mcap = daily_mcap[i]
         if mcap == 0:
             supply_ratio.append(0.0)
         else:
-            supply = foreign_5d[i] + institution_5d[i]
+            supply = (foreign_5d[i] + institution_5d[i]) * 1_000_000  # 백만원 -> 원
             supply_ratio.append(supply / mcap)
 
-    # 4. Calculate EMA of Supply Ratio
+    # 6. Calculate EMA of Supply Ratio
     ema12 = _calc_ema(supply_ratio, 12)
     ema26 = _calc_ema(supply_ratio, 26)
 
-    # 5. Calculate MACD
+    # 7. Calculate MACD
     macd = [ema12[i] - ema26[i] for i in range(n)]
 
-    # 6. Calculate Signal Line
+    # 8. Calculate Signal Line
     signal = _calc_ema(macd, 9)
 
-    # 7. Calculate Oscillator (Histogram)
+    # 9. Calculate Oscillator (Histogram)
     oscillator = [macd[i] - signal[i] for i in range(n)]
 
-    # 8. Normalize values for display
-    market_cap_trillion = [m / 1_000_000_000_000 for m in data["mcap"]]
-    foreign_5d_billion = [f / 100_000_000 for f in foreign_5d]  # 억원
-    institution_5d_billion = [i / 100_000_000 for i in institution_5d]  # 억원
+    # 10. Normalize values for display
+    market_cap_trillion = [m / 1_000_000_000_000 for m in daily_mcap]
+    foreign_5d_billion = [f / 100 for f in foreign_5d]  # 백만원 -> 억원
+    institution_5d_billion = [i / 100 for i in institution_5d]  # 백만원 -> 억원
 
     log_info("indicator.oscillator", "calc complete", {"ticker": ticker, "days": n})
 
@@ -103,7 +143,7 @@ def calc(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
         "data": {
             "ticker": ticker,
             "name": data["name"],
-            "dates": data["dates"],
+            "dates": dates_chrono,  # Chronological order (oldest first, newest last)
             "market_cap": market_cap_trillion,
             "foreign_5d": foreign_5d_billion,
             "institution_5d": institution_5d_billion,
@@ -132,7 +172,7 @@ def calc_from_analysis(
     Args:
         ticker: Stock code
         name: Stock name
-        dates: Date list
+        dates: Date list (any order, will be auto-sorted to chronological)
         mcap: Market cap list
         foreign_daily: Foreign daily net buy list
         institution_daily: Institution daily net buy list
@@ -149,6 +189,15 @@ def calc_from_analysis(
             "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 30일 데이터 필요"},
         }
 
+    # Auto-detect date order and ensure chronological order (oldest first)
+    # Compare first and last dates to determine order
+    if n >= 2 and dates[0] > dates[-1]:
+        # Data is in reverse chronological order (newest first), reverse it
+        dates = list(reversed(dates))
+        mcap = list(reversed(mcap))
+        foreign_daily = list(reversed(foreign_daily))
+        institution_daily = list(reversed(institution_daily))
+
     # Calculate 5-day rolling sum if needed
     if apply_rolling:
         foreign_5d = _calc_rolling_sum(foreign_daily, 5)
@@ -158,12 +207,14 @@ def calc_from_analysis(
         institution_5d = list(institution_daily)
 
     # Calculate Supply Ratio = (Foreign5d + Institution5d) / MarketCap
+    # Note: API returns amounts in 백만원 (million KRW) via unit_tp="1000"
+    # mcap is in 원 (KRW), so multiply by 1,000,000 to convert
     supply_ratio = []
     for i in range(n):
         if mcap[i] == 0:
             supply_ratio.append(0.0)
         else:
-            supply = foreign_5d[i] + institution_5d[i]
+            supply = (foreign_5d[i] + institution_5d[i]) * 1_000_000  # 백만원 -> 원
             supply_ratio.append(supply / mcap[i])
 
     # Calculate EMA
@@ -181,8 +232,8 @@ def calc_from_analysis(
 
     # Normalize values for display
     market_cap_trillion = [m / 1_000_000_000_000 for m in mcap]
-    foreign_5d_billion = [f / 100_000_000 for f in foreign_5d]  # 억원
-    institution_5d_billion = [i / 100_000_000 for i in institution_5d]  # 억원
+    foreign_5d_billion = [f / 100 for f in foreign_5d]  # 백만원 -> 억원
+    institution_5d_billion = [i / 100 for i in institution_5d]  # 백만원 -> 억원
 
     return {
         "ok": True,

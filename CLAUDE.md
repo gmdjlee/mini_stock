@@ -232,7 +232,9 @@ result = osc_chart.plot(osc_data)                       # 오실레이터 차트
 MA, CMF, Fear/Greed를 조합한 추세 신호
 - `ma_signal`: MA 정배열/역배열 (1: 상승, 0: 중립, -1: 하락)
 - `cmf`: Chaikin Money Flow (-1 ~ 1)
-- `fear_greed`: 공포/탐욕 지수 (0-100)
+- `fear_greed`: 공포/탐욕 지수 (약 -1 ~ 1.5)
+  - 구성요소: Momentum5(45%) + Pos52(45%) + VolSurge(5%) + VolSpike(5%)
+  - 임계값: >0.5 탐욕(상승 과열), <-0.5 공포(하락 과열)
 - `trend`: 종합 추세 ("bullish", "neutral", "bearish")
 
 ### Elder Impulse (`indicator/elder.py`)
@@ -242,11 +244,10 @@ EMA13과 MACD 히스토그램을 이용한 캔들 색상 결정
 - `macd_hist`: MACD 히스토그램
 
 ### DeMark TD (`indicator/demark.py`)
-DeMark TD Sequential의 Setup 부분
-- `setup_count`: Setup 카운트 (0-9)
-- `setup_type`: Setup 유형 ("buy", "sell", "none")
-- `setup_complete`: 9 완성 여부
-- `perfected`: Perfected Setup 여부
+커스텀 TD Setup (레퍼런스 기반)
+- `sell_setup`: Sell 카운트 (4일 전 비교, 상승 피로 측정, 무제한)
+- `buy_setup`: Buy 카운트 (2일 전 비교, 하락 피로 측정, 무제한)
+- Sell과 Buy는 독립적으로 계산 (동시에 값이 있을 수 있음)
 
 ## Chart Visualization (Phase 3)
 

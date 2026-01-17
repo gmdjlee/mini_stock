@@ -73,8 +73,12 @@ def plot(
     try:
         fig, ax = plt.subplots(figsize=figsize)
 
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        series_display = {name: list(reversed(values)) for name, values in series.items()}
+
         # Parse dates
-        date_objs = [parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Default colors
         default_colors = {
@@ -94,7 +98,7 @@ def plot(
             default_colors.update({k.lower(): v for k, v in colors.items()})
 
         # Draw lines
-        for name, values in series.items():
+        for name, values in series_display.items():
             if not values:
                 continue
 
@@ -111,9 +115,9 @@ def plot(
                 if len(params) >= 4:
                     lower, upper, color, alpha = params[:4]
                     ax.fill_between(
-                        range(len(dates)),
-                        [lower] * len(dates),
-                        [upper] * len(dates),
+                        range(len(dates_display)),
+                        [lower] * len(dates_display),
+                        [upper] * len(dates_display),
                         color=color,
                         alpha=alpha,
                     )
@@ -217,14 +221,16 @@ def plot_trend(
             sharex=True,
         )
 
-        date_objs = [parse_date(d) for d in dates]
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Panel 1: MA lines
         ax_ma = axes[0]
         ma_series = {
-            "MA5": trend_data.get("ma5", []),
-            "MA20": trend_data.get("ma20", []),
-            "MA60": trend_data.get("ma60", []),
+            "MA5": list(reversed(trend_data.get("ma5", []))),
+            "MA20": list(reversed(trend_data.get("ma20", []))),
+            "MA60": list(reversed(trend_data.get("ma60", []))),
         }
         ma_colors = {"MA5": COLORS["ma5"], "MA20": COLORS["ma20"], "MA60": COLORS["ma60"]}
 
@@ -241,7 +247,7 @@ def plot_trend(
 
         # Panel 2: CMF
         ax_cmf = axes[1]
-        cmf_values = trend_data.get("cmf", [])
+        cmf_values = list(reversed(trend_data.get("cmf", [])))
         x_vals = list(range(len(cmf_values)))
         bar_colors = [COLORS["up"] if v >= 0 else COLORS["down"] for v in cmf_values]
         ax_cmf.bar(x_vals, cmf_values, color=bar_colors, alpha=0.7)
@@ -254,7 +260,7 @@ def plot_trend(
 
         # Panel 3: Fear/Greed Index
         ax_fg = axes[2]
-        fg_values = trend_data.get("fear_greed", [])
+        fg_values = list(reversed(trend_data.get("fear_greed", [])))
         ax_fg.fill_between(range(len(fg_values)), 0, 40, color=COLORS["down"], alpha=0.2)
         ax_fg.fill_between(range(len(fg_values)), 40, 60, color="#9E9E9E", alpha=0.2)
         ax_fg.fill_between(range(len(fg_values)), 60, 100, color=COLORS["up"], alpha=0.2)
@@ -341,12 +347,14 @@ def plot_elder(
             sharex=True,
         )
 
-        date_objs = [parse_date(d) for d in dates]
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Panel 1: EMA13 with color markers
         ax_ema = axes[0]
-        ema13 = elder_data.get("ema13", [])
-        colors = elder_data.get("color", [])
+        ema13 = list(reversed(elder_data.get("ema13", [])))
+        colors = list(reversed(elder_data.get("color", [])))
 
         x_vals, y_vals = _filter_none(ema13)
         if x_vals:
@@ -366,7 +374,7 @@ def plot_elder(
 
         # Panel 2: MACD Histogram
         ax_macd = axes[1]
-        macd_hist = elder_data.get("macd_hist", [])
+        macd_hist = list(reversed(elder_data.get("macd_hist", [])))
 
         bar_colors = []
         for i, val in enumerate(macd_hist):

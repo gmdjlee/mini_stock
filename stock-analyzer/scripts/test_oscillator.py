@@ -96,9 +96,9 @@ def test_with_mock(show: bool = False, save: bool = False):
         return
 
     data = osc_result["data"]
-    print(f"    - MACD 최신값: {data['macd'][-1]:.6f}")
-    print(f"    - Signal 최신값: {data['signal'][-1]:.6f}")
-    print(f"    - Oscillator 최신값: {data['oscillator'][-1]:.6f}")
+    print(f"    - MACD 최신값: {data['macd'][-1]:.2e}")
+    print(f"    - Signal 최신값: {data['signal'][-1]:.2e}")
+    print(f"    - Oscillator 최신값: {data['oscillator'][-1]:.2e}")
 
     # 3. 신호 분석
     print("\n[3] 매매 신호 분석...")
@@ -198,9 +198,9 @@ def test_with_api(ticker: str, show: bool = False, save: bool = False):
     print(f"    - 종목: {data['ticker']} ({data['name']})")
     print(f"    - 기간: {data['dates'][-1]} ~ {data['dates'][0]}")
     print(f"    - 데이터 수: {len(data['dates'])}일")
-    print(f"    - MACD 최신값: {data['macd'][-1]:.6f}")
-    print(f"    - Signal 최신값: {data['signal'][-1]:.6f}")
-    print(f"    - Oscillator 최신값: {data['oscillator'][-1]:.6f}")
+    print(f"    - MACD 최신값: {data['macd'][-1]:.2e}")
+    print(f"    - Signal 최신값: {data['signal'][-1]:.2e}")
+    print(f"    - Oscillator 최신값: {data['oscillator'][-1]:.2e}")
 
     # 3. 신호 분석
     print("\n[3] 매매 신호 분석...")

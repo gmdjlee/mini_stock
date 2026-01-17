@@ -91,21 +91,31 @@ def plot(
         ax_main = axes[0] if has_volume else axes
         ax_vol = axes[1] if has_volume else None
 
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        opens_display = list(reversed(opens))
+        highs_display = list(reversed(highs))
+        lows_display = list(reversed(lows))
+        closes_display = list(reversed(closes))
+        volumes_display = list(reversed(volumes)) if volumes else None
+        elder_colors_display = list(reversed(elder_colors)) if elder_colors else None
+        ma_lines_display = {name: list(reversed(vals)) for name, vals in ma_lines.items()} if ma_lines else None
+
         # Parse dates
-        date_objs = [parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Draw candlesticks
         _draw_candlesticks(
-            ax_main, date_objs, opens, highs, lows, closes, elder_colors
+            ax_main, date_objs, opens_display, highs_display, lows_display, closes_display, elder_colors_display
         )
 
         # Draw MA lines if provided
-        if ma_lines:
-            _draw_ma_lines(ax_main, date_objs, ma_lines)
+        if ma_lines_display:
+            _draw_ma_lines(ax_main, date_objs, ma_lines_display)
 
         # Draw volume bars if provided
-        if ax_vol and volumes:
-            _draw_volume_bars(ax_vol, date_objs, volumes, closes)
+        if ax_vol and volumes_display:
+            _draw_volume_bars(ax_vol, date_objs, volumes_display, closes_display)
 
         # Formatting
         ax_main.set_title(sanitize_text(title), fontsize=14, fontweight="bold")

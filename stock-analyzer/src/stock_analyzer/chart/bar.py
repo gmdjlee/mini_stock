@@ -71,19 +71,23 @@ def plot(
     try:
         fig, ax = plt.subplots(figsize=figsize)
 
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        values_display = list(reversed(values))
+
         # Parse dates
-        date_objs = [parse_date(d) for d in dates]
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Determine colors
         if color_by_sign:
             colors = [
-                positive_color if v >= 0 else negative_color for v in values
+                positive_color if v >= 0 else negative_color for v in values_display
             ]
         else:
             colors = color or "#2196F3"
 
         # Draw bars
-        ax.bar(range(len(values)), values, color=colors, alpha=0.8, width=0.8)
+        ax.bar(range(len(values_display)), values_display, color=colors, alpha=0.8, width=0.8)
 
         # Draw horizontal lines
         if hlines:
@@ -118,7 +122,7 @@ def plot(
 
         plt.close(fig)
 
-        log_info("chart.bar", "plot complete", {"title": title, "points": len(values)})
+        log_info("chart.bar", "plot complete", {"title": title, "points": len(values_display)})
 
         return {
             "ok": True,
@@ -171,7 +175,11 @@ def plot_multi(
     try:
         fig, ax = plt.subplots(figsize=figsize)
 
-        date_objs = [parse_date(d) for d in dates]
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        series_display = {name: list(reversed(values)) for name, values in series.items()}
+
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Default colors
         default_colors = {
@@ -185,8 +193,8 @@ def plot_multi(
         if colors:
             default_colors.update(colors)
 
-        n_series = len(series)
-        n_dates = len(dates)
+        n_series = len(series_display)
+        n_dates = len(dates_display)
         width = 0.8 / n_series if not stacked else 0.8
 
         if stacked:
@@ -194,7 +202,7 @@ def plot_multi(
             bottom_pos = [0.0] * n_dates
             bottom_neg = [0.0] * n_dates
 
-            for name, values in series.items():
+            for name, values in series_display.items():
                 color = default_colors.get(name.lower(), "#607D8B")
 
                 # Separate positive and negative for proper stacking
@@ -223,7 +231,7 @@ def plot_multi(
                 bottom_neg = [b + v for b, v in zip(bottom_neg, neg_vals)]
         else:
             # Grouped bar chart
-            for i, (name, values) in enumerate(series.items()):
+            for i, (name, values) in enumerate(series_display.items()):
                 color = default_colors.get(name.lower(), "#607D8B")
                 offset = (i - n_series / 2 + 0.5) * width
                 x = [j + offset for j in range(n_dates)]
@@ -258,7 +266,7 @@ def plot_multi(
 
         plt.close(fig)
 
-        log_info("chart.bar", "plot_multi complete", {"title": title, "series": len(series)})
+        log_info("chart.bar", "plot_multi complete", {"title": title, "series": len(series_display)})
 
         return {
             "ok": True,
@@ -315,11 +323,13 @@ def plot_supply_demand(
             sharex=True,
         )
 
-        date_objs = [parse_date(d) for d in dates]
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        date_objs = [parse_date(d) for d in dates_display]
 
         # Panel 1: Market Cap
         ax_mcap = axes[0]
-        mcap = analysis_data.get("mcap", [])
+        mcap = list(reversed(analysis_data.get("mcap", [])))
         mcap_trillion = [m / 1e12 for m in mcap]  # Convert to trillion
 
         ax_mcap.fill_between(
@@ -346,15 +356,15 @@ def plot_supply_demand(
 
         # Panel 2: Foreign/Institution 5D Net
         ax_flow = axes[1]
-        for_5d = analysis_data.get("for_5d", [])
-        ins_5d = analysis_data.get("ins_5d", [])
+        for_5d = list(reversed(analysis_data.get("for_5d", [])))
+        ins_5d = list(reversed(analysis_data.get("ins_5d", [])))
 
         # Convert to billion
         for_5d_b = [v / 1e9 for v in for_5d]
         ins_5d_b = [v / 1e9 for v in ins_5d]
 
         width = 0.35
-        x = range(len(dates))
+        x = range(len(dates_display))
         x_for = [i - width / 2 for i in x]
         x_ins = [i + width / 2 for i in x]
 
@@ -413,7 +423,11 @@ def plot_demark(
     save_path: Optional[str] = None,
 ) -> Dict:
     """
-    Create DeMark TD Setup chart.
+    Create DeMark TD Setup chart (Custom version).
+
+    Shows independent Sell Setup and Buy Setup counts as line charts.
+    - Sell Setup: Red line (4일 전 비교, 상승 피로)
+    - Buy Setup: Blue line (2일 전 비교, 하락 피로)
 
     Args:
         demark_data: DeMark data from indicator.demark.calc()
@@ -440,60 +454,43 @@ def plot_demark(
     try:
         fig, ax = plt.subplots(figsize=figsize)
 
-        date_objs = [parse_date(d) for d in dates]
+        # Reverse data for chart display (oldest first on left, newest on right)
+        dates_display = list(reversed(dates))
+        date_objs = [parse_date(d) for d in dates_display]
 
-        setup_count = demark_data.get("setup_count", [])
-        setup_type = demark_data.get("setup_type", [])
-        setup_complete = demark_data.get("setup_complete", [])
+        sell_setup = list(reversed(demark_data.get("sell_setup", [])))
+        buy_setup = list(reversed(demark_data.get("buy_setup", [])))
 
-        # Draw setup count bars
-        colors = []
-        for i, (count, stype, complete) in enumerate(
-            zip(setup_count, setup_type, setup_complete)
-        ):
-            if stype == "buy":
-                if complete:
-                    colors.append("#1B5E20")  # Dark green for complete
-                else:
-                    colors.append("#4CAF50")  # Green for buy setup
-            elif stype == "sell":
-                if complete:
-                    colors.append("#B71C1C")  # Dark red for complete
-                else:
-                    colors.append("#F44336")  # Red for sell setup
-            else:
-                colors.append("#9E9E9E")  # Gray for none
+        # Plot as line charts (reference style)
+        ax.plot(
+            range(len(sell_setup)),
+            sell_setup,
+            color="red",
+            linewidth=1.5,
+            label="TD Sell Setup (4일 기준)",
+        )
+        ax.plot(
+            range(len(buy_setup)),
+            buy_setup,
+            color="blue",
+            linewidth=1.5,
+            label="TD Buy Setup (2일 기준)",
+        )
 
-        ax.bar(range(len(setup_count)), setup_count, color=colors, alpha=0.8)
-
-        # Highlight complete setups (9)
-        for i, (count, complete) in enumerate(zip(setup_count, setup_complete)):
-            if complete:
-                ax.annotate(
-                    "9",
-                    (i, count),
-                    textcoords="offset points",
-                    xytext=(0, 5),
-                    ha="center",
-                    fontsize=10,
-                    fontweight="bold",
-                    color="black",
-                )
-
-        # Reference lines
-        ax.axhline(y=9, color="gray", linestyle="--", alpha=0.5, label="Setup Complete")
-        ax.set_ylim(0, 10)
+        # Dynamic y-axis limit
+        max_count = max(max(sell_setup) if sell_setup else 0, max(buy_setup) if buy_setup else 0)
+        ax.set_ylim(0, max_count + 2)
 
         # Formatting
-        demark_title = title or f"{demark_data['ticker']} DeMark TD Setup"
+        demark_title = title or f"{demark_data['ticker']} DeMark TD Setup Counts"
         ax.set_title(
             sanitize_text(demark_title),
             fontsize=14,
             fontweight="bold",
         )
-        ax.set_ylabel("Setup Count", fontsize=10)
-        ax.grid(True, alpha=0.3, axis="y")
-        ax.legend(loc="upper left")
+        ax.set_ylabel("TD Setup Count", fontsize=10)
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="upper right")
 
         # Format x-axis
         format_xaxis(ax, date_objs)

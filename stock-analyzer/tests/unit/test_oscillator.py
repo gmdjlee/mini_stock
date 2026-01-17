@@ -47,13 +47,38 @@ def mock_stock_info_response():
         "cur_prc": 55000,
         # ka10001 API returns market cap in 억원 (100 million won)
         "mac": 3_800_000,  # 380조원 in 억원 unit (380조 = 3,800,000억원)
+        "flo_stk": 6900000,  # 유통주식수 (천주 단위) - 69억주
         "return_code": 0,
         "return_msg": "정상적으로 처리되었습니다",
     }
 
 
 @pytest.fixture
-def mock_kiwoom_client_oscillator(mock_stock_info_response, mock_investor_trend_extended):
+def mock_daily_chart_response():
+    """Mock daily chart response (50 days)."""
+    chart_list = []
+    base_price = 55000
+
+    for i in range(50):
+        price = base_price + (i * 100)  # Simulate price variation
+        chart_list.append({
+            "dt": f"202501{50-i:02d}",
+            "open_pric": price - 500,
+            "high_pric": price + 500,
+            "low_pric": price - 1000,
+            "cur_prc": price,  # close price
+            "trde_qty": 10000000,
+        })
+
+    return {
+        "stk_dt_pole_chart_qry": chart_list,
+        "return_code": 0,
+        "return_msg": "정상적으로 처리되었습니다",
+    }
+
+
+@pytest.fixture
+def mock_kiwoom_client_oscillator(mock_stock_info_response, mock_investor_trend_extended, mock_daily_chart_response):
     """Create mock client with extended investor trend data."""
     from unittest.mock import Mock
     from stock_analyzer.client.kiwoom import KiwoomClient
@@ -66,6 +91,10 @@ def mock_kiwoom_client_oscillator(mock_stock_info_response, mock_investor_trend_
     client.get_investor_trend.return_value = ApiResponse(
         ok=True,
         data=mock_investor_trend_extended,
+    )
+    client.get_daily_chart.return_value = ApiResponse(
+        ok=True,
+        data=mock_daily_chart_response,
     )
     return client
 

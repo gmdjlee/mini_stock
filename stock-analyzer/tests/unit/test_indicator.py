@@ -156,12 +156,12 @@ class TestTrendCalc:
             assert -1 <= cmf_val <= 1
 
     def test_fear_greed_range(self, mock_kiwoom_client_extended):
-        """Test Fear/Greed values are in valid range."""
+        """Test Fear/Greed values are in valid range (reference formula: -1 to 1.5)."""
         result = trend.calc(mock_kiwoom_client_extended, "005930", days=30)
         assert result["ok"] is True
 
         for fg_val in result["data"]["fear_greed"]:
-            assert 0 <= fg_val <= 100
+            assert -1.5 <= fg_val <= 2.0  # Approximate range based on reference formula
 
     def test_trend_values(self, mock_kiwoom_client_extended):
         """Test trend values are valid."""
@@ -295,7 +295,7 @@ class TestElderCalcFromOhlcv:
 
 
 class TestDemarkCalc:
-    """Tests for demark.calc function."""
+    """Tests for demark.calc function (Custom TD Setup)."""
 
     def test_empty_ticker(self, mock_kiwoom_client_extended):
         """Test with empty ticker."""
@@ -311,37 +311,28 @@ class TestDemarkCalc:
         data = result["data"]
         assert data["ticker"] == "005930"
         assert "dates" in data
-        assert "setup_count" in data
-        assert "setup_type" in data
-        assert "setup_complete" in data
-        assert "perfected" in data
+        assert "sell_setup" in data  # Sell: 4일 전 비교
+        assert "buy_setup" in data   # Buy: 2일 전 비교
 
-    def test_setup_count_range(self, mock_kiwoom_client_extended):
-        """Test setup count values are in valid range."""
+    def test_setup_count_non_negative(self, mock_kiwoom_client_extended):
+        """Test setup count values are non-negative (no upper limit in custom version)."""
         result = demark.calc(mock_kiwoom_client_extended, "005930", days=30)
         assert result["ok"] is True
 
-        for count in result["data"]["setup_count"]:
-            assert 0 <= count <= 9
+        for count in result["data"]["sell_setup"]:
+            assert count >= 0  # No upper limit in custom version
 
-    def test_setup_type_values(self, mock_kiwoom_client_extended):
-        """Test setup type values are valid."""
+        for count in result["data"]["buy_setup"]:
+            assert count >= 0  # No upper limit in custom version
+
+    def test_independent_counts(self, mock_kiwoom_client_extended):
+        """Test that sell and buy setups are independent."""
         result = demark.calc(mock_kiwoom_client_extended, "005930", days=30)
         assert result["ok"] is True
 
-        for setup_type in result["data"]["setup_type"]:
-            assert setup_type in ["none", "buy", "sell"]
-
-    def test_boolean_flags(self, mock_kiwoom_client_extended):
-        """Test boolean flag types."""
-        result = demark.calc(mock_kiwoom_client_extended, "005930", days=30)
-        assert result["ok"] is True
-
-        for complete in result["data"]["setup_complete"]:
-            assert isinstance(complete, bool)
-
-        for perfect in result["data"]["perfected"]:
-            assert isinstance(perfect, bool)
+        # Both can have non-zero values simultaneously
+        data = result["data"]
+        assert len(data["sell_setup"]) == len(data["buy_setup"])
 
     def test_output_lengths_match(self, mock_kiwoom_client_extended):
         """Test that all output arrays have same length."""
@@ -350,23 +341,19 @@ class TestDemarkCalc:
 
         data = result["data"]
         n = len(data["dates"])
-        assert len(data["setup_count"]) == n
-        assert len(data["setup_type"]) == n
-        assert len(data["setup_complete"]) == n
-        assert len(data["perfected"]) == n
+        assert len(data["sell_setup"]) == n
+        assert len(data["buy_setup"]) == n
 
 
 class TestDemarkCalcFromOhlcv:
-    """Tests for demark.calc_from_ohlcv function."""
+    """Tests for demark.calc_from_ohlcv function (Custom TD Setup)."""
 
     def test_insufficient_data(self):
         """Test with insufficient data."""
         result = demark.calc_from_ohlcv(
             ticker="005930",
-            dates=["20250101"] * 10,
-            closes=[50000] * 10,
-            highs=[51000] * 10,
-            lows=[49000] * 10,
+            dates=["20250101"] * 3,
+            closes=[50000] * 3,
         )
         assert result["ok"] is False
         assert result["error"]["code"] == "NO_DATA"
@@ -377,22 +364,23 @@ class TestDemarkCalcFromOhlcv:
             ticker="005930",
             dates=sample_ohlcv_data["dates"],
             closes=sample_ohlcv_data["close"],
-            highs=sample_ohlcv_data["high"],
-            lows=sample_ohlcv_data["low"],
         )
         assert result["ok"] is True
+        assert "sell_setup" in result["data"]
+        assert "buy_setup" in result["data"]
 
 
 class TestDemarkGetActiveSetups:
-    """Tests for demark.get_active_setups function."""
+    """Tests for demark.get_active_setups function (Custom TD Setup)."""
 
     def test_empty_data(self):
         """Test with empty data."""
-        result = demark.get_active_setups([], [], [], [])
-        assert result["current_count"] == 0
-        assert result["current_type"] == "none"
-        assert result["last_complete"] is None
-        assert result["active_setups"] == []
+        result = demark.get_active_setups([], [], [])
+        assert result["current_sell"] == 0
+        assert result["current_buy"] == 0
+        assert result["max_sell"] == 0
+        assert result["max_buy"] == 0
+        assert result["recent_setups"] == []
 
     def test_with_data(self, sample_ohlcv_data):
         """Test with sample data."""
@@ -400,22 +388,20 @@ class TestDemarkGetActiveSetups:
             ticker="005930",
             dates=sample_ohlcv_data["dates"],
             closes=sample_ohlcv_data["close"],
-            highs=sample_ohlcv_data["high"],
-            lows=sample_ohlcv_data["low"],
         )
 
         if calc_result["ok"]:
             data = calc_result["data"]
             result = demark.get_active_setups(
-                data["setup_count"],
-                data["setup_type"],
-                data["setup_complete"],
+                data["sell_setup"],
+                data["buy_setup"],
                 data["dates"],
             )
-            assert "current_count" in result
-            assert "current_type" in result
-            assert "last_complete" in result
-            assert "active_setups" in result
+            assert "current_sell" in result
+            assert "current_buy" in result
+            assert "max_sell" in result
+            assert "max_buy" in result
+            assert "recent_setups" in result
 
 
 # ============================================================
