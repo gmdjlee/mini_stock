@@ -27,9 +27,9 @@
 | App Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
 | App Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
 | App Phase 2 | ✅ Done | 기술적 지표 화면 (Vico Charts) |
-| App Phase 3 | 📋 Pending | 시장 지표, 조건검색 화면 |
+| App Phase 3 | ✅ Done | 시장 지표, 조건검색 화면 |
 
-**코드**: ~90 files, ~3,500 lines (Kotlin + resources)
+**코드**: ~105 files, ~4,200 lines (Kotlin + resources)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ## Quick Commands
@@ -495,16 +495,33 @@ StockApp/
 │   │   │   ├── ui/AnalysisScreen.kt
 │   │   │   ├── ui/AnalysisVm.kt
 │   │   │   └── di/AnalysisModule.kt
-│   │   └── indicator/              # 기술적 지표 (Phase 2)
-│   │       ├── domain/model/IndicatorModels.kt
-│   │       ├── domain/repo/IndicatorRepo.kt
-│   │       ├── domain/usecase/GetTrendUC.kt
-│   │       ├── domain/usecase/GetElderUC.kt
-│   │       ├── domain/usecase/GetDemarkUC.kt
-│   │       ├── data/repo/IndicatorRepoImpl.kt
-│   │       ├── ui/IndicatorScreen.kt
-│   │       ├── ui/IndicatorVm.kt
-│   │       └── di/IndicatorModule.kt
+│   │   ├── indicator/              # 기술적 지표 (Phase 2)
+│   │   │   ├── domain/model/IndicatorModels.kt
+│   │   │   ├── domain/repo/IndicatorRepo.kt
+│   │   │   ├── domain/usecase/GetTrendUC.kt
+│   │   │   ├── domain/usecase/GetElderUC.kt
+│   │   │   ├── domain/usecase/GetDemarkUC.kt
+│   │   │   ├── data/repo/IndicatorRepoImpl.kt
+│   │   │   ├── ui/IndicatorScreen.kt
+│   │   │   ├── ui/IndicatorVm.kt
+│   │   │   └── di/IndicatorModule.kt
+│   │   ├── market/                 # 시장 지표 (Phase 3)
+│   │   │   ├── domain/model/MarketModels.kt
+│   │   │   ├── domain/repo/MarketRepo.kt
+│   │   │   ├── domain/usecase/GetMarketIndicatorsUC.kt
+│   │   │   ├── data/repo/MarketRepoImpl.kt
+│   │   │   ├── ui/MarketScreen.kt
+│   │   │   ├── ui/MarketVm.kt
+│   │   │   └── di/MarketModule.kt
+│   │   └── condition/              # 조건검색 (Phase 3)
+│   │       ├── domain/model/ConditionModels.kt
+│   │       ├── domain/repo/ConditionRepo.kt
+│   │       ├── domain/usecase/GetConditionListUC.kt
+│   │       ├── domain/usecase/SearchConditionUC.kt
+│   │       ├── data/repo/ConditionRepoImpl.kt
+│   │       ├── ui/ConditionScreen.kt
+│   │       ├── ui/ConditionVm.kt
+│   │       └── di/ConditionModule.kt
 │   └── nav/
 │       ├── Nav.kt                  # Screen 정의
 │       └── NavGraph.kt             # Navigation
@@ -673,6 +690,86 @@ val result = pyClient.call(
 - **LineChartContent**: CMF, Fear/Greed 추이
 - **BarChartContent**: MACD Histogram
 - **DemarkSetupChart**: Sell/Buy Setup 카운트 추이
+
+### App Phase 3: 시장 지표 + 조건검색
+
+#### MarketScreen (시장 지표)
+- 고객예탁금, 신용융자, 신용잔고, 신용비율 표시
+- 기간 선택 (7일, 14일, 30일, 60일, 90일)
+- 추이 차트 (Vico LineChart)
+- Pull-to-refresh 지원
+- 캐시 TTL: 24시간
+
+#### 시장 지표 모델
+```kotlin
+data class MarketSummary(
+    val dates: List<String>,
+    val currentDeposit: Long,        // 고객예탁금 (원)
+    val currentCreditLoan: Long,     // 신용융자 (원)
+    val currentCreditBalance: Long,  // 신용잔고 (원)
+    val currentCreditRatio: Double,  // 신용비율 (%)
+    // 전일 대비 변화
+    val depositChange: Long,
+    val creditLoanChange: Long,
+    // 차트 데이터
+    val depositHistory: List<Long>,
+    val creditRatioHistory: List<Double>
+)
+```
+
+#### Python 호출 예시 (Market)
+```kotlin
+// 시장 지표 조회
+val result = pyClient.call(
+    module = "stock_analyzer.market.deposit",
+    func = "get_market_indicators",
+    args = listOf(30)  // days
+) { json -> json.decodeFromString<MarketIndicatorsResponse>(json) }
+```
+
+#### ConditionScreen (조건검색)
+- 조건검색 목록 표시
+- 조건 선택 시 검색 실행
+- 검색 결과에서 종목 선택 시 수급 분석 화면으로 이동
+- Pull-to-refresh 지원
+- 캐시 TTL: 24시간
+
+#### 조건검색 모델
+```kotlin
+data class Condition(
+    val idx: String,    // 조건검색 인덱스
+    val name: String    // 조건검색 이름
+)
+
+data class ConditionResult(
+    val condition: Condition,
+    val stocks: List<ConditionStock>
+)
+
+data class ConditionStock(
+    val ticker: String,
+    val name: String,
+    val price: Int,
+    val change: Double  // 등락률 (%)
+)
+```
+
+#### Python 호출 예시 (Condition)
+```kotlin
+// 조건검색 목록 조회
+val result = pyClient.call(
+    module = "stock_analyzer.search.condition",
+    func = "get_list",
+    args = emptyList()
+) { json -> json.decodeFromString<ConditionListResponse>(json) }
+
+// 조건검색 실행
+val result = pyClient.call(
+    module = "stock_analyzer.search.condition",
+    func = "search",
+    args = listOf("000", "골든크로스")
+) { json -> json.decodeFromString<ConditionSearchResponse>(json) }
+```
 
 ### 참고 문서
 

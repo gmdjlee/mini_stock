@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.AnalysisCacheDao
+import com.stockapp.core.db.dao.ConditionCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
+import com.stockapp.core.db.dao.MarketCacheDao
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
 import dagger.Module
@@ -25,7 +27,9 @@ object DbModule {
             context,
             AppDb::class.java,
             AppDb.DB_NAME
-        ).build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
@@ -39,4 +43,10 @@ object DbModule {
 
     @Provides
     fun provideIndicatorCacheDao(db: AppDb): IndicatorCacheDao = db.indicatorCacheDao()
+
+    @Provides
+    fun provideMarketCacheDao(db: AppDb): MarketCacheDao = db.marketCacheDao()
+
+    @Provides
+    fun provideConditionCacheDao(db: AppDb): ConditionCacheDao = db.conditionCacheDao()
 }
