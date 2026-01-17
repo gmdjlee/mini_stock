@@ -3,11 +3,15 @@ package com.stockapp.core.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.stockapp.core.db.dao.AnalysisCacheDao
+import com.stockapp.core.db.dao.ConditionCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
+import com.stockapp.core.db.dao.MarketCacheDao
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
+import com.stockapp.core.db.entity.ConditionCacheEntity
 import com.stockapp.core.db.entity.IndicatorCacheEntity
+import com.stockapp.core.db.entity.MarketCacheEntity
 import com.stockapp.core.db.entity.SearchHistoryEntity
 import com.stockapp.core.db.entity.StockEntity
 
@@ -16,9 +20,11 @@ import com.stockapp.core.db.entity.StockEntity
         StockEntity::class,
         AnalysisCacheEntity::class,
         SearchHistoryEntity::class,
-        IndicatorCacheEntity::class
+        IndicatorCacheEntity::class,
+        MarketCacheEntity::class,
+        ConditionCacheEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDb : RoomDatabase() {
@@ -26,6 +32,8 @@ abstract class AppDb : RoomDatabase() {
     abstract fun analysisCacheDao(): AnalysisCacheDao
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun indicatorCacheDao(): IndicatorCacheDao
+    abstract fun marketCacheDao(): MarketCacheDao
+    abstract fun conditionCacheDao(): ConditionCacheDao
 
     companion object {
         const val DB_NAME = "stock_app.db"
@@ -34,6 +42,8 @@ abstract class AppDb : RoomDatabase() {
         const val STOCK_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
         const val ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
         const val INDICATOR_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
+        const val MARKET_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
+        const val CONDITION_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
         const val MAX_HISTORY_COUNT = 50
     }
 }

@@ -14,7 +14,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.stockapp.feature.analysis.ui.AnalysisScreen
+import com.stockapp.feature.condition.ui.ConditionScreen
 import com.stockapp.feature.indicator.ui.IndicatorScreen
+import com.stockapp.feature.market.ui.MarketScreen
 import com.stockapp.feature.search.ui.SearchScreen
 
 /**
@@ -46,17 +48,21 @@ fun NavGraph(
 
         // Indicator screen (placeholder)
         composable(Screen.Indicator.route) {
-            PlaceholderScreen(title = "기술 지표")
+            PlaceholderScreen(title = "기술 지표\n검색에서 종목을 선택하세요")
         }
 
-        // Market screen (placeholder)
+        // Market screen - shows market indicators
         composable(Screen.Market.route) {
-            PlaceholderScreen(title = "시장 지표")
+            MarketScreen()
         }
 
-        // Condition screen (placeholder)
+        // Condition screen - shows condition search
         composable(Screen.Condition.route) {
-            PlaceholderScreen(title = "조건검색")
+            ConditionScreen(
+                onStockClick = { ticker ->
+                    navController.navigate(Screen.StockDetail.createRoute(ticker))
+                }
+            )
         }
 
         // Stock detail screen - shows Analysis
@@ -98,7 +104,7 @@ private fun PlaceholderScreen(title: String) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "$title\n(구현 예정)",
+            text = title,
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center
         )
