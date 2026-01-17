@@ -49,6 +49,9 @@ def generate_mock_ohlcv(days: int = 500):
 
     레퍼런스 코드는 2022-01-01부터 데이터를 사용하므로
     52주 고가/저가 계산을 위해 충분한 데이터가 필요합니다.
+
+    자기상관(Autocorrelation) 적용: 실제 시장 데이터와 유사하게
+    이전 가격에 기반한 연속적인 가격 움직임 생성.
     """
     from datetime import datetime, timedelta
     random.seed(42)
@@ -63,22 +66,41 @@ def generate_mock_ohlcv(days: int = 500):
 
     # Generate dates starting from today going backwards
     start_date = datetime(2025, 1, 14)
+
+    # 자기상관을 위한 모멘텀 기반 가격 생성 (역순으로 생성 후 뒤집기)
+    prices_chrono = []
     price = base_price
+    momentum = 0.0  # 가격 모멘텀
+
     for i in range(days):
-        # Dates are "newest first"
+        # 장기 추세 (sine wave)
+        cycle = i / days * 6 * math.pi
+        trend_target = base_price + math.sin(cycle) * 8000
+
+        # 모멘텀 기반 자기상관 적용 (0.85 = 높은 자기상관)
+        # 가격이 추세 방향으로 천천히 움직임
+        momentum = 0.85 * momentum + 0.15 * (trend_target - price) / price
+        momentum += random.uniform(-0.005, 0.005)  # 작은 랜덤 노이즈
+        momentum = max(-0.03, min(0.03, momentum))  # 클리핑
+
+        price = price * (1 + momentum)
+        prices_chrono.append(price)
+
+    # 역순으로 변환 (newest first)
+    prices_chrono.reverse()
+
+    # OHLCV 생성
+    for i in range(days):
         current_date = start_date - timedelta(days=i)
         dates.append(current_date.strftime("%Y%m%d"))
 
-        # 가격 변동 시뮬레이션 (추세 + 변동성) - 레퍼런스와 유사한 패턴
-        cycle = i / days * 6 * math.pi  # 약 3번의 상승/하락 사이클
-        trend = math.sin(cycle) * 8000
-        noise = random.uniform(-0.02, 0.02)
-        price = (base_price + trend) * (1 + noise)
+        price = prices_chrono[i]
 
-        open_price = int(price * random.uniform(0.99, 1.01))
-        close_price = int(price * random.uniform(0.99, 1.01))
-        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.02))
-        low_price = int(min(open_price, close_price) * random.uniform(0.98, 1.0))
+        # OHLC 생성 (자기상관 유지하면서 작은 변동)
+        open_price = int(price * random.uniform(0.995, 1.005))
+        close_price = int(price * random.uniform(0.995, 1.005))
+        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.015))
+        low_price = int(min(open_price, close_price) * random.uniform(0.985, 1.0))
         volume = random.randint(10_000_000, 30_000_000)
 
         opens.append(open_price)
@@ -111,6 +133,9 @@ def generate_mock_weekly_ohlcv(weeks: int = WEEKS_2_YEARS):
     """Mock 주간 OHLCV 데이터 생성 (레퍼런스: 약 2년).
 
     레퍼런스 코드는 Weekly 데이터를 Elder Impulse와 Fear/Greed에 사용합니다.
+
+    자기상관(Autocorrelation) 적용: 실제 시장 데이터와 유사하게
+    이전 가격에 기반한 연속적인 가격 움직임 생성.
     """
     from datetime import datetime, timedelta
     random.seed(42)
@@ -125,22 +150,40 @@ def generate_mock_weekly_ohlcv(weeks: int = WEEKS_2_YEARS):
 
     # Generate dates starting from today going backwards (Friday close)
     start_date = datetime(2025, 1, 10)  # Friday
+
+    # 자기상관을 위한 모멘텀 기반 가격 생성 (시간순으로 생성)
+    prices_chrono = []
     price = base_price
+    momentum = 0.0
+
     for i in range(weeks):
-        # Dates are "newest first"
+        # 장기 추세 (sine wave) - 주간 데이터용
+        cycle = i / weeks * 4 * math.pi  # 약 2번의 상승/하락 사이클
+        trend_target = base_price + math.sin(cycle) * 10000
+
+        # 모멘텀 기반 자기상관 적용 (0.80 = 높은 자기상관)
+        momentum = 0.80 * momentum + 0.20 * (trend_target - price) / price
+        momentum += random.uniform(-0.008, 0.008)  # 주간 데이터용 약간 더 큰 노이즈
+        momentum = max(-0.05, min(0.05, momentum))  # 클리핑
+
+        price = price * (1 + momentum)
+        prices_chrono.append(price)
+
+    # 역순으로 변환 (newest first)
+    prices_chrono.reverse()
+
+    # OHLCV 생성
+    for i in range(weeks):
         current_date = start_date - timedelta(weeks=i)
         dates.append(current_date.strftime("%Y%m%d"))
 
-        # 가격 변동 시뮬레이션 (추세 + 변동성)
-        cycle = i / weeks * 4 * math.pi  # 약 2번의 상승/하락 사이클
-        trend = math.sin(cycle) * 10000
-        noise = random.uniform(-0.03, 0.03)
-        price = (base_price + trend) * (1 + noise)
+        price = prices_chrono[i]
 
-        open_price = int(price * random.uniform(0.98, 1.02))
-        close_price = int(price * random.uniform(0.98, 1.02))
-        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.03))
-        low_price = int(min(open_price, close_price) * random.uniform(0.97, 1.0))
+        # OHLC 생성 (주간 데이터는 일간보다 약간 넓은 범위)
+        open_price = int(price * random.uniform(0.99, 1.01))
+        close_price = int(price * random.uniform(0.99, 1.01))
+        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.025))
+        low_price = int(min(open_price, close_price) * random.uniform(0.975, 1.0))
         volume = random.randint(50_000_000, 150_000_000)
 
         opens.append(open_price)
@@ -162,7 +205,11 @@ def generate_mock_weekly_ohlcv(weeks: int = WEEKS_2_YEARS):
 
 
 def generate_mock_monthly_ohlcv(months: int = MONTHS_FULL):
-    """Mock 월간 OHLCV 데이터 생성 (레퍼런스: Full Period)."""
+    """Mock 월간 OHLCV 데이터 생성 (레퍼런스: Full Period).
+
+    자기상관(Autocorrelation) 적용: 실제 시장 데이터와 유사하게
+    이전 가격에 기반한 연속적인 가격 움직임 생성.
+    """
     from datetime import datetime
     from dateutil.relativedelta import relativedelta
     random.seed(42)
@@ -177,22 +224,40 @@ def generate_mock_monthly_ohlcv(months: int = MONTHS_FULL):
 
     # Generate dates starting from today going backwards
     start_date = datetime(2025, 1, 1)
+
+    # 자기상관을 위한 모멘텀 기반 가격 생성 (시간순으로 생성)
+    prices_chrono = []
     price = base_price
+    momentum = 0.0
+
     for i in range(months):
-        # Dates are "newest first"
+        # 장기 추세 (sine wave) - 월간 데이터용
+        cycle = i / months * 3 * math.pi  # 약 1.5번의 상승/하락 사이클
+        trend_target = base_price + math.sin(cycle) * 15000
+
+        # 모멘텀 기반 자기상관 적용 (0.75 = 월간 데이터용)
+        momentum = 0.75 * momentum + 0.25 * (trend_target - price) / price
+        momentum += random.uniform(-0.012, 0.012)  # 월간 데이터용 노이즈
+        momentum = max(-0.08, min(0.08, momentum))  # 클리핑
+
+        price = price * (1 + momentum)
+        prices_chrono.append(price)
+
+    # 역순으로 변환 (newest first)
+    prices_chrono.reverse()
+
+    # OHLCV 생성
+    for i in range(months):
         current_date = start_date - relativedelta(months=i)
         dates.append(current_date.strftime("%Y%m%d"))
 
-        # 가격 변동 시뮬레이션 (장기 추세)
-        cycle = i / months * 3 * math.pi  # 약 1.5번의 상승/하락 사이클
-        trend = math.sin(cycle) * 15000
-        noise = random.uniform(-0.04, 0.04)
-        price = (base_price + trend) * (1 + noise)
+        price = prices_chrono[i]
 
-        open_price = int(price * random.uniform(0.97, 1.03))
-        close_price = int(price * random.uniform(0.97, 1.03))
-        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.05))
-        low_price = int(min(open_price, close_price) * random.uniform(0.95, 1.0))
+        # OHLC 생성 (월간 데이터는 더 넓은 범위)
+        open_price = int(price * random.uniform(0.98, 1.02))
+        close_price = int(price * random.uniform(0.98, 1.02))
+        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.04))
+        low_price = int(min(open_price, close_price) * random.uniform(0.96, 1.0))
         volume = random.randint(200_000_000, 600_000_000)
 
         opens.append(open_price)

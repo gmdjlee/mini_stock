@@ -100,17 +100,22 @@ def calc(
         ma10 = _calc_ma(closes, 10)
         ma5 = _calc_ma(closes, 5)
         ma20 = _calc_ma(closes, 20)
-        ma_signal = _calc_ma_signal_weekly(closes, ma10)
     else:
         # Daily: MA5/20/60 alignment
         ma5 = _calc_ma(closes, 5)
         ma20 = _calc_ma(closes, 20)
         ma60 = _calc_ma(closes, 60)
         ma10 = _calc_ma(closes, 10)
-        ma_signal = _calc_ma_signal(ma5, ma20, ma60)
 
     cmf = _calc_cmf(highs, lows, closes, volumes, period=cmf_period)
     fear_greed = _calc_fear_greed_weekly(closes, volumes) if timeframe == "weekly" else _calc_fear_greed(closes, volumes)
+
+    # Calculate MA signal based on timeframe (reference: 3 conditions for weekly)
+    if timeframe == "weekly":
+        ma_signal = _calc_ma_signal_weekly_reference(closes, highs, lows, ma10, cmf)
+    else:
+        ma_signal = _calc_ma_signal(ma5, ma20, ma60)
+
     trend = _calc_trend(ma_signal, cmf, fear_greed)
 
     # Trim to requested days/weeks
@@ -183,16 +188,21 @@ def calc_from_ohlcv(
         ma10 = _calc_ma(closes, 10)
         ma5 = _calc_ma(closes, 5)
         ma20 = _calc_ma(closes, 20)
-        ma_signal = _calc_ma_signal_weekly(closes, ma10)
     else:
         ma5 = _calc_ma(closes, 5)
         ma20 = _calc_ma(closes, 20)
         ma60 = _calc_ma(closes, 60)
         ma10 = _calc_ma(closes, 10)
-        ma_signal = _calc_ma_signal(ma5, ma20, ma60)
 
     cmf = _calc_cmf(highs, lows, closes, volumes, period=cmf_period)
     fear_greed = _calc_fear_greed_weekly(closes, volumes) if timeframe == "weekly" else _calc_fear_greed(closes, volumes)
+
+    # Calculate MA signal based on timeframe (reference: 3 conditions for weekly)
+    if timeframe == "weekly":
+        ma_signal = _calc_ma_signal_weekly_reference(closes, highs, lows, ma10, cmf)
+    else:
+        ma_signal = _calc_ma_signal(ma5, ma20, ma60)
+
     trend = _calc_trend(ma_signal, cmf, fear_greed)
 
     result = {
@@ -270,9 +280,9 @@ def _calc_ma_signal_weekly(
     ma10: List[Optional[int]],
 ) -> List[int]:
     """
-    Calculate MA-based signal for weekly data (reference logic).
+    Calculate MA-based signal for weekly data (simple version).
 
-    Reference signal logic (from 추세판별.txt):
+    Simple signal logic:
     - 1 (Bullish): Close > MA10
     - -1 (Bearish): Close < MA10
     - 0 (Neutral): Otherwise or insufficient data
@@ -290,6 +300,50 @@ def _calc_ma_signal_weekly(
             result.append(-1)
         else:
             result.append(0)
+    return result
+
+
+def _calc_ma_signal_weekly_reference(
+    closes: List[int],
+    highs: List[int],
+    lows: List[int],
+    ma10: List[Optional[int]],
+    cmf: List[float],
+) -> List[int]:
+    """
+    Calculate MA-based signal for weekly data (reference 3-condition logic).
+
+    Reference signal logic (from 추세판별.txt):
+    - Buy Signal (1): High > Prev_High AND Close > MA10 AND CMF > 0
+    - Sell Signal (-1): Low < Prev_Low AND Close < MA10 AND CMF < 0
+    - Neutral (0): Otherwise
+
+    Note: Data is in reverse order (newest first), so Prev = index + 1.
+
+    Returns:
+        Signal list (1, 0, -1)
+    """
+    n = len(closes)
+    result = [0] * n
+
+    for i in range(n):
+        # Need previous bar data (which is at index i+1 since data is newest-first)
+        if i + 1 >= n or ma10[i] is None:
+            result[i] = 0
+            continue
+
+        prev_high = highs[i + 1]
+        prev_low = lows[i + 1]
+
+        # Buy Signal: High > Prev_High AND Close > MA10 AND CMF > 0
+        if highs[i] > prev_high and closes[i] > ma10[i] and cmf[i] > 0:
+            result[i] = 1
+        # Sell Signal: Low < Prev_Low AND Close < MA10 AND CMF < 0
+        elif lows[i] < prev_low and closes[i] < ma10[i] and cmf[i] < 0:
+            result[i] = -1
+        else:
+            result[i] = 0
+
     return result
 
 
