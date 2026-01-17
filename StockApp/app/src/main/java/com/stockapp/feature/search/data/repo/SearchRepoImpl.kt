@@ -43,17 +43,21 @@ class SearchRepoImpl @Inject constructor(
     }
 
     override suspend fun getAll(): Result<List<Stock>> {
-        return pyClient.call(
+        val result = pyClient.call(
             module = "stock_analyzer.stock.search",
             func = "get_all",
             args = emptyList(),
             timeoutMs = 60_000
         ) { jsonStr ->
-            val stocks = parseSearchResponse(jsonStr)
-            // Cache results
-            stockDao.insertAll(stocks.map { it.toEntity() })
-            stocks
+            parseSearchResponse(jsonStr)
         }
+
+        // Cache results after the call completes
+        result.onSuccess { stocks ->
+            stockDao.insertAll(stocks.map { it.toEntity() })
+        }
+
+        return result
     }
 
     override fun getHistory(): Flow<List<Stock>> {

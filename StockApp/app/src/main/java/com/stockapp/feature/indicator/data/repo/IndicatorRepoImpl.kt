@@ -46,7 +46,7 @@ class IndicatorRepoImpl @Inject constructor(
         }
 
         // Fetch from Python
-        return pyClient.call(
+        val result = pyClient.call(
             module = "stock_analyzer.indicator.trend",
             func = "calc",
             args = listOf(ticker, days, timeframe),
@@ -54,14 +54,18 @@ class IndicatorRepoImpl @Inject constructor(
         ) { jsonStr ->
             val response = json.decodeFromString<TrendResponse>(jsonStr)
             if (response.ok && response.data != null) {
-                val trendSignal = response.data.toDomain()
-                // Cache the result
-                cacheTrend(cacheKey, ticker, response.data)
-                trendSignal
+                Pair(response.data.toDomain(), response.data)
             } else {
                 throw PyError.CallError(response.error?.msg ?: "Failed to get trend signal")
             }
         }
+
+        // Cache the result after the call completes
+        result.onSuccess { (_, dto) ->
+            cacheTrend(cacheKey, ticker, dto)
+        }
+
+        return result.map { it.first }
     }
 
     override suspend fun getElder(
@@ -78,7 +82,7 @@ class IndicatorRepoImpl @Inject constructor(
         }
 
         // Fetch from Python
-        return pyClient.call(
+        val result = pyClient.call(
             module = "stock_analyzer.indicator.elder",
             func = "calc",
             args = listOf(ticker, days, timeframe),
@@ -86,14 +90,18 @@ class IndicatorRepoImpl @Inject constructor(
         ) { jsonStr ->
             val response = json.decodeFromString<ElderResponse>(jsonStr)
             if (response.ok && response.data != null) {
-                val elderImpulse = response.data.toDomain()
-                // Cache the result
-                cacheElder(cacheKey, ticker, response.data)
-                elderImpulse
+                Pair(response.data.toDomain(), response.data)
             } else {
                 throw PyError.CallError(response.error?.msg ?: "Failed to get elder impulse")
             }
         }
+
+        // Cache the result after the call completes
+        result.onSuccess { (_, dto) ->
+            cacheElder(cacheKey, ticker, dto)
+        }
+
+        return result.map { it.first }
     }
 
     override suspend fun getDemark(
@@ -110,7 +118,7 @@ class IndicatorRepoImpl @Inject constructor(
         }
 
         // Fetch from Python
-        return pyClient.call(
+        val result = pyClient.call(
             module = "stock_analyzer.indicator.demark",
             func = "calc",
             args = listOf(ticker, days, timeframe),
@@ -118,14 +126,18 @@ class IndicatorRepoImpl @Inject constructor(
         ) { jsonStr ->
             val response = json.decodeFromString<DemarkResponse>(jsonStr)
             if (response.ok && response.data != null) {
-                val demarkSetup = response.data.toDomain()
-                // Cache the result
-                cacheDemark(cacheKey, ticker, response.data)
-                demarkSetup
+                Pair(response.data.toDomain(), response.data)
             } else {
                 throw PyError.CallError(response.error?.msg ?: "Failed to get demark setup")
             }
         }
+
+        // Cache the result after the call completes
+        result.onSuccess { (_, dto) ->
+            cacheDemark(cacheKey, ticker, dto)
+        }
+
+        return result.map { it.first }
     }
 
     override suspend fun clearCache(ticker: String) {
