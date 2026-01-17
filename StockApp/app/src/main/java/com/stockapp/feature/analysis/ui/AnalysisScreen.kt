@@ -49,6 +49,7 @@ import java.text.DecimalFormat
 @Composable
 fun AnalysisScreen(
     onBackClick: () -> Unit,
+    onIndicatorClick: ((String) -> Unit)? = null,
     viewModel: AnalysisVm = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -101,6 +102,7 @@ fun AnalysisScreen(
                 is AnalysisState.Success -> {
                     AnalysisContent(
                         summary = currentState.summary,
+                        onIndicatorClick = onIndicatorClick?.let { { it(currentState.summary.ticker) } },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -119,6 +121,7 @@ fun AnalysisScreen(
 @Composable
 private fun AnalysisContent(
     summary: AnalysisSummary,
+    onIndicatorClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -168,6 +171,21 @@ private fun AnalysisContent(
             unit = "%",
             valueColor = getValueColor(summary.supplyRatio)
         )
+
+        // Indicator button
+        if (onIndicatorClick != null) {
+            androidx.compose.material3.OutlinedButton(
+                onClick = onIndicatorClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TrendingUp,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text("기술 지표 보기")
+            }
+        }
 
         // Data info
         if (summary.dates.isNotEmpty()) {

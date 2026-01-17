@@ -26,10 +26,10 @@
 |-------|--------|-------------|
 | App Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
 | App Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
-| App Phase 2 | 📋 Pending | 기술적 지표 화면 (Vico Charts) |
+| App Phase 2 | ✅ Done | 기술적 지표 화면 (Vico Charts) |
 | App Phase 3 | 📋 Pending | 시장 지표, 조건검색 화면 |
 
-**코드**: 76 files, ~2,900 lines (Kotlin + resources)
+**코드**: ~90 files, ~3,500 lines (Kotlin + resources)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ## Quick Commands
@@ -487,14 +487,24 @@ StockApp/
 │   │   │   ├── ui/SearchScreen.kt
 │   │   │   ├── ui/SearchVm.kt
 │   │   │   └── di/SearchModule.kt
-│   │   └── analysis/               # 수급 분석 (Phase 1)
-│   │       ├── domain/model/StockData.kt
-│   │       ├── domain/repo/AnalysisRepo.kt
-│   │       ├── domain/usecase/GetAnalysisUC.kt
-│   │       ├── data/repo/AnalysisRepoImpl.kt
-│   │       ├── ui/AnalysisScreen.kt
-│   │       ├── ui/AnalysisVm.kt
-│   │       └── di/AnalysisModule.kt
+│   │   ├── analysis/               # 수급 분석 (Phase 1)
+│   │   │   ├── domain/model/StockData.kt
+│   │   │   ├── domain/repo/AnalysisRepo.kt
+│   │   │   ├── domain/usecase/GetAnalysisUC.kt
+│   │   │   ├── data/repo/AnalysisRepoImpl.kt
+│   │   │   ├── ui/AnalysisScreen.kt
+│   │   │   ├── ui/AnalysisVm.kt
+│   │   │   └── di/AnalysisModule.kt
+│   │   └── indicator/              # 기술적 지표 (Phase 2)
+│   │       ├── domain/model/IndicatorModels.kt
+│   │       ├── domain/repo/IndicatorRepo.kt
+│   │       ├── domain/usecase/GetTrendUC.kt
+│   │       ├── domain/usecase/GetElderUC.kt
+│   │       ├── domain/usecase/GetDemarkUC.kt
+│   │       ├── data/repo/IndicatorRepoImpl.kt
+│   │       ├── ui/IndicatorScreen.kt
+│   │       ├── ui/IndicatorVm.kt
+│   │       └── di/IndicatorModule.kt
 │   └── nav/
 │       ├── Nav.kt                  # Screen 정의
 │       └── NavGraph.kt             # Navigation
@@ -595,6 +605,74 @@ data class StockData(
     val ins5d: List<Long>      // 기관 순매수
 )
 ```
+
+### App Phase 2: 기술적 지표
+
+#### IndicatorScreen (탭 구조)
+- **Trend Signal**: MA 신호, CMF, Fear/Greed 지수
+- **Elder Impulse**: 캔들 색상 (Green/Red/Blue), MACD Histogram
+- **DeMark TD Setup**: Sell/Buy 카운트, 매매 신호
+
+#### 네비게이션
+- AnalysisScreen에서 "기술 지표 보기" 버튼 → IndicatorScreen
+- 탭으로 3가지 지표 간 전환
+
+#### 지표 모델
+```kotlin
+// Trend Signal
+data class TrendSummary(
+    val currentTrend: String,      // "bullish", "neutral", "bearish"
+    val currentCmf: Double,        // -1 ~ 1
+    val currentFearGreed: Double,  // -1 ~ 1.5
+    val trendLabel: String,        // "상승 추세", "하락 추세", "중립"
+    val cmfLabel: String,          // "자금 유입", "자금 유출", "중립"
+    val fearGreedLabel: String     // "탐욕 (과열)", "공포 (침체)", "중립"
+)
+
+// Elder Impulse
+data class ElderSummary(
+    val currentColor: String,      // "green", "red", "blue"
+    val colorLabel: String,        // "상승 (Green)", "하락 (Red)", "중립 (Blue)"
+    val impulseSignal: String      // "매수 유리", "매도 유리", "관망"
+)
+
+// DeMark TD Setup
+data class DemarkSummary(
+    val currentSellSetup: Int,     // Sell 카운트
+    val currentBuySetup: Int,      // Buy 카운트
+    val sellSignal: String,        // "매도 신호 (카운트 X)" 또는 "없음"
+    val buySignal: String          // "매수 신호 (카운트 X)" 또는 "없음"
+)
+```
+
+#### Python 호출 예시
+```kotlin
+// Trend Signal 조회
+val result = pyClient.call(
+    module = "stock_analyzer.indicator.trend",
+    func = "calc",
+    args = listOf("005930", 180, "daily")
+) { json -> json.decodeFromString<TrendResponse>(json) }
+
+// Elder Impulse 조회
+val result = pyClient.call(
+    module = "stock_analyzer.indicator.elder",
+    func = "calc",
+    args = listOf("005930", 180, "daily")
+) { json -> json.decodeFromString<ElderResponse>(json) }
+
+// DeMark TD Setup 조회
+val result = pyClient.call(
+    module = "stock_analyzer.indicator.demark",
+    func = "calc",
+    args = listOf("005930", 180, "daily")
+) { json -> json.decodeFromString<DemarkResponse>(json) }
+```
+
+#### Vico Charts 사용
+- **LineChartContent**: CMF, Fear/Greed 추이
+- **BarChartContent**: MACD Histogram
+- **DemarkSetupChart**: Sell/Buy Setup 카운트 추이
 
 ### 참고 문서
 

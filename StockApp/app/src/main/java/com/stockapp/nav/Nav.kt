@@ -28,8 +28,8 @@ sealed class Screen(
         fun createRoute(ticker: String) = "stock/$ticker"
     }
 
-    data object IndicatorDetail : Screen("indicator/{ticker}/{type}", "지표 상세") {
-        fun createRoute(ticker: String, type: String) = "indicator/$ticker/$type"
+    data object IndicatorDetail : Screen("indicator_detail/{ticker}", "지표 상세") {
+        fun createRoute(ticker: String) = "indicator_detail/$ticker"
     }
 
     companion object {
