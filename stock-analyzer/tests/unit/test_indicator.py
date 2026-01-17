@@ -228,8 +228,8 @@ class TestElderCalc:
         assert "macd_line" in data
         assert "signal_line" in data
         assert "macd_hist" in data
-        assert "ema13_dir" in data
-        assert "hist_dir" in data
+        assert "ema13_slope" in data
+        assert "hist_slope" in data
 
     def test_color_values(self, mock_kiwoom_client_extended):
         """Test color values are valid."""
@@ -239,16 +239,17 @@ class TestElderCalc:
         for color in result["data"]["color"]:
             assert color in ["green", "red", "blue"]
 
-    def test_direction_values(self, mock_kiwoom_client_extended):
-        """Test direction values are valid."""
+    def test_slope_values(self, mock_kiwoom_client_extended):
+        """Test slope values are numeric (replaced direction values)."""
         result = elder.calc(mock_kiwoom_client_extended, "005930", days=30)
         assert result["ok"] is True
 
-        for dir_val in result["data"]["ema13_dir"]:
-            assert dir_val in [-1, 0, 1]
+        # Slopes are now floats, not discrete -1/0/1
+        for slope_val in result["data"]["ema13_slope"]:
+            assert isinstance(slope_val, (int, float))
 
-        for dir_val in result["data"]["hist_dir"]:
-            assert dir_val in [-1, 0, 1]
+        for slope_val in result["data"]["hist_slope"]:
+            assert isinstance(slope_val, (int, float))
 
     def test_output_lengths_match(self, mock_kiwoom_client_extended):
         """Test that all output arrays have same length."""
@@ -262,8 +263,8 @@ class TestElderCalc:
         assert len(data["macd_line"]) == n
         assert len(data["signal_line"]) == n
         assert len(data["macd_hist"]) == n
-        assert len(data["ema13_dir"]) == n
-        assert len(data["hist_dir"]) == n
+        assert len(data["ema13_slope"]) == n
+        assert len(data["hist_slope"]) == n
 
 
 class TestElderCalcFromOhlcv:

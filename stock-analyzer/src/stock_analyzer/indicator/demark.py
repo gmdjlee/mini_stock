@@ -5,9 +5,11 @@ Custom TD Setup rules (based on reference):
 - Buy Setup: Close(t) < Close(t-2) 연속이면 +1, 아니면 0으로 리셋
 - Sell과 Buy는 독립적으로 카운트 (동시에 값이 있을 수 있음)
 - 카운트 한도 없음 (무한 증가)
+
+Reference: Shows Daily, Weekly, and Monthly TD Setup charts.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Literal
 
 from ..client.kiwoom import KiwoomClient
 from ..core.log import log_info
@@ -18,6 +20,7 @@ def calc(
     client: KiwoomClient,
     ticker: str,
     days: int = 180,
+    timeframe: Literal["daily", "weekly", "monthly"] = "daily",
 ) -> Dict:
     """
     Calculate Custom DeMark TD Setup.
@@ -30,14 +33,17 @@ def calc(
     Args:
         client: Kiwoom API client
         ticker: Stock code
-        days: Number of days for result
+        days: Number of periods for result
+        timeframe: "daily", "weekly", or "monthly"
 
     Returns:
         {
             "ok": True,
             "data": {
                 "ticker": "005930",
+                "timeframe": "daily",
                 "dates": ["20250110", ...],
+                "close": [55000, ...],  # Close prices for charting
                 "sell_setup": [0, 1, 2, 3, ...],  # Sell 카운트 (무한)
                 "buy_setup": [0, 0, 1, 2, ...],   # Buy 카운트 (무한)
             }
@@ -56,9 +62,14 @@ def calc(
 
     ticker = ticker.strip()
 
-    # Fetch OHLCV data with extra days for lookback
-    fetch_days = days + 10
-    ohlcv_result = ohlcv.get_daily(client, ticker, days=fetch_days)
+    # Fetch OHLCV data based on timeframe
+    fetch_extra = 10
+    if timeframe == "weekly":
+        ohlcv_result = ohlcv.get_weekly(client, ticker, weeks=days + fetch_extra)
+    elif timeframe == "monthly":
+        ohlcv_result = ohlcv.get_monthly(client, ticker, months=days + fetch_extra)
+    else:
+        ohlcv_result = ohlcv.get_daily(client, ticker, days=days + fetch_extra)
 
     if not ohlcv_result["ok"]:
         return ohlcv_result
@@ -70,22 +81,24 @@ def calc(
     if len(closes) < 5:
         return {
             "ok": False,
-            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 5일 필요)"},
+            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 5 필요)"},
         }
 
     # Calculate TD Setup
     sell_setup, buy_setup = _calc_td_setup(closes)
 
-    # Trim to requested days
+    # Trim to requested periods
     trim_len = min(days, len(dates) - 4)
     result = {
         "ticker": ticker,
+        "timeframe": timeframe,
         "dates": dates[:trim_len],
+        "close": closes[:trim_len],
         "sell_setup": sell_setup[:trim_len],
         "buy_setup": buy_setup[:trim_len],
     }
 
-    log_info("indicator.demark", "calc complete", {"ticker": ticker, "days": trim_len})
+    log_info("indicator.demark", "calc complete", {"ticker": ticker, "timeframe": timeframe, "periods": trim_len})
 
     return {"ok": True, "data": result}
 
@@ -94,6 +107,7 @@ def calc_from_ohlcv(
     ticker: str,
     dates: List[str],
     closes: List[int],
+    timeframe: str = "daily",
 ) -> Dict:
     """
     Calculate Custom DeMark TD Setup from OHLCV data directly.
@@ -102,6 +116,7 @@ def calc_from_ohlcv(
         ticker: Stock code
         dates: Date list
         closes: Close prices
+        timeframe: "daily", "weekly", or "monthly" (for labeling)
 
     Returns:
         Same format as calc()
@@ -109,14 +124,16 @@ def calc_from_ohlcv(
     if len(closes) < 5:
         return {
             "ok": False,
-            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 5일 필요)"},
+            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 5 필요)"},
         }
 
     sell_setup, buy_setup = _calc_td_setup(closes)
 
     result = {
         "ticker": ticker,
+        "timeframe": timeframe,
         "dates": dates,
+        "close": closes,
         "sell_setup": sell_setup,
         "buy_setup": buy_setup,
     }
