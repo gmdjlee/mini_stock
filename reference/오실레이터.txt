@@ -1,0 +1,310 @@
+from datetime import datetime, timedelta
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import pandas as pd
+from pykrx import stock
+
+# ============================================================================
+# 설정 상수
+# ============================================================================
+EMA_FAST = 12  # 단기 EMA 기간
+EMA_SLOW = 26  # 장기 EMA 기간
+EMA_SIGNAL = 9  # 시그널 EMA 기간
+ROLLING_WINDOW = 5  # 누적 기간 (5일)
+ANALYSIS_DAYS = 180  # 분석 기간 (6개월)
+
+# 한글 폰트 설정
+plt.rcParams["font.family"] = ["Malgun Gothic", "AppleGothic", "DejaVu Sans"][0]
+plt.rcParams["axes.unicode_minus"] = False
+
+# ============================================================================
+# 핵심 계산 함수
+# ============================================================================
+def calc_ema(series, period):
+    """EMA 계산"""
+    return series.ewm(alpha=2 / (period + 1), adjust=False).mean()
+
+
+def get_data(ticker, start_date, end_date, verbose=True):
+    """데이터 수집"""
+    if verbose:
+        print(f"📊 데이터 수집: {ticker}")
+
+    # 시가총액 및 투자자 거래 데이터
+    mcap = stock.get_market_cap(start_date, end_date, ticker)
+    inv = stock.get_market_trading_value_by_date(start_date, end_date, ticker)
+
+    if mcap.empty or inv.empty:
+        raise ValueError("데이터가 없습니다. 종목코드와 기간을 확인하세요.")
+
+    # DataFrame 구성
+    df = pd.DataFrame(
+        {
+            "시가총액": mcap["시가총액"],
+            "외국인_5일": inv["외국인합계"].rolling(ROLLING_WINDOW).sum(),
+            "기관_5일": inv["기관합계"].rolling(ROLLING_WINDOW).sum(),
+        }
+    ).dropna()
+
+    if verbose:
+        print(f"✅ 수집 완료: {len(df)}일\n")
+
+    return df
+
+
+def calc_oscillator(df, verbose=True):
+    """오실레이터 계산"""
+    if verbose:
+        print("📐 오실레이터 계산 중...")
+
+    # 수급 비율
+    df["수급비율"] = (df["외국인_5일"] + df["기관_5일"]) / df["시가총액"]
+
+    # MACD
+    df["EMA12"] = calc_ema(df["수급비율"], EMA_FAST)
+    df["EMA26"] = calc_ema(df["수급비율"], EMA_SLOW)
+    df["MACD"] = df["EMA12"] - df["EMA26"]
+
+    # 시그널 및 오실레이터
+    df["시그널"] = calc_ema(df["MACD"], EMA_SIGNAL)
+    df["오실레이터"] = df["MACD"] - df["시그널"]
+    df["시가총액_조"] = df["시가총액"] / 1e12
+
+    if verbose:
+        print(f"✅ 계산 완료: {len(df.dropna())}일\n")
+
+    return df.dropna()
+
+# ============================================================================
+# 시각화 함수
+# ============================================================================
+def setup_chart_style(ax, title, ylabel, grid=True):
+    """차트 스타일 공통 설정"""
+    ax.set_title(title, fontsize=12, pad=10)
+    ax.set_ylabel(ylabel, fontsize=10)
+    if grid:
+        ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
+
+
+def plot_chart(df, name):
+    """차트 생성"""
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(15, 10), gridspec_kw={"height_ratios": [2, 1]}
+    )
+    fig.suptitle(f"{name} 수급 오실레이터", fontsize=16, fontweight="bold")
+
+    # 상단: 시가총액 + 오실레이터
+    ax1.plot(
+        df.index, df["시가총액_조"], "b-", linewidth=2, label="시가총액", alpha=0.7
+    )
+    ax1_r = ax1.twinx()
+    ax1_r.plot(
+        df.index, df["오실레이터"], "r-", linewidth=2, label="오실레이터", alpha=0.7
+    )
+    ax1_r.fill_between(
+        df.index,
+        0,
+        df["오실레이터"],
+        where=(df["오실레이터"] > 0),
+        color="green",
+        alpha=0.2,
+    )
+    ax1_r.fill_between(
+        df.index,
+        0,
+        df["오실레이터"],
+        where=(df["오실레이터"] <= 0),
+        color="red",
+        alpha=0.2,
+    )
+    ax1_r.axhline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.5)
+
+    ax1.set_ylabel("시가총액 (조원)", color="b", fontsize=10)
+    ax1_r.set_ylabel("오실레이터", color="r", fontsize=10)
+    ax1.tick_params(axis="y", labelcolor="b")
+    ax1_r.tick_params(axis="y", labelcolor="r")
+    ax1.legend(loc="upper left", fontsize=9)
+    setup_chart_style(ax1, "시가총액과 수급 오실레이터", "")
+
+    # 하단: MACD 상세
+    ax2.plot(df.index, df["MACD"], "b-", linewidth=1.5, label="MACD", alpha=0.8)
+    ax2.plot(
+        df.index, df["시그널"], color="orange", linewidth=1.5, label="시그널", alpha=0.8
+    )
+    ax2.plot(
+        df.index,
+        df["오실레이터"],
+        color="purple",
+        linewidth=2,
+        label="오실레이터",
+        alpha=0.7,
+    )
+    ax2.fill_between(
+        df.index,
+        0,
+        df["오실레이터"],
+        where=(df["오실레이터"] > 0),
+        color="green",
+        alpha=0.2,
+    )
+    ax2.fill_between(
+        df.index,
+        0,
+        df["오실레이터"],
+        where=(df["오실레이터"] <= 0),
+        color="red",
+        alpha=0.2,
+    )
+    ax2.axhline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.5)
+    ax2.legend(loc="upper left", fontsize=9)
+    setup_chart_style(ax2, "MACD 상세", "MACD / 시그널 / 오실레이터")
+
+    plt.tight_layout()
+
+    # 저장
+    filename = f"{name}_수급오실레이터_{datetime.now():%Y%m%d}.png"
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    print(f"💾 차트 저장: {filename}\n")
+    plt.show()
+
+# ============================================================================
+# 신호 분석 함수
+# ============================================================================
+def analyze(df):
+    """매매 신호 분석"""
+    recent = df.tail(1).iloc[0]
+    prev = df.tail(2).iloc[0]
+
+    print("=" * 60)
+    print("📈 매매 신호 분석")
+    print("=" * 60)
+    print(f"\n📅 최근: {df.index[-1]:%Y-%m-%d}")
+    print(f"💰 시총: {recent['시가총액_조']:.2f}조")
+    print(f"📊 오실: {recent['오실레이터']:.6f}")
+    print(f"📈 MACD: {recent['MACD']:.6f}")
+    print(f"📉 시그널: {recent['시그널']:.6f}")
+
+    print("\n" + "-" * 60)
+    print("💡 신호:")
+    print("-" * 60)
+
+    # 오실레이터 신호
+    signal = "🟢 강세" if recent["오실레이터"] > 0 else "🔴 약세"
+    if recent["오실레이터"] > 0 and prev["오실레이터"] <= 0:
+        signal += " ⚡ 골든크로스!"
+    elif recent["오실레이터"] < 0 and prev["오실레이터"] >= 0:
+        signal += " ⚡ 데드크로스!"
+    print(f"1. 오실: {signal}")
+
+    # MACD 추세
+    print(f"2. MACD: {'🟢 단기↑' if recent['MACD'] > 0 else '🔴 단기↓'}")
+
+    # 수급
+    print(f"3. 수급: {'🟢 순매수' if recent['수급비율'] > 0 else '🔴 순매도'}")
+
+    # 모멘텀
+    momentum = df.tail(5)["오실레이터"].diff().sum()
+    print(f"4. 5일 모멘텀: {momentum:+.6f} {'🟢↑' if momentum > 0 else '🔴↓'}")
+    print("=" * 60 + "\n")
+
+# ============================================================================
+# 종목 검색 함수
+# ============================================================================
+def search_stock(name):
+    """종목명으로 코드 검색"""
+    print(f"🔍 '{name}' 검색 중...")
+
+    try:
+        today = datetime.now().strftime("%Y%m%d")
+        tickers = stock.get_market_ticker_list(
+            today, market="KOSPI"
+        ) + stock.get_market_ticker_list(today, market="KOSDAQ")
+    except:
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+        tickers = stock.get_market_ticker_list(
+            yesterday, market="KOSPI"
+        ) + stock.get_market_ticker_list(yesterday, market="KOSDAQ")
+
+    # 검색
+    matches = [
+        (t, stock.get_market_ticker_name(t))
+        for t in tickers
+        if name.upper() in stock.get_market_ticker_name(t).upper()
+        or stock.get_market_ticker_name(t).upper() in name.upper()
+    ]
+
+    if not matches:
+        print(f"❌ '{name}' 검색 결과 없음")
+        return None
+
+    if len(matches) == 1:
+        ticker, sname = matches[0]
+        print(f"✅ {sname} ({ticker})\n")
+        return ticker
+
+    # 다중 선택
+    print(f"\n📋 검색 결과 ({len(matches)}개):")
+    for i, (t, n) in enumerate(matches, 1):
+        print(f"  {i}. {n} ({t})")
+
+    while True:
+        try:
+            idx = int(input(f"\n선택 (1-{len(matches)}): ")) - 1
+            if 0 <= idx < len(matches):
+                ticker, sname = matches[idx]
+                print(f"✅ {sname} ({ticker})\n")
+                return ticker
+        except (ValueError, KeyboardInterrupt):
+            return None
+        print(f"❌ 1-{len(matches)} 중 선택하세요.")
+
+# ============================================================================
+# 메인 함수
+# ============================================================================
+def main():
+    """메인 실행"""
+    print("=" * 60)
+    print("🚀 수급 오실레이터 분석")
+    print("=" * 60 + "\n")
+
+    # 종목 검색
+    name = input("📝 종목명 (예: 삼성전자): ").strip()
+    if not name:
+        print("❌ 종목명을 입력하세요.")
+        return
+
+    ticker = search_stock(name)
+    if not ticker:
+        return
+
+    stock_name = stock.get_market_ticker_name(ticker)
+
+    # 기간 설정
+    end = datetime.now()
+    start = end - timedelta(days=ANALYSIS_DAYS)
+    print(f"📅 기간: {start:%Y-%m-%d} ~ {end:%Y-%m-%d}\n")
+
+    try:
+        # 분석
+        df = get_data(ticker, start.strftime("%Y%m%d"), end.strftime("%Y%m%d"))
+        df = calc_oscillator(df)
+        analyze(df)
+        plot_chart(df, stock_name)
+
+        print("✅ 분석 완료!\n")
+
+        # CSV 저장
+        if input("💾 CSV 저장? (y/n): ").lower() == "y":
+            csv = f"{stock_name}_수급_{datetime.now():%Y%m%d}.csv"
+            df.to_csv(csv, encoding="utf-8-sig")
+            print(f"✅ 저장: {csv}")
+
+    except Exception as e:
+        print(f"\n❌ 오류: {e}")
+        print("종목명 또는 인터넷 연결을 확인하세요.")
+
+if __name__ == "__main__":
+    main()
