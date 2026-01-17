@@ -24,11 +24,12 @@
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| App Phase 0 | 📋 Ready | Android 프로젝트 설정, Chaquopy 통합 |
+| App Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
 | App Phase 1 | 📋 Pending | 종목 검색, 수급 분석 화면 |
 | App Phase 2 | 📋 Pending | 기술적 지표 화면 (Vico Charts) |
 | App Phase 3 | 📋 Pending | 시장 지표, 조건검색 화면 |
 
+**코드**: 69 files, ~2,400 lines (Kotlin + resources)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ## Quick Commands
@@ -50,6 +51,12 @@ python scripts/run_analysis.py
 
 # 전체 테스트 (API 키 필요)
 uv run pytest tests/ -v
+
+# Android 앱 빌드
+cd StockApp
+./gradlew build
+./gradlew installDebug
+./gradlew test
 ```
 
 ## File Locations
