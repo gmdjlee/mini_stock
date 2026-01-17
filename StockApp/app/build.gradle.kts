@@ -67,9 +67,8 @@ chaquopy {
         pip {
             install("requests")
             install("python-dotenv")
-            install("numpy")
-            install("pandas")
-            // matplotlib, mplfinance excluded - not supported on Android
+            // numpy, pandas, matplotlib, mplfinance excluded
+            // - not used in Android version (chart modules excluded)
         }
     }
 }

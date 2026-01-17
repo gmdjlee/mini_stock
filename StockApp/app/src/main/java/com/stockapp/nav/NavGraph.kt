@@ -1,12 +1,19 @@
 package com.stockapp.nav
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.stockapp.feature.analysis.ui.AnalysisScreen
 import com.stockapp.feature.search.ui.SearchScreen
 
 /**
@@ -31,9 +38,9 @@ fun NavGraph(
             )
         }
 
-        // Analysis screen (placeholder)
+        // Analysis screen (placeholder - no ticker context)
         composable(Screen.Analysis.route) {
-            PlaceholderScreen(title = "수급 분석")
+            PlaceholderScreen(title = "수급 분석\n검색에서 종목을 선택하세요")
         }
 
         // Indicator screen (placeholder)
@@ -51,15 +58,16 @@ fun NavGraph(
             PlaceholderScreen(title = "조건검색")
         }
 
-        // Stock detail screen
+        // Stock detail screen - shows Analysis
         composable(
             route = Screen.StockDetail.route,
             arguments = listOf(
                 navArgument(NavArgs.TICKER) { type = NavType.StringType }
             )
-        ) { backStackEntry ->
-            val ticker = backStackEntry.arguments?.getString(NavArgs.TICKER) ?: ""
-            PlaceholderScreen(title = "종목 상세: $ticker")
+        ) {
+            AnalysisScreen(
+                onBackClick = { navController.popBackStack() }
+            )
         }
 
         // Indicator detail screen
@@ -82,19 +90,14 @@ fun NavGraph(
  */
 @Composable
 private fun PlaceholderScreen(title: String) {
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier,
-        contentAlignment = androidx.compose.ui.Alignment.Center
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        androidx.compose.material3.Text(
+        Text(
             text = "$title\n(구현 예정)",
-            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center
         )
     }
 }
-
-private val Modifier = androidx.compose.ui.Modifier.fillMaxSize()
-
-private fun androidx.compose.ui.Modifier.fillMaxSize() =
-    this.then(androidx.compose.foundation.layout.fillMaxSize())
