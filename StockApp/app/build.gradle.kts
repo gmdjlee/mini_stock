@@ -65,8 +65,10 @@ chaquopy {
         version = "3.11"
 
         pip {
-            install("requests")
-            install("python-dotenv")
+            // Pin versions known to work with Chaquopy 15.0.1 + Python 3.11
+            // These are pure Python packages, no native compilation needed
+            install("requests==2.31.0")
+            install("python-dotenv==1.0.1")
             // numpy, pandas, matplotlib, mplfinance excluded
             // - not used in Android version (chart modules excluded)
         }
