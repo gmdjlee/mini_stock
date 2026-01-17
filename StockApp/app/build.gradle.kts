@@ -62,9 +62,9 @@ android {
 
 chaquopy {
     defaultConfig {
-        version = "3.11"
-
         pip {
+            // Pin versions known to work with Chaquopy 15.0.1 + Python 3.11
+            // These are pure Python packages, no native compilation needed
             install("requests")
             install("python-dotenv")
             // numpy, pandas, matplotlib, mplfinance excluded
