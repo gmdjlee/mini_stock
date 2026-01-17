@@ -66,9 +66,10 @@ def calc(
 
     # Fetch OHLCV data based on timeframe
     if timeframe == "weekly":
-        # Fetch extra weeks for MA calculation
-        fetch_weeks = days + 60
-        ohlcv_result = ohlcv.get_weekly(client, ticker, weeks=fetch_weeks)
+        # Fetch daily data and resample to weekly (like reference code)
+        # Need enough daily data for weekly resampling + MA calculation
+        fetch_days = (days + 60) * 7  # ~7 days per week
+        ohlcv_result = ohlcv.get_daily_resampled_to_weekly(client, ticker, days=fetch_days)
         min_periods = 52  # 1 year of weekly data for 52-week range
         cmf_period = 4  # 4-week CMF for weekly data (reference)
     else:

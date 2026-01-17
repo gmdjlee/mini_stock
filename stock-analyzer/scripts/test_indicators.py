@@ -130,151 +130,84 @@ MONTHS_FULL = 60  # 5년 (월간 전체 기간)
 
 
 def generate_mock_weekly_ohlcv(weeks: int = WEEKS_2_YEARS):
-    """Mock 주간 OHLCV 데이터 생성 (레퍼런스: 약 2년).
+    """Mock 주간 OHLCV 데이터 생성 (레퍼런스 방식: 일간 데이터 리샘플링).
 
-    레퍼런스 코드는 Weekly 데이터를 Elder Impulse와 Fear/Greed에 사용합니다.
-
-    자기상관(Autocorrelation) 적용: 실제 시장 데이터와 유사하게
-    이전 가격에 기반한 연속적인 가격 움직임 생성.
+    레퍼런스 코드처럼 일간 데이터를 생성한 후 주간으로 리샘플링합니다.
+    - Open: 주간 첫 거래일 시가
+    - High: 주간 최고가
+    - Low: 주간 최저가
+    - Close: 주간 마지막 거래일 종가
+    - Volume: 주간 거래량 합계
     """
-    from datetime import datetime, timedelta
-    random.seed(42)
+    from stock_analyzer.stock.ohlcv import resample_to_weekly
 
-    base_price = 55000
-    dates = []
-    opens = []
-    highs = []
-    lows = []
-    closes = []
-    volumes = []
+    # 일간 데이터 생성 (주간 수 * 7일 + 여유분)
+    daily_days = weeks * 7 + 30
+    daily = generate_mock_ohlcv(daily_days)
 
-    # Generate dates starting from today going backwards (Friday close)
-    start_date = datetime(2025, 1, 10)  # Friday
+    # 주간으로 리샘플링
+    weekly = resample_to_weekly(
+        daily["dates"],
+        daily["open"],
+        daily["high"],
+        daily["low"],
+        daily["close"],
+        daily["volume"],
+    )
 
-    # 자기상관을 위한 모멘텀 기반 가격 생성 (시간순으로 생성)
-    prices_chrono = []
-    price = base_price
-    momentum = 0.0
-
-    for i in range(weeks):
-        # 장기 추세 (sine wave) - 주간 데이터용
-        cycle = i / weeks * 4 * math.pi  # 약 2번의 상승/하락 사이클
-        trend_target = base_price + math.sin(cycle) * 10000
-
-        # 모멘텀 기반 자기상관 적용 (0.80 = 높은 자기상관)
-        momentum = 0.80 * momentum + 0.20 * (trend_target - price) / price
-        momentum += random.uniform(-0.008, 0.008)  # 주간 데이터용 약간 더 큰 노이즈
-        momentum = max(-0.05, min(0.05, momentum))  # 클리핑
-
-        price = price * (1 + momentum)
-        prices_chrono.append(price)
-
-    # 역순으로 변환 (newest first)
-    prices_chrono.reverse()
-
-    # OHLCV 생성
-    for i in range(weeks):
-        current_date = start_date - timedelta(weeks=i)
-        dates.append(current_date.strftime("%Y%m%d"))
-
-        price = prices_chrono[i]
-
-        # OHLC 생성 (주간 데이터는 일간보다 약간 넓은 범위)
-        open_price = int(price * random.uniform(0.99, 1.01))
-        close_price = int(price * random.uniform(0.99, 1.01))
-        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.025))
-        low_price = int(min(open_price, close_price) * random.uniform(0.975, 1.0))
-        volume = random.randint(50_000_000, 150_000_000)
-
-        opens.append(open_price)
-        highs.append(high_price)
-        lows.append(low_price)
-        closes.append(close_price)
-        volumes.append(volume)
+    # 요청한 주 수만큼 자르기
+    trim_len = min(weeks, len(weekly["dates"]))
 
     return {
         "ticker": "005930",
-        "name": "삼성전자 (Mock Weekly)",
-        "dates": dates,
-        "open": opens,
-        "high": highs,
-        "low": lows,
-        "close": closes,
-        "volume": volumes,
+        "name": "삼성전자 (Mock Weekly - Resampled)",
+        "dates": weekly["dates"][:trim_len],
+        "open": weekly["open"][:trim_len],
+        "high": weekly["high"][:trim_len],
+        "low": weekly["low"][:trim_len],
+        "close": weekly["close"][:trim_len],
+        "volume": weekly["volume"][:trim_len],
     }
 
 
 def generate_mock_monthly_ohlcv(months: int = MONTHS_FULL):
-    """Mock 월간 OHLCV 데이터 생성 (레퍼런스: Full Period).
+    """Mock 월간 OHLCV 데이터 생성 (레퍼런스 방식: 일간 데이터 리샘플링).
 
-    자기상관(Autocorrelation) 적용: 실제 시장 데이터와 유사하게
-    이전 가격에 기반한 연속적인 가격 움직임 생성.
+    레퍼런스 코드처럼 일간 데이터를 생성한 후 월간으로 리샘플링합니다.
+    - Open: 월간 첫 거래일 시가
+    - High: 월간 최고가
+    - Low: 월간 최저가
+    - Close: 월간 마지막 거래일 종가
+    - Volume: 월간 거래량 합계
     """
-    from datetime import datetime
-    from dateutil.relativedelta import relativedelta
-    random.seed(42)
+    from stock_analyzer.stock.ohlcv import resample_to_monthly
 
-    base_price = 55000
-    dates = []
-    opens = []
-    highs = []
-    lows = []
-    closes = []
-    volumes = []
+    # 일간 데이터 생성 (월 수 * 22거래일 + 여유분)
+    daily_days = months * 22 + 60
+    daily = generate_mock_ohlcv(daily_days)
 
-    # Generate dates starting from today going backwards
-    start_date = datetime(2025, 1, 1)
+    # 월간으로 리샘플링
+    monthly = resample_to_monthly(
+        daily["dates"],
+        daily["open"],
+        daily["high"],
+        daily["low"],
+        daily["close"],
+        daily["volume"],
+    )
 
-    # 자기상관을 위한 모멘텀 기반 가격 생성 (시간순으로 생성)
-    prices_chrono = []
-    price = base_price
-    momentum = 0.0
-
-    for i in range(months):
-        # 장기 추세 (sine wave) - 월간 데이터용
-        cycle = i / months * 3 * math.pi  # 약 1.5번의 상승/하락 사이클
-        trend_target = base_price + math.sin(cycle) * 15000
-
-        # 모멘텀 기반 자기상관 적용 (0.75 = 월간 데이터용)
-        momentum = 0.75 * momentum + 0.25 * (trend_target - price) / price
-        momentum += random.uniform(-0.012, 0.012)  # 월간 데이터용 노이즈
-        momentum = max(-0.08, min(0.08, momentum))  # 클리핑
-
-        price = price * (1 + momentum)
-        prices_chrono.append(price)
-
-    # 역순으로 변환 (newest first)
-    prices_chrono.reverse()
-
-    # OHLCV 생성
-    for i in range(months):
-        current_date = start_date - relativedelta(months=i)
-        dates.append(current_date.strftime("%Y%m%d"))
-
-        price = prices_chrono[i]
-
-        # OHLC 생성 (월간 데이터는 더 넓은 범위)
-        open_price = int(price * random.uniform(0.98, 1.02))
-        close_price = int(price * random.uniform(0.98, 1.02))
-        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.04))
-        low_price = int(min(open_price, close_price) * random.uniform(0.96, 1.0))
-        volume = random.randint(200_000_000, 600_000_000)
-
-        opens.append(open_price)
-        highs.append(high_price)
-        lows.append(low_price)
-        closes.append(close_price)
-        volumes.append(volume)
+    # 요청한 월 수만큼 자르기
+    trim_len = min(months, len(monthly["dates"]))
 
     return {
         "ticker": "005930",
-        "name": "삼성전자 (Mock Monthly)",
-        "dates": dates,
-        "open": opens,
-        "high": highs,
-        "low": lows,
-        "close": closes,
-        "volume": volumes,
+        "name": "삼성전자 (Mock Monthly - Resampled)",
+        "dates": monthly["dates"][:trim_len],
+        "open": monthly["open"][:trim_len],
+        "high": monthly["high"][:trim_len],
+        "low": monthly["low"][:trim_len],
+        "close": monthly["close"][:trim_len],
+        "volume": monthly["volume"][:trim_len],
     }
 
 

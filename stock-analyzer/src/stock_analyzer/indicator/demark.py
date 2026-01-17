@@ -65,9 +65,23 @@ def calc(
     # Fetch OHLCV data based on timeframe
     fetch_extra = 10
     if timeframe == "weekly":
-        ohlcv_result = ohlcv.get_weekly(client, ticker, weeks=days + fetch_extra)
+        # Fetch daily data and resample to weekly (like reference code)
+        fetch_days = (days + fetch_extra) * 7
+        ohlcv_result = ohlcv.get_daily_resampled_to_weekly(client, ticker, days=fetch_days)
     elif timeframe == "monthly":
-        ohlcv_result = ohlcv.get_monthly(client, ticker, months=days + fetch_extra)
+        # Fetch daily data and resample to monthly (like reference code)
+        fetch_days = (days + fetch_extra) * 22  # ~22 trading days per month
+        daily_result = ohlcv.get_daily(client, ticker, days=fetch_days)
+        if not daily_result["ok"]:
+            ohlcv_result = daily_result
+        else:
+            daily = daily_result["data"]
+            monthly = ohlcv.resample_to_monthly(
+                daily["dates"], daily["open"], daily["high"],
+                daily["low"], daily["close"], daily["volume"],
+            )
+            monthly["ticker"] = ticker
+            ohlcv_result = {"ok": True, "data": monthly}
     else:
         ohlcv_result = ohlcv.get_daily(client, ticker, days=days + fetch_extra)
 
