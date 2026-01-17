@@ -25,11 +25,11 @@
 | Phase | Status | Description |
 |-------|--------|-------------|
 | App Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
-| App Phase 1 | 📋 Pending | 종목 검색, 수급 분석 화면 |
+| App Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
 | App Phase 2 | 📋 Pending | 기술적 지표 화면 (Vico Charts) |
 | App Phase 3 | 📋 Pending | 시장 지표, 조건검색 화면 |
 
-**코드**: 69 files, ~2,400 lines (Kotlin + resources)
+**코드**: 76 files, ~2,900 lines (Kotlin + resources)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ## Quick Commands
@@ -456,6 +456,53 @@ Python (Android용)           Kotlin (Android)
 └── chart/*             ✗   Vico Charts로 대체
 ```
 
+#### StockApp 파일 구조
+
+```
+StockApp/
+├── app/src/main/java/com/stockapp/
+│   ├── App.kt                      # Hilt Application
+│   ├── MainActivity.kt             # Main Activity
+│   ├── core/
+│   │   ├── db/                     # Room Database
+│   │   │   ├── AppDb.kt
+│   │   │   ├── entity/StockEntity.kt
+│   │   │   └── dao/*.kt
+│   │   ├── py/                     # Python Bridge
+│   │   │   ├── PyClient.kt
+│   │   │   └── PyResponse.kt
+│   │   ├── ui/                     # Common UI
+│   │   │   ├── theme/
+│   │   │   └── component/
+│   │   └── di/                     # DI Modules
+│   │       ├── AppModule.kt
+│   │       ├── DbModule.kt
+│   │       └── PyModule.kt
+│   ├── feature/
+│   │   ├── search/                 # 종목 검색 (Phase 1)
+│   │   │   ├── domain/model/Stock.kt
+│   │   │   ├── domain/repo/SearchRepo.kt
+│   │   │   ├── domain/usecase/SearchStockUC.kt
+│   │   │   ├── data/repo/SearchRepoImpl.kt
+│   │   │   ├── ui/SearchScreen.kt
+│   │   │   ├── ui/SearchVm.kt
+│   │   │   └── di/SearchModule.kt
+│   │   └── analysis/               # 수급 분석 (Phase 1)
+│   │       ├── domain/model/StockData.kt
+│   │       ├── domain/repo/AnalysisRepo.kt
+│   │       ├── domain/usecase/GetAnalysisUC.kt
+│   │       ├── data/repo/AnalysisRepoImpl.kt
+│   │       ├── ui/AnalysisScreen.kt
+│   │       ├── ui/AnalysisVm.kt
+│   │       └── di/AnalysisModule.kt
+│   └── nav/
+│       ├── Nav.kt                  # Screen 정의
+│       └── NavGraph.kt             # Navigation
+│
+└── app/src/main/python/            # Python 패키지 (chart/ 제외)
+    └── stock_analyzer/
+```
+
 #### 개발 순서
 
 1. **Android Studio 프로젝트 생성** (Empty Compose Activity)
@@ -500,6 +547,53 @@ when (result) {
         // error 처리
     }
 }
+```
+
+### App Phase 1: 종목 검색 + 수급 분석
+
+#### SearchScreen
+- 종목명 또는 코드로 검색
+- 300ms debounce 적용
+- 검색 히스토리 표시 (최대 50개)
+- 검색 결과에서 종목 선택 시 수급 분석 화면으로 이동
+
+#### AnalysisScreen
+- 시가총액 (조원 단위)
+- 외국인/기관 순매수 (억원 단위)
+- 수급 비율 및 매매 신호
+- Pull-to-refresh 지원
+- 캐시 TTL: 24시간
+
+#### 수급 신호 기준
+| Signal | 조건 | 설명 |
+|--------|------|------|
+| STRONG_BUY | > 0.5% | 강력 매수 |
+| BUY | > 0.2% | 매수 |
+| NEUTRAL | -0.2% ~ 0.2% | 중립 |
+| SELL | < -0.2% | 매도 |
+| STRONG_SELL | < -0.5% | 강력 매도 |
+
+#### Kotlin 코드 예시
+```kotlin
+// 수급 분석 호출
+val result = pyClient.call(
+    module = "stock_analyzer.stock.analysis",
+    func = "analyze",
+    args = listOf("005930", 180),
+    timeoutMs = 60_000
+) { json ->
+    json.decodeFromString<AnalysisResponse>(json)
+}
+
+// StockData 모델
+data class StockData(
+    val ticker: String,
+    val name: String,
+    val dates: List<String>,
+    val mcap: List<Long>,      // 시가총액
+    val for5d: List<Long>,     // 외국인 순매수
+    val ins5d: List<Long>      // 기관 순매수
+)
 ```
 
 ### 참고 문서
