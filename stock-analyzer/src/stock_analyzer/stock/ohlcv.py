@@ -244,3 +244,240 @@ def _get_field(item: Dict, *field_names):
         if name in item and item[name] is not None:
             return item[name]
     return 0
+
+
+def resample_to_weekly(
+    dates: List[str],
+    opens: List[int],
+    highs: List[int],
+    lows: List[int],
+    closes: List[int],
+    volumes: List[int],
+) -> Dict:
+    """
+    Resample daily OHLCV data to weekly (Friday close).
+
+    Reference logic from 추세판별.txt:
+    - Open: first day's open
+    - High: max of the week
+    - Low: min of the week
+    - Close: last day's close
+    - Volume: sum of the week
+
+    Args:
+        dates: Daily dates (YYYYMMDD format, newest first)
+        opens, highs, lows, closes, volumes: Daily OHLCV data
+
+    Returns:
+        Weekly OHLCV data dict with same structure
+    """
+    from datetime import datetime
+
+    if not dates:
+        return {
+            "dates": [],
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+        }
+
+    # Convert to chronological order for processing
+    dates_chrono = list(reversed(dates))
+    opens_chrono = list(reversed(opens))
+    highs_chrono = list(reversed(highs))
+    lows_chrono = list(reversed(lows))
+    closes_chrono = list(reversed(closes))
+    volumes_chrono = list(reversed(volumes))
+
+    # Group by ISO week (year, week_number)
+    weekly_data = {}
+
+    for i, date_str in enumerate(dates_chrono):
+        dt = datetime.strptime(date_str, "%Y%m%d")
+        # ISO week: (year, week_number)
+        iso_cal = dt.isocalendar()
+        week_key = (iso_cal[0], iso_cal[1])
+
+        if week_key not in weekly_data:
+            weekly_data[week_key] = {
+                "dates": [],
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            }
+
+        weekly_data[week_key]["dates"].append(date_str)
+        weekly_data[week_key]["open"].append(opens_chrono[i])
+        weekly_data[week_key]["high"].append(highs_chrono[i])
+        weekly_data[week_key]["low"].append(lows_chrono[i])
+        weekly_data[week_key]["close"].append(closes_chrono[i])
+        weekly_data[week_key]["volume"].append(volumes_chrono[i])
+
+    # Aggregate each week
+    result_dates = []
+    result_opens = []
+    result_highs = []
+    result_lows = []
+    result_closes = []
+    result_volumes = []
+
+    for week_key in sorted(weekly_data.keys()):
+        week = weekly_data[week_key]
+        # Use last day of the week as the date (Friday or last trading day)
+        result_dates.append(week["dates"][-1])
+        result_opens.append(week["open"][0])  # First day's open
+        result_highs.append(max(week["high"]))  # Week's high
+        result_lows.append(min(week["low"]))  # Week's low
+        result_closes.append(week["close"][-1])  # Last day's close
+        result_volumes.append(sum(week["volume"]))  # Total volume
+
+    # Reverse back to newest-first order
+    return {
+        "dates": list(reversed(result_dates)),
+        "open": list(reversed(result_opens)),
+        "high": list(reversed(result_highs)),
+        "low": list(reversed(result_lows)),
+        "close": list(reversed(result_closes)),
+        "volume": list(reversed(result_volumes)),
+    }
+
+
+def resample_to_monthly(
+    dates: List[str],
+    opens: List[int],
+    highs: List[int],
+    lows: List[int],
+    closes: List[int],
+    volumes: List[int],
+) -> Dict:
+    """
+    Resample daily OHLCV data to monthly.
+
+    Args:
+        dates: Daily dates (YYYYMMDD format, newest first)
+        opens, highs, lows, closes, volumes: Daily OHLCV data
+
+    Returns:
+        Monthly OHLCV data dict with same structure
+    """
+    if not dates:
+        return {
+            "dates": [],
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+        }
+
+    # Convert to chronological order for processing
+    dates_chrono = list(reversed(dates))
+    opens_chrono = list(reversed(opens))
+    highs_chrono = list(reversed(highs))
+    lows_chrono = list(reversed(lows))
+    closes_chrono = list(reversed(closes))
+    volumes_chrono = list(reversed(volumes))
+
+    # Group by month (year, month)
+    monthly_data = {}
+
+    for i, date_str in enumerate(dates_chrono):
+        month_key = (date_str[:4], date_str[4:6])  # (YYYY, MM)
+
+        if month_key not in monthly_data:
+            monthly_data[month_key] = {
+                "dates": [],
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            }
+
+        monthly_data[month_key]["dates"].append(date_str)
+        monthly_data[month_key]["open"].append(opens_chrono[i])
+        monthly_data[month_key]["high"].append(highs_chrono[i])
+        monthly_data[month_key]["low"].append(lows_chrono[i])
+        monthly_data[month_key]["close"].append(closes_chrono[i])
+        monthly_data[month_key]["volume"].append(volumes_chrono[i])
+
+    # Aggregate each month
+    result_dates = []
+    result_opens = []
+    result_highs = []
+    result_lows = []
+    result_closes = []
+    result_volumes = []
+
+    for month_key in sorted(monthly_data.keys()):
+        month = monthly_data[month_key]
+        result_dates.append(month["dates"][-1])  # Last day of month
+        result_opens.append(month["open"][0])  # First day's open
+        result_highs.append(max(month["high"]))  # Month's high
+        result_lows.append(min(month["low"]))  # Month's low
+        result_closes.append(month["close"][-1])  # Last day's close
+        result_volumes.append(sum(month["volume"]))  # Total volume
+
+    # Reverse back to newest-first order
+    return {
+        "dates": list(reversed(result_dates)),
+        "open": list(reversed(result_opens)),
+        "high": list(reversed(result_highs)),
+        "low": list(reversed(result_lows)),
+        "close": list(reversed(result_closes)),
+        "volume": list(reversed(result_volumes)),
+    }
+
+
+def get_daily_resampled_to_weekly(
+    client: KiwoomClient,
+    ticker: str,
+    days: int = 500,
+    adj_price: bool = True,
+) -> Dict:
+    """
+    Get daily data and resample to weekly (like reference code).
+
+    This fetches daily data and resamples it to weekly intervals,
+    matching the reference code's behavior using pandas resample('W-FRI').
+
+    Args:
+        client: Kiwoom API client
+        ticker: Stock code
+        days: Number of days of daily data to fetch
+        adj_price: Use adjusted price
+
+    Returns:
+        Weekly OHLCV data (same format as get_weekly)
+    """
+    # Fetch daily data
+    daily_result = get_daily(client, ticker, days=days, adj_price=adj_price)
+
+    if not daily_result["ok"]:
+        return daily_result
+
+    daily = daily_result["data"]
+
+    # Resample to weekly
+    weekly = resample_to_weekly(
+        daily["dates"],
+        daily["open"],
+        daily["high"],
+        daily["low"],
+        daily["close"],
+        daily["volume"],
+    )
+
+    weekly["ticker"] = ticker
+
+    log_info("stock.ohlcv", "get_daily_resampled_to_weekly complete", {
+        "ticker": ticker,
+        "daily_count": len(daily["dates"]),
+        "weekly_count": len(weekly["dates"]),
+    })
+
+    return {"ok": True, "data": weekly}

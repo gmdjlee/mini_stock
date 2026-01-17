@@ -67,9 +67,9 @@ def calc(
 
     # Fetch OHLCV data based on timeframe
     if timeframe == "weekly":
-        # Fetch extra weeks for EMA/MACD warmup
-        fetch_weeks = days + 50
-        ohlcv_result = ohlcv.get_weekly(client, ticker, weeks=fetch_weeks)
+        # Fetch daily data and resample to weekly (like reference code)
+        fetch_days = (days + 50) * 7  # ~7 days per week
+        ohlcv_result = ohlcv.get_daily_resampled_to_weekly(client, ticker, days=fetch_days)
     else:
         # Fetch extra days for indicator warmup
         fetch_days = days + 50

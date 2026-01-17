@@ -109,3 +109,100 @@ class TestGetMonthly:
         result = ohlcv.get_monthly(mock_kiwoom_client, "005930")
         assert result["ok"] is True
         assert len(result["data"]["dates"]) == 1
+
+
+class TestResampleToWeekly:
+    """Tests for resample_to_weekly function."""
+
+    def test_empty_data(self):
+        """Test with empty data."""
+        result = ohlcv.resample_to_weekly([], [], [], [], [], [])
+        assert result["dates"] == []
+        assert result["open"] == []
+
+    def test_single_week(self):
+        """Test with data from a single week."""
+        # Monday to Friday of same week (newest first)
+        dates = ["20250110", "20250109", "20250108", "20250107", "20250106"]
+        opens = [100, 101, 102, 103, 104]
+        highs = [110, 111, 112, 113, 114]
+        lows = [90, 91, 92, 93, 94]
+        closes = [105, 106, 107, 108, 109]
+        volumes = [1000, 1100, 1200, 1300, 1400]
+
+        result = ohlcv.resample_to_weekly(dates, opens, highs, lows, closes, volumes)
+
+        assert len(result["dates"]) == 1
+        assert result["dates"][0] == "20250110"  # Last day of week
+        assert result["open"][0] == 104  # First day's open (Monday)
+        assert result["high"][0] == 114  # Max high
+        assert result["low"][0] == 90  # Min low
+        assert result["close"][0] == 105  # Last day's close (Friday)
+        assert result["volume"][0] == 6000  # Sum of volumes
+
+    def test_multiple_weeks(self):
+        """Test with data from multiple weeks."""
+        # Two weeks of data (newest first)
+        dates = [
+            "20250117", "20250116", "20250115",  # Week 3
+            "20250110", "20250109", "20250108",  # Week 2
+        ]
+        opens = [200, 201, 202, 100, 101, 102]
+        highs = [220, 221, 222, 120, 121, 122]
+        lows = [180, 181, 182, 80, 81, 82]
+        closes = [210, 211, 212, 110, 111, 112]
+        volumes = [2000, 2100, 2200, 1000, 1100, 1200]
+
+        result = ohlcv.resample_to_weekly(dates, opens, highs, lows, closes, volumes)
+
+        assert len(result["dates"]) == 2
+        # Newest week first
+        assert result["dates"][0] == "20250117"
+        assert result["dates"][1] == "20250110"
+
+
+class TestResampleToMonthly:
+    """Tests for resample_to_monthly function."""
+
+    def test_empty_data(self):
+        """Test with empty data."""
+        result = ohlcv.resample_to_monthly([], [], [], [], [], [])
+        assert result["dates"] == []
+
+    def test_single_month(self):
+        """Test with data from a single month."""
+        dates = ["20250115", "20250110", "20250105"]
+        opens = [100, 101, 102]
+        highs = [110, 115, 112]
+        lows = [90, 91, 88]
+        closes = [105, 106, 107]
+        volumes = [1000, 1100, 1200]
+
+        result = ohlcv.resample_to_monthly(dates, opens, highs, lows, closes, volumes)
+
+        assert len(result["dates"]) == 1
+        assert result["dates"][0] == "20250115"  # Last day of month
+        assert result["open"][0] == 102  # First day's open
+        assert result["high"][0] == 115  # Max high
+        assert result["low"][0] == 88  # Min low
+        assert result["close"][0] == 105  # Last day's close
+        assert result["volume"][0] == 3300  # Sum of volumes
+
+    def test_multiple_months(self):
+        """Test with data from multiple months."""
+        dates = [
+            "20250115", "20250110",  # January 2025
+            "20241220", "20241210",  # December 2024
+        ]
+        opens = [200, 201, 100, 101]
+        highs = [220, 221, 120, 121]
+        lows = [180, 181, 80, 81]
+        closes = [210, 211, 110, 111]
+        volumes = [2000, 2100, 1000, 1100]
+
+        result = ohlcv.resample_to_monthly(dates, opens, highs, lows, closes, volumes)
+
+        assert len(result["dates"]) == 2
+        # Newest month first
+        assert result["dates"][0] == "20250115"
+        assert result["dates"][1] == "20241220"
