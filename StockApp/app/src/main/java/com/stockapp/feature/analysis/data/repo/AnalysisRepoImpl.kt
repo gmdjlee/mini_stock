@@ -33,17 +33,21 @@ class AnalysisRepoImpl @Inject constructor(
         }
 
         // Fetch from Python API
-        return pyClient.call(
+        val result = pyClient.call(
             module = "stock_analyzer.stock.analysis",
             func = "analyze",
             args = listOf(ticker, days),
             timeoutMs = PyClient.ANALYSIS_TIMEOUT_MS
         ) { jsonStr ->
-            val data = parseAnalysisResponse(jsonStr)
-            // Cache the result
-            cacheAnalysis(ticker, data)
-            data
+            parseAnalysisResponse(jsonStr)
         }
+
+        // Cache the result after the call completes
+        result.onSuccess { data ->
+            cacheAnalysis(ticker, data)
+        }
+
+        return result
     }
 
     override suspend fun getCachedAnalysis(ticker: String): StockData? {
