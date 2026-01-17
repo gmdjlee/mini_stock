@@ -145,6 +145,7 @@ def calc_from_ohlcv(
     highs: List[int],
     lows: List[int],
     volumes: List[int],
+    timeframe: str = "daily",
 ) -> Dict:
     """
     Calculate Trend Signal from OHLCV data directly.
@@ -158,36 +159,58 @@ def calc_from_ohlcv(
         highs: High prices
         lows: Low prices
         volumes: Volume list
+        timeframe: "daily" or "weekly" (for labeling and period adjustments)
 
     Returns:
         Same format as calc()
     """
-    if len(closes) < 60:
+    # Determine minimum periods and CMF period based on timeframe
+    if timeframe == "weekly":
+        min_periods = 52  # 1 year of weekly data for 52-week range
+        cmf_period = 4  # 4-week CMF for weekly data (reference)
+    else:
+        min_periods = 60
+        cmf_period = 20  # 20-day CMF for daily data
+
+    if len(closes) < min_periods:
         return {
             "ok": False,
-            "error": {"code": "NO_DATA", "msg": "데이터가 충분하지 않습니다 (최소 60일 필요)"},
+            "error": {"code": "NO_DATA", "msg": f"데이터가 충분하지 않습니다 (최소 {min_periods} 필요)"},
         }
 
-    ma5 = _calc_ma(closes, 5)
-    ma20 = _calc_ma(closes, 20)
-    ma60 = _calc_ma(closes, 60)
-    ma_signal = _calc_ma_signal(ma5, ma20, ma60)
+    # Calculate MA based on timeframe
+    if timeframe == "weekly":
+        ma10 = _calc_ma(closes, 10)
+        ma5 = _calc_ma(closes, 5)
+        ma20 = _calc_ma(closes, 20)
+        ma_signal = _calc_ma_signal_weekly(closes, ma10)
+    else:
+        ma5 = _calc_ma(closes, 5)
+        ma20 = _calc_ma(closes, 20)
+        ma60 = _calc_ma(closes, 60)
+        ma10 = _calc_ma(closes, 10)
+        ma_signal = _calc_ma_signal(ma5, ma20, ma60)
 
-    cmf = _calc_cmf(highs, lows, closes, volumes, period=20)
-    fear_greed = _calc_fear_greed(closes, volumes)
+    cmf = _calc_cmf(highs, lows, closes, volumes, period=cmf_period)
+    fear_greed = _calc_fear_greed_weekly(closes, volumes) if timeframe == "weekly" else _calc_fear_greed(closes, volumes)
     trend = _calc_trend(ma_signal, cmf, fear_greed)
 
     result = {
         "ticker": ticker,
+        "timeframe": timeframe,
         "dates": dates,
         "ma_signal": ma_signal,
         "cmf": cmf,
         "fear_greed": fear_greed,
         "trend": trend,
+        "ma10": ma10,
         "ma5": ma5,
         "ma20": ma20,
-        "ma60": ma60,
     }
+
+    # Add ma60 for daily timeframe
+    if timeframe == "daily":
+        result["ma60"] = ma60
 
     return {"ok": True, "data": result}
 

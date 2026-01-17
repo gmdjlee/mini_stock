@@ -104,3 +104,6 @@ venv.bak/
 .vscode/
 *.swp
 *.swo
+
+# Generated output
+output/
