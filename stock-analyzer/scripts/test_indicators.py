@@ -2,6 +2,10 @@
 """
 기술적 지표 테스트 스크립트 - 레퍼런스 코드와 동일한 차트 생성.
 
+레퍼런스 코드 분석 결과:
+- Fear/Greed, Elder Impulse: Weekly 데이터 사용
+- DeMark TD Setup: Daily, Weekly, Monthly 데이터 지원
+
 사용법:
     # Mock 데이터로 테스트 (API 키 불필요)
     python scripts/test_indicators.py --mock
@@ -21,9 +25,9 @@
     python scripts/test_indicators.py --mock --show
 
 차트 종류 (레퍼런스 코드 스타일):
-    1. Trend Signal + Fear/Greed Index (듀얼 축)
-    2. Elder Impulse System (색상 점)
-    3. DeMark TD Setup Counts (듀얼 축: Close + TD 카운트)
+    1. Trend Signal + Fear/Greed Index (Weekly, 듀얼 축)
+    2. Elder Impulse System (Weekly, 색상 점)
+    3. DeMark TD Setup Counts (Daily/Weekly/Monthly, 듀얼 축: Close + TD 카운트)
 """
 
 import argparse
@@ -98,6 +102,115 @@ def generate_mock_ohlcv(days: int = 500):
 # 레퍼런스 코드와 동일한 기간 상수
 DAYS_1_YEAR = 252  # 1년 (거래일 기준)
 DAYS_2_YEARS = 500  # 2년 (52주 고가/저가 계산용)
+WEEKS_1_YEAR = 52  # 1년 (주간 기준)
+WEEKS_2_YEARS = 104  # 2년 (52주 고가/저가 계산용)
+MONTHS_FULL = 60  # 5년 (월간 전체 기간)
+
+
+def generate_mock_weekly_ohlcv(weeks: int = WEEKS_2_YEARS):
+    """Mock 주간 OHLCV 데이터 생성 (레퍼런스: 약 2년).
+
+    레퍼런스 코드는 Weekly 데이터를 Elder Impulse와 Fear/Greed에 사용합니다.
+    """
+    from datetime import datetime, timedelta
+    random.seed(42)
+
+    base_price = 55000
+    dates = []
+    opens = []
+    highs = []
+    lows = []
+    closes = []
+    volumes = []
+
+    # Generate dates starting from today going backwards (Friday close)
+    start_date = datetime(2025, 1, 10)  # Friday
+    price = base_price
+    for i in range(weeks):
+        # Dates are "newest first"
+        current_date = start_date - timedelta(weeks=i)
+        dates.append(current_date.strftime("%Y%m%d"))
+
+        # 가격 변동 시뮬레이션 (추세 + 변동성)
+        cycle = i / weeks * 4 * math.pi  # 약 2번의 상승/하락 사이클
+        trend = math.sin(cycle) * 10000
+        noise = random.uniform(-0.03, 0.03)
+        price = (base_price + trend) * (1 + noise)
+
+        open_price = int(price * random.uniform(0.98, 1.02))
+        close_price = int(price * random.uniform(0.98, 1.02))
+        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.03))
+        low_price = int(min(open_price, close_price) * random.uniform(0.97, 1.0))
+        volume = random.randint(50_000_000, 150_000_000)
+
+        opens.append(open_price)
+        highs.append(high_price)
+        lows.append(low_price)
+        closes.append(close_price)
+        volumes.append(volume)
+
+    return {
+        "ticker": "005930",
+        "name": "삼성전자 (Mock Weekly)",
+        "dates": dates,
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "volume": volumes,
+    }
+
+
+def generate_mock_monthly_ohlcv(months: int = MONTHS_FULL):
+    """Mock 월간 OHLCV 데이터 생성 (레퍼런스: Full Period)."""
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    random.seed(42)
+
+    base_price = 55000
+    dates = []
+    opens = []
+    highs = []
+    lows = []
+    closes = []
+    volumes = []
+
+    # Generate dates starting from today going backwards
+    start_date = datetime(2025, 1, 1)
+    price = base_price
+    for i in range(months):
+        # Dates are "newest first"
+        current_date = start_date - relativedelta(months=i)
+        dates.append(current_date.strftime("%Y%m%d"))
+
+        # 가격 변동 시뮬레이션 (장기 추세)
+        cycle = i / months * 3 * math.pi  # 약 1.5번의 상승/하락 사이클
+        trend = math.sin(cycle) * 15000
+        noise = random.uniform(-0.04, 0.04)
+        price = (base_price + trend) * (1 + noise)
+
+        open_price = int(price * random.uniform(0.97, 1.03))
+        close_price = int(price * random.uniform(0.97, 1.03))
+        high_price = int(max(open_price, close_price) * random.uniform(1.0, 1.05))
+        low_price = int(min(open_price, close_price) * random.uniform(0.95, 1.0))
+        volume = random.randint(200_000_000, 600_000_000)
+
+        opens.append(open_price)
+        highs.append(high_price)
+        lows.append(low_price)
+        closes.append(close_price)
+        volumes.append(volume)
+
+    return {
+        "ticker": "005930",
+        "name": "삼성전자 (Mock Monthly)",
+        "dates": dates,
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "volume": volumes,
+    }
 
 
 def plot_trend_reference_style(trend_data: dict, closes: list = None, save_path: str = None):
@@ -388,22 +501,22 @@ def plot_demark_reference_style(demark_data: dict, closes: list, save_path: str 
 
 
 def test_trend_with_mock(show: bool = False, save: bool = False):
-    """Mock 데이터로 Trend Signal 테스트."""
+    """Mock 데이터로 Trend Signal 테스트 (레퍼런스: Weekly 데이터)."""
     from stock_analyzer.indicator import trend
 
     print("=" * 60)
-    print("Trend Signal 테스트 (Mock 데이터) - 레퍼런스 스타일")
+    print("Trend Signal 테스트 (Mock Weekly 데이터) - 레퍼런스 스타일")
     print("=" * 60)
 
-    # 1. Mock OHLCV 데이터 생성 (52주 고가/저가 계산을 위해 2년 데이터 필요)
-    print("\n[1] Mock OHLCV 데이터 생성 (2년, 52주 계산용)...")
-    mock_ohlcv = generate_mock_ohlcv(DAYS_2_YEARS)
+    # 1. Mock Weekly OHLCV 데이터 생성 (레퍼런스: 주간 데이터 사용)
+    print("\n[1] Mock Weekly OHLCV 데이터 생성 (2년, 52주 계산용)...")
+    mock_ohlcv = generate_mock_weekly_ohlcv(WEEKS_2_YEARS)
     print(f"    - 종목: {mock_ohlcv['ticker']} ({mock_ohlcv['name']})")
     print(f"    - 기간: {mock_ohlcv['dates'][-1]} ~ {mock_ohlcv['dates'][0]}")
-    print(f"    - 데이터 수: {len(mock_ohlcv['dates'])}일")
+    print(f"    - 데이터 수: {len(mock_ohlcv['dates'])}주")
 
-    # 2. Trend Signal 계산
-    print("\n[2] Trend Signal 계산...")
+    # 2. Trend Signal 계산 (weekly timeframe)
+    print("\n[2] Trend Signal 계산 (Weekly timeframe)...")
     trend_result = trend.calc_from_ohlcv(
         ticker=mock_ohlcv["ticker"],
         dates=mock_ohlcv["dates"],
@@ -411,6 +524,7 @@ def test_trend_with_mock(show: bool = False, save: bool = False):
         highs=mock_ohlcv["high"],
         lows=mock_ohlcv["low"],
         volumes=mock_ohlcv["volume"],
+        timeframe="weekly",
     )
 
     if not trend_result["ok"]:
@@ -419,6 +533,7 @@ def test_trend_with_mock(show: bool = False, save: bool = False):
 
     data = trend_result["data"]
     # Data is "newest first", so index 0 is the most recent
+    print(f"    - Timeframe: {data.get('timeframe', 'daily')}")
     print(f"    - MA Signal 최신값: {data['ma_signal'][0]}")
     print(f"    - CMF 최신값: {data['cmf'][0]:.4f}")
     print(f"    - Fear/Greed 최신값: {data['fear_greed'][0]:.4f}")
@@ -428,7 +543,7 @@ def test_trend_with_mock(show: bool = False, save: bool = False):
     print("\n[3] 레퍼런스 스타일 차트 생성...")
     save_path = None
     if save:
-        save_path = str(Path(__file__).parent.parent / "output" / "trend_fear_greed.png")
+        save_path = str(Path(__file__).parent.parent / "output" / "trend_fear_greed_weekly.png")
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     chart_result = plot_trend_reference_style(data, closes=mock_ohlcv["close"], save_path=save_path)
@@ -449,26 +564,27 @@ def test_trend_with_mock(show: bool = False, save: bool = False):
 
 
 def test_elder_with_mock(show: bool = False, save: bool = False):
-    """Mock 데이터로 Elder Impulse 테스트."""
+    """Mock 데이터로 Elder Impulse 테스트 (레퍼런스: Weekly 데이터)."""
     from stock_analyzer.indicator import elder
 
     print("=" * 60)
-    print("Elder Impulse 테스트 (Mock 데이터) - 레퍼런스 스타일")
+    print("Elder Impulse 테스트 (Mock Weekly 데이터) - 레퍼런스 스타일")
     print("=" * 60)
 
-    # 1. Mock OHLCV 데이터 생성 (2년 데이터, 최근 1년만 차트 표시)
-    print("\n[1] Mock OHLCV 데이터 생성 (2년, 차트는 최근 1년)...")
-    mock_ohlcv = generate_mock_ohlcv(DAYS_2_YEARS)
+    # 1. Mock Weekly OHLCV 데이터 생성 (레퍼런스: 주간 데이터 사용, 최근 1년 차트)
+    print("\n[1] Mock Weekly OHLCV 데이터 생성 (2년, 차트는 최근 1년)...")
+    mock_ohlcv = generate_mock_weekly_ohlcv(WEEKS_2_YEARS)
     print(f"    - 종목: {mock_ohlcv['ticker']} ({mock_ohlcv['name']})")
     print(f"    - 기간: {mock_ohlcv['dates'][-1]} ~ {mock_ohlcv['dates'][0]}")
-    print(f"    - 데이터 수: {len(mock_ohlcv['dates'])}일 (차트: 최근 {DAYS_1_YEAR}일)")
+    print(f"    - 데이터 수: {len(mock_ohlcv['dates'])}주 (차트: 최근 {WEEKS_1_YEAR}주)")
 
-    # 2. Elder Impulse 계산
-    print("\n[2] Elder Impulse 계산...")
+    # 2. Elder Impulse 계산 (weekly timeframe)
+    print("\n[2] Elder Impulse 계산 (Weekly timeframe)...")
     elder_result = elder.calc_from_ohlcv(
         ticker=mock_ohlcv["ticker"],
         dates=mock_ohlcv["dates"],
         closes=mock_ohlcv["close"],
+        timeframe="weekly",
     )
 
     if not elder_result["ok"]:
@@ -477,6 +593,7 @@ def test_elder_with_mock(show: bool = False, save: bool = False):
 
     data = elder_result["data"]
     # Data is "newest first", so index 0 is the most recent
+    print(f"    - Timeframe: {data.get('timeframe', 'daily')}")
     print(f"    - Color 최신값: {data['color'][0]}")
     ema13_val = data['ema13'][0]
     macd_hist_val = data['macd_hist'][0]
@@ -494,10 +611,10 @@ def test_elder_with_mock(show: bool = False, save: bool = False):
     print("\n[3] 레퍼런스 스타일 차트 생성...")
     save_path = None
     if save:
-        save_path = str(Path(__file__).parent.parent / "output" / "elder_impulse.png")
+        save_path = str(Path(__file__).parent.parent / "output" / "elder_impulse_weekly.png")
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-    chart_result = plot_elder_reference_style(data, closes=mock_ohlcv["close"], save_path=save_path)
+    chart_result = plot_elder_reference_style(data, closes=mock_ohlcv["close"], save_path=save_path, last_n_days=WEEKS_1_YEAR)
 
     if chart_result["ok"]:
         print(f"    - 이미지 크기: {len(chart_result['data']['image_bytes']):,} bytes")
@@ -515,68 +632,134 @@ def test_elder_with_mock(show: bool = False, save: bool = False):
 
 
 def test_demark_with_mock(show: bool = False, save: bool = False):
-    """Mock 데이터로 DeMark TD 테스트."""
+    """Mock 데이터로 DeMark TD 테스트 (레퍼런스: Daily/Weekly/Monthly 3종 차트)."""
     from stock_analyzer.indicator import demark
 
     print("=" * 60)
-    print("DeMark TD 테스트 (Mock 데이터) - 레퍼런스 스타일")
+    print("DeMark TD 테스트 (Mock 데이터) - 레퍼런스 스타일 (3종 차트)")
     print("=" * 60)
 
-    # 1. Mock OHLCV 데이터 생성 (2년 데이터, 최근 1년만 차트 표시)
-    print("\n[1] Mock OHLCV 데이터 생성 (2년, 차트는 최근 1년)...")
-    mock_ohlcv = generate_mock_ohlcv(DAYS_2_YEARS)
-    print(f"    - 종목: {mock_ohlcv['ticker']} ({mock_ohlcv['name']})")
-    print(f"    - 기간: {mock_ohlcv['dates'][-1]} ~ {mock_ohlcv['dates'][0]}")
-    print(f"    - 데이터 수: {len(mock_ohlcv['dates'])}일 (차트: 최근 {DAYS_1_YEAR}일)")
-
-    # 2. DeMark TD 계산
-    print("\n[2] DeMark TD 계산 (Custom: Sell=4일, Buy=2일)...")
-    demark_result = demark.calc_from_ohlcv(
-        ticker=mock_ohlcv["ticker"],
-        dates=mock_ohlcv["dates"],
-        closes=mock_ohlcv["close"],
-    )
-
-    if not demark_result["ok"]:
-        print(f"    오류: {demark_result['error']}")
-        return
-
-    data = demark_result["data"]
-    # Data is "newest first", so index 0 is the most recent
-    print(f"    - Sell Setup 최신값: {data['sell_setup'][0]}")
-    print(f"    - Buy Setup 최신값: {data['buy_setup'][0]}")
-    print(f"    - Max Sell Setup: {max(data['sell_setup'])}")
-    print(f"    - Max Buy Setup: {max(data['buy_setup'])}")
-
-    # Active Setups 요약
-    active = demark.get_active_setups(
-        data["sell_setup"],
-        data["buy_setup"],
-        data["dates"],
-    )
-    print(f"    - Current Sell: {active['current_sell']}, Current Buy: {active['current_buy']}")
-
-    # 3. 레퍼런스 스타일 차트 생성 (듀얼 축)
-    print("\n[3] 레퍼런스 스타일 차트 생성 (Close + TD 카운트)...")
-    save_path = None
+    output_dir = Path(__file__).parent.parent / "output"
     if save:
-        save_path = str(Path(__file__).parent.parent / "output" / "demark_td.png")
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
 
-    chart_result = plot_demark_reference_style(data, mock_ohlcv["close"], save_path=save_path)
+    # ============================================
+    # 1. Daily DeMark TD (레퍼런스: 다운로드4.png)
+    # ============================================
+    print("\n" + "-" * 40)
+    print("[1] Daily DeMark TD Setup (last 1 year)")
+    print("-" * 40)
 
-    if chart_result["ok"]:
-        print(f"    - 이미지 크기: {len(chart_result['data']['image_bytes']):,} bytes")
-        if save_path:
-            print(f"    - 저장 경로: {save_path}")
+    mock_daily = generate_mock_ohlcv(DAYS_2_YEARS)
+    print(f"    - 종목: {mock_daily['ticker']}")
+    print(f"    - 기간: {mock_daily['dates'][-1]} ~ {mock_daily['dates'][0]}")
+    print(f"    - 데이터 수: {len(mock_daily['dates'])}일")
 
-        if show:
-            _show_chart(chart_result["data"]["image_bytes"])
-    else:
-        print(f"    차트 생성 오류: {chart_result.get('error', 'Unknown')}")
+    daily_result = demark.calc_from_ohlcv(
+        ticker=mock_daily["ticker"],
+        dates=mock_daily["dates"],
+        closes=mock_daily["close"],
+        timeframe="daily",
+    )
+
+    if daily_result["ok"]:
+        data = daily_result["data"]
+        print(f"    - Timeframe: {data.get('timeframe', 'daily')}")
+        print(f"    - Sell Setup 최신값: {data['sell_setup'][0]}, Max: {max(data['sell_setup'])}")
+        print(f"    - Buy Setup 최신값: {data['buy_setup'][0]}, Max: {max(data['buy_setup'])}")
+
+        save_path = str(output_dir / "demark_td_daily.png") if save else None
+        chart_result = plot_demark_reference_style(
+            data, mock_daily["close"], save_path=save_path,
+            last_n_days=DAYS_1_YEAR, chart_type="Daily"
+        )
+        if chart_result["ok"]:
+            print(f"    - 차트 크기: {len(chart_result['data']['image_bytes']):,} bytes")
+            if save_path:
+                print(f"    - 저장: {save_path}")
+            if show:
+                _show_chart(chart_result["data"]["image_bytes"])
+
+    # ============================================
+    # 2. Weekly DeMark TD (레퍼런스: 다운로드3.png)
+    # ============================================
+    print("\n" + "-" * 40)
+    print("[2] Weekly DeMark TD Setup (last 1 year)")
+    print("-" * 40)
+
+    mock_weekly = generate_mock_weekly_ohlcv(WEEKS_2_YEARS)
+    print(f"    - 종목: {mock_weekly['ticker']}")
+    print(f"    - 기간: {mock_weekly['dates'][-1]} ~ {mock_weekly['dates'][0]}")
+    print(f"    - 데이터 수: {len(mock_weekly['dates'])}주")
+
+    weekly_result = demark.calc_from_ohlcv(
+        ticker=mock_weekly["ticker"],
+        dates=mock_weekly["dates"],
+        closes=mock_weekly["close"],
+        timeframe="weekly",
+    )
+
+    if weekly_result["ok"]:
+        data = weekly_result["data"]
+        print(f"    - Timeframe: {data.get('timeframe', 'weekly')}")
+        print(f"    - Sell Setup 최신값: {data['sell_setup'][0]}, Max: {max(data['sell_setup'])}")
+        print(f"    - Buy Setup 최신값: {data['buy_setup'][0]}, Max: {max(data['buy_setup'])}")
+
+        save_path = str(output_dir / "demark_td_weekly.png") if save else None
+        chart_result = plot_demark_reference_style(
+            data, mock_weekly["close"], save_path=save_path,
+            last_n_days=WEEKS_1_YEAR, chart_type="Weekly"
+        )
+        if chart_result["ok"]:
+            print(f"    - 차트 크기: {len(chart_result['data']['image_bytes']):,} bytes")
+            if save_path:
+                print(f"    - 저장: {save_path}")
+            if show:
+                _show_chart(chart_result["data"]["image_bytes"])
+
+    # ============================================
+    # 3. Monthly DeMark TD (레퍼런스: 다운로드5.png - Full Period)
+    # ============================================
+    print("\n" + "-" * 40)
+    print("[3] Monthly DeMark TD Setup (Full Period)")
+    print("-" * 40)
+
+    try:
+        mock_monthly = generate_mock_monthly_ohlcv(MONTHS_FULL)
+        print(f"    - 종목: {mock_monthly['ticker']}")
+        print(f"    - 기간: {mock_monthly['dates'][-1]} ~ {mock_monthly['dates'][0]}")
+        print(f"    - 데이터 수: {len(mock_monthly['dates'])}개월")
+
+        monthly_result = demark.calc_from_ohlcv(
+            ticker=mock_monthly["ticker"],
+            dates=mock_monthly["dates"],
+            closes=mock_monthly["close"],
+            timeframe="monthly",
+        )
+
+        if monthly_result["ok"]:
+            data = monthly_result["data"]
+            print(f"    - Timeframe: {data.get('timeframe', 'monthly')}")
+            print(f"    - Sell Setup 최신값: {data['sell_setup'][0]}, Max: {max(data['sell_setup'])}")
+            print(f"    - Buy Setup 최신값: {data['buy_setup'][0]}, Max: {max(data['buy_setup'])}")
+
+            save_path = str(output_dir / "demark_td_monthly.png") if save else None
+            # Full period for monthly (레퍼런스: Full Period)
+            chart_result = plot_demark_reference_style(
+                data, mock_monthly["close"], save_path=save_path,
+                last_n_days=len(data["dates"]), chart_type="Monthly"
+            )
+            if chart_result["ok"]:
+                print(f"    - 차트 크기: {len(chart_result['data']['image_bytes']):,} bytes")
+                if save_path:
+                    print(f"    - 저장: {save_path}")
+                if show:
+                    _show_chart(chart_result["data"]["image_bytes"])
+    except ImportError as e:
+        print(f"    - 월간 데이터 생성 건너뜀 (python-dateutil 필요): {e}")
 
     print("\n" + "=" * 60)
-    print("DeMark TD 테스트 완료!")
+    print("DeMark TD 테스트 완료! (Daily/Weekly/Monthly 3종)")
     print("=" * 60)
 
 
