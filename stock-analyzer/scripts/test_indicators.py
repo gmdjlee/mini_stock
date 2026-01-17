@@ -762,7 +762,7 @@ def test_demark_with_mock(show: bool = False, save: bool = False):
 
 
 def test_with_api(ticker: str, indicator: str = "all", show: bool = False, save: bool = False):
-    """실제 API로 지표 테스트."""
+    """실제 API로 지표 테스트 (레퍼런스와 동일하게 Weekly 리샘플링 사용)."""
     from dotenv import load_dotenv
     load_dotenv()
 
@@ -788,39 +788,49 @@ def test_with_api(ticker: str, indicator: str = "all", show: bool = False, save:
     print("\n[1] API 클라이언트 생성...")
     client = KiwoomClient(app_key, secret_key, base_url)
 
-    # 2. OHLCV 데이터 조회 (레퍼런스: 2년 데이터 필요)
-    print("\n[2] OHLCV 데이터 조회 (2년, 52주 계산용)...")
-    ohlcv_result = ohlcv.get_daily(client, ticker, days=DAYS_2_YEARS)
+    # 2. OHLCV 데이터 조회 (일간 → 주간 리샘플링)
+    print("\n[2] OHLCV 데이터 조회 (일간 데이터 → 주간 리샘플링)...")
+    daily_result = ohlcv.get_daily(client, ticker, days=DAYS_2_YEARS)
 
-    if not ohlcv_result["ok"]:
-        print(f"    오류: {ohlcv_result['error']}")
+    if not daily_result["ok"]:
+        print(f"    오류: {daily_result['error']}")
         return
 
-    ohlcv_data = ohlcv_result["data"]
-    print(f"    - 기간: {ohlcv_data['dates'][-1]} ~ {ohlcv_data['dates'][0]}")
-    print(f"    - 데이터 수: {len(ohlcv_data['dates'])}일 (차트: 최근 {DAYS_1_YEAR}일)")
+    daily_data = daily_result["data"]
+    print(f"    - 일간 기간: {daily_data['dates'][-1]} ~ {daily_data['dates'][0]}")
+    print(f"    - 일간 데이터 수: {len(daily_data['dates'])}일")
+
+    # 주간으로 리샘플링 (레퍼런스와 동일)
+    weekly_data = ohlcv.resample_to_weekly(
+        daily_data["dates"], daily_data["open"], daily_data["high"],
+        daily_data["low"], daily_data["close"], daily_data["volume"],
+    )
+    weekly_data["ticker"] = ticker
+    print(f"    - 주간 데이터 수: {len(weekly_data['dates'])}주 (리샘플링)")
 
     # 출력 디렉토리 생성
     output_dir = Path(__file__).parent.parent / "output"
     if save:
         os.makedirs(output_dir, exist_ok=True)
 
-    # 3. Trend Signal (52주 계산 필요 → 2년 데이터)
+    # 3. Trend Signal (Weekly timeframe - 레퍼런스와 동일)
     if indicator in ("all", "trend"):
         print("\n" + "-" * 40)
-        print("[Trend Signal + Fear/Greed]")
+        print("[Trend Signal + Fear/Greed] (Weekly - 리샘플링)")
         print("-" * 40)
-        trend_result = trend.calc(client, ticker, days=DAYS_2_YEARS)
+        # calc() 함수 내부에서 리샘플링을 수행하므로 timeframe="weekly" 지정
+        trend_result = trend.calc(client, ticker, days=WEEKS_2_YEARS, timeframe="weekly")
 
         if trend_result["ok"]:
             data = trend_result["data"]
+            print(f"    Timeframe: {data.get('timeframe', 'daily')}")
             print(f"    MA Signal: {data['ma_signal'][0]}")
             print(f"    CMF: {data['cmf'][0]:.4f}")
             print(f"    Fear/Greed: {data['fear_greed'][0]:.4f}")
             print(f"    Trend: {data['trend'][0]}")
 
-            save_path = str(output_dir / f"trend_fear_greed_{ticker}.png") if save else None
-            chart_result = plot_trend_reference_style(data, closes=ohlcv_data["close"], save_path=save_path)
+            save_path = str(output_dir / f"trend_fear_greed_{ticker}_weekly.png") if save else None
+            chart_result = plot_trend_reference_style(data, closes=weekly_data["close"], save_path=save_path)
             if chart_result["ok"]:
                 print(f"    차트 크기: {len(chart_result['data']['image_bytes']):,} bytes")
                 if save_path:
@@ -830,15 +840,16 @@ def test_with_api(ticker: str, indicator: str = "all", show: bool = False, save:
         else:
             print(f"    오류: {trend_result['error']}")
 
-    # 4. Elder Impulse (차트는 최근 1년만 표시)
+    # 4. Elder Impulse (Weekly timeframe - 레퍼런스와 동일)
     if indicator in ("all", "elder"):
         print("\n" + "-" * 40)
-        print("[Elder Impulse System] (차트: 최근 1년)")
+        print("[Elder Impulse System] (Weekly - 리샘플링, 차트: 최근 1년)")
         print("-" * 40)
-        elder_result = elder.calc(client, ticker, days=DAYS_2_YEARS)
+        elder_result = elder.calc(client, ticker, days=WEEKS_2_YEARS, timeframe="weekly")
 
         if elder_result["ok"]:
             data = elder_result["data"]
+            print(f"    Timeframe: {data.get('timeframe', 'daily')}")
             print(f"    Color: {data['color'][0]}")
             ema13_val = data['ema13'][0]
             print(f"    EMA13: {ema13_val:.2f}" if ema13_val is not None else "    EMA13: N/A")
@@ -850,8 +861,8 @@ def test_with_api(ticker: str, indicator: str = "all", show: bool = False, save:
             blue = colors.count("blue")
             print(f"    색상 분포: Green={green}, Red={red}, Blue={blue}")
 
-            save_path = str(output_dir / f"elder_impulse_{ticker}.png") if save else None
-            chart_result = plot_elder_reference_style(data, closes=ohlcv_data["close"], save_path=save_path)
+            save_path = str(output_dir / f"elder_impulse_{ticker}_weekly.png") if save else None
+            chart_result = plot_elder_reference_style(data, closes=weekly_data["close"], save_path=save_path, last_n_days=WEEKS_1_YEAR)
             if chart_result["ok"]:
                 print(f"    차트 크기: {len(chart_result['data']['image_bytes']):,} bytes")
                 if save_path:
@@ -861,15 +872,16 @@ def test_with_api(ticker: str, indicator: str = "all", show: bool = False, save:
         else:
             print(f"    오류: {elder_result['error']}")
 
-    # 5. DeMark TD (차트는 최근 1년만 표시)
+    # 5. DeMark TD (Weekly timeframe - 레퍼런스와 동일)
     if indicator in ("all", "demark"):
         print("\n" + "-" * 40)
-        print("[DeMark TD Setup (Custom: Sell=4일, Buy=2일)] (차트: 최근 1년)")
+        print("[DeMark TD Setup] (Weekly - 리샘플링, 차트: 최근 1년)")
         print("-" * 40)
-        demark_result = demark.calc(client, ticker, days=DAYS_2_YEARS)
+        demark_result = demark.calc(client, ticker, days=WEEKS_2_YEARS, timeframe="weekly")
 
         if demark_result["ok"]:
             data = demark_result["data"]
+            print(f"    Timeframe: {data.get('timeframe', 'daily')}")
             print(f"    Sell Setup 최신값: {data['sell_setup'][0]}")
             print(f"    Buy Setup 최신값: {data['buy_setup'][0]}")
             print(f"    Max Sell: {max(data['sell_setup'])}, Max Buy: {max(data['buy_setup'])}")
@@ -882,8 +894,8 @@ def test_with_api(ticker: str, indicator: str = "all", show: bool = False, save:
             )
             print(f"    Current: Sell={active['current_sell']}, Buy={active['current_buy']}")
 
-            save_path = str(output_dir / f"demark_td_{ticker}.png") if save else None
-            chart_result = plot_demark_reference_style(data, ohlcv_data["close"], save_path=save_path)
+            save_path = str(output_dir / f"demark_td_{ticker}_weekly.png") if save else None
+            chart_result = plot_demark_reference_style(data, weekly_data["close"], save_path=save_path, last_n_days=WEEKS_1_YEAR, chart_type="Weekly")
             if chart_result["ok"]:
                 print(f"    차트 크기: {len(chart_result['data']['image_bytes']):,} bytes")
                 if save_path:
