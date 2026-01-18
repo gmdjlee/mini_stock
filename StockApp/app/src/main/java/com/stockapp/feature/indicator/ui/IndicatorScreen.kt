@@ -373,7 +373,7 @@ private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
         ) {
             ElderImpulseChart(
                 dates = dates,
-                mcapValues = mcapHistory,
+                priceValues = mcapHistory,
                 ema13Values = ema13History,
                 impulseStates = impulseStates
             )
