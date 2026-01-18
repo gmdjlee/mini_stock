@@ -24,6 +24,7 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.data.ScatterData
 import com.github.mikephil.charting.data.ScatterDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import com.github.mikephil.charting.interfaces.datasets.IScatterDataSet
 import com.stockapp.core.ui.theme.AdditionalBuy
 import com.stockapp.core.ui.theme.AdditionalSell
@@ -354,7 +355,7 @@ fun TrendSignalChart(
             }
             lineDataSets.add(thresholdNeg05DataSet)
 
-            combinedData.setData(LineData(lineDataSets))
+            combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
 
             // Signal markers - Python style
             val scatterDataSets = mutableListOf<ScatterDataSet>()
@@ -566,7 +567,7 @@ fun ElderImpulseChart(
                 lineDataSets.add(ema13DataSet)
             }
 
-            combinedData.setData(LineData(lineDataSets))
+            combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
 
             // Impulse color markers ON price line - Python style
             // Neutral (gray) - draw first (smaller, behind)
@@ -777,7 +778,7 @@ fun DemarkTDChart(
             }
             lineDataSets.add(buyDataSet)
 
-            combinedData.setData(LineData(lineDataSets))
+            combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
 
             chart.data = combinedData
             chart.invalidate()
