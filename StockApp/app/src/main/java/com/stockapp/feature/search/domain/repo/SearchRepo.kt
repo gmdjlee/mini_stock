@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 interface SearchRepo {
     /**
      * Search stocks by query (name or ticker).
+     * Uses local cache if available.
      */
     suspend fun search(query: String): Result<List<Stock>>
 
@@ -37,4 +38,14 @@ interface SearchRepo {
      * Returns empty list on error.
      */
     suspend fun searchForSuggestions(query: String): List<Stock>
+
+    /**
+     * Check if stock cache is available.
+     */
+    suspend fun isCacheAvailable(): Boolean
+
+    /**
+     * Get stock cache count.
+     */
+    suspend fun getCacheCount(): Int
 }

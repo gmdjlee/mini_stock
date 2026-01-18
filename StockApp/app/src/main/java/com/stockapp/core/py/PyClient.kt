@@ -1,6 +1,7 @@
 package com.stockapp.core.py
 
 import android.content.Context
+import android.util.Log
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
@@ -73,8 +74,11 @@ class PyClient @Inject constructor(
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
+        Log.d(TAG, "call() started: module=$module, func=$func, args=$args")
+
         try {
             if (!isInitialized || kiwoomClient == null) {
+                Log.e(TAG, "call() failed: PyClient not initialized")
                 return@withContext Result.failure(
                     PyError.NotInitialized("PyClient not initialized. Call initialize() first.")
                 )
@@ -82,25 +86,32 @@ class PyClient @Inject constructor(
 
             withTimeout(timeoutMs) {
                 val py = Python.getInstance()
+                Log.d(TAG, "call() getting module: $module")
                 val pyModule = py.getModule(module)
 
                 // Build args: [client, ...args]
                 val allArgs = mutableListOf<Any>(kiwoomClient!!)
                 allArgs.addAll(args)
+                Log.d(TAG, "call() invoking $func with ${allArgs.size} args")
 
                 val result = pyModule.callAttr(func, *allArgs.toTypedArray())
+                Log.d(TAG, "call() Python returned result type: ${result?.javaClass?.simpleName}")
 
                 // Convert Python dict to JSON string using json.dumps()
                 val jsonModule = py.getModule("json")
                 val jsonStr = jsonModule.callAttr("dumps", result).toString()
+                Log.d(TAG, "call() JSON response (first 500 chars): ${jsonStr.take(500)}")
 
                 // Parse response
                 val parsed = parser(jsonStr)
+                Log.d(TAG, "call() parsed successfully: ${parsed?.javaClass?.simpleName}")
                 Result.success(parsed)
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.e(TAG, "call() timeout after ${timeoutMs}ms", e)
             Result.failure(PyError.Timeout("Python call timed out after ${timeoutMs}ms"))
         } catch (e: Exception) {
+            Log.e(TAG, "call() exception: ${e.javaClass.simpleName} - ${e.message}", e)
             Result.failure(PyError.CallError(e.message ?: "Python call failed"))
         }
     }
@@ -173,6 +184,7 @@ class PyClient @Inject constructor(
     fun isReady(): Boolean = isInitialized && kiwoomClient != null
 
     companion object {
+        private const val TAG = "PyClient"
         const val DEFAULT_TIMEOUT_MS = 30_000L
         const val ANALYSIS_TIMEOUT_MS = 60_000L
     }

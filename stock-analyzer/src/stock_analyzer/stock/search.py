@@ -37,7 +37,10 @@ def search(client: KiwoomClient, query: str) -> Dict:
         - INVALID_ARG: Invalid argument
         - API_ERROR: API call failed
     """
+    log_info("stock.search", "search started", {"query": query})
+
     if not query or not query.strip():
+        log_err("stock.search", "empty query", {"query": query})
         return {
             "ok": False,
             "error": {"code": "INVALID_ARG", "msg": "검색어가 필요합니다"},
@@ -52,13 +55,40 @@ def search(client: KiwoomClient, query: str) -> Dict:
     next_key = ""
     max_pages = 50  # Safety limit
 
-    for _ in range(max_pages):
+    log_info("stock.search", "starting pagination loop", {"query": query, "max_pages": max_pages})
+
+    for page_num in range(max_pages):
+        log_info("stock.search", f"fetching page {page_num + 1}", {
+            "cont_yn": cont_yn,
+            "next_key": next_key[:20] if next_key else ""
+        })
+
         resp = client.get_stock_list(cont_yn=cont_yn, next_key=next_key)
+
+        log_info("stock.search", "API response received", {
+            "ok": resp.ok,
+            "has_next": resp.has_next if resp.ok else None,
+            "error": resp.error if not resp.ok else None
+        })
+
         if not resp.ok:
+            log_err("stock.search", "API error", {"error": resp.error})
             return {"ok": False, "error": resp.error}
+
+        # Log raw response data keys for debugging
+        log_info("stock.search", "response data keys", {
+            "keys": list(resp.data.keys()) if resp.data else [],
+            "data_sample": str(resp.data)[:500] if resp.data else "None"
+        })
 
         # API returns 'list' with 'code', 'name', 'marketName' fields
         stk_list = resp.data.get("list", [])
+
+        log_info("stock.search", "stock list info", {
+            "list_length": len(stk_list),
+            "first_items": stk_list[:3] if stk_list else []
+        })
+
         for item in stk_list:
             ticker = item.get("code", "")
             name = item.get("name", "")
@@ -73,6 +103,11 @@ def search(client: KiwoomClient, query: str) -> Dict:
                 # Early exit if we have enough results
                 if len(results) >= 50:
                     break
+
+        log_info("stock.search", f"page {page_num + 1} processed", {
+            "results_so_far": len(results),
+            "has_next": resp.has_next
+        })
 
         # Stop if we have enough results or no more pages
         if len(results) >= 50 or not resp.has_next:

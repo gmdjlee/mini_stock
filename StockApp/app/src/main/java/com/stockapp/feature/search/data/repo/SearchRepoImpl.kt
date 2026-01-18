@@ -1,5 +1,6 @@
 package com.stockapp.feature.search.data.repo
 
+import android.util.Log
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.SearchHistoryEntity
@@ -16,6 +17,8 @@ import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val TAG = "SearchRepoImpl"
+
 @Singleton
 class SearchRepoImpl @Inject constructor(
     private val pyClient: PyClient,
@@ -25,14 +28,21 @@ class SearchRepoImpl @Inject constructor(
 ) : SearchRepo {
 
     override suspend fun search(query: String): Result<List<Stock>> {
+        Log.d(TAG, "search() called with query: $query")
+
         // First try local cache
         val cached = stockDao.search(query)
+        Log.d(TAG, "search() cached results: ${cached.size}")
+
         if (cached.isNotEmpty()) {
+            Log.d(TAG, "search() returning cached results")
             return Result.success(cached.map { it.toDomain() })
         }
 
+        Log.d(TAG, "search() calling Python API")
+
         // Fall back to Python API
-        return pyClient.call(
+        val result = pyClient.call(
             module = "stock_analyzer.stock.search",
             func = "search",
             args = listOf(query),
@@ -40,6 +50,14 @@ class SearchRepoImpl @Inject constructor(
         ) { jsonStr ->
             parseSearchResponse(jsonStr)
         }
+
+        result.onSuccess { stocks ->
+            Log.d(TAG, "search() API returned ${stocks.size} stocks")
+        }.onFailure { e ->
+            Log.e(TAG, "search() API failed: ${e.message}", e)
+        }
+
+        return result
     }
 
     override suspend fun getAll(): Result<List<Stock>> {
@@ -86,11 +104,28 @@ class SearchRepoImpl @Inject constructor(
         return search(query).getOrElse { emptyList() }
     }
 
+    override suspend fun isCacheAvailable(): Boolean {
+        val count = stockDao.count()
+        Log.d(TAG, "isCacheAvailable() count=$count")
+        return count > 0
+    }
+
+    override suspend fun getCacheCount(): Int {
+        return stockDao.count()
+    }
+
     private fun parseSearchResponse(jsonStr: String): List<Stock> {
+        Log.d(TAG, "parseSearchResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
+
         val response = json.decodeFromString<SearchResponse>(jsonStr)
+        Log.d(TAG, "parseSearchResponse() ok=${response.ok}, data=${response.data?.size ?: 0}, error=${response.error}")
+
         if (response.ok && response.data != null) {
-            return response.data.map { it.toDomain() }
+            val stocks = response.data.map { it.toDomain() }
+            Log.d(TAG, "parseSearchResponse() parsed ${stocks.size} stocks")
+            return stocks
         } else {
+            Log.e(TAG, "parseSearchResponse() API error: code=${response.error?.code}, msg=${response.error?.msg}")
             throw PyApiException(
                 response.error?.code ?: "UNKNOWN",
                 response.error?.msg ?: "검색 실패"
