@@ -18,6 +18,7 @@ import com.stockapp.feature.condition.ui.ConditionScreen
 import com.stockapp.feature.indicator.ui.IndicatorScreen
 import com.stockapp.feature.market.ui.MarketScreen
 import com.stockapp.feature.search.ui.SearchScreen
+import com.stockapp.feature.settings.ui.SettingsScreen
 
 /**
  * Main navigation graph.
@@ -63,6 +64,11 @@ fun NavGraph(
                     navController.navigate(Screen.StockDetail.createRoute(ticker))
                 }
             )
+        }
+
+        // Settings screen
+        composable(Screen.Settings.route) {
+            SettingsScreen()
         }
 
         // Stock detail screen - shows Analysis
