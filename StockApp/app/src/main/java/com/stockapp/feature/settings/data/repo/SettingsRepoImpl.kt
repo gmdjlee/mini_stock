@@ -13,6 +13,7 @@ import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -80,6 +81,19 @@ class SettingsRepoImpl @Inject constructor(
                     Result.failure(e)
                 }
             )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun initializeWithSavedKeys(): Result<Boolean> {
+        return try {
+            val config = getApiKeyConfig().first()
+            if (config.isValid()) {
+                testApiKey(config)
+            } else {
+                Result.success(false)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

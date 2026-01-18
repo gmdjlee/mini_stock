@@ -24,6 +24,13 @@ interface SettingsRepo {
     suspend fun testApiKey(config: ApiKeyConfig): Result<Boolean>
 
     /**
+     * Initialize PyClient with saved API keys if available.
+     * Should be called at app startup.
+     * Returns true if initialization was successful, false if no saved keys.
+     */
+    suspend fun initializeWithSavedKeys(): Result<Boolean>
+
+    /**
      * Clear all settings.
      */
     suspend fun clearAll()
