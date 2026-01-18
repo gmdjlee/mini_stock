@@ -61,11 +61,17 @@ class SettingsRepoImpl @Inject constructor(
                 return Result.failure(IllegalArgumentException("API Key와 Secret Key를 입력해주세요"))
             }
 
+            // Select URL based on investment mode
+            val baseUrl = when (config.investmentMode) {
+                InvestmentMode.MOCK -> MOCK_URL
+                InvestmentMode.PRODUCTION -> PROD_URL
+            }
+
             // Try to initialize PyClient with the provided keys
             pyClient.initialize(
                 appKey = config.appKey,
                 secretKey = config.secretKey,
-                baseUrl = BASE_URL
+                baseUrl = baseUrl
             ).fold(
                 onSuccess = {
                     Result.success(true)
@@ -86,6 +92,7 @@ class SettingsRepoImpl @Inject constructor(
     }
 
     companion object {
-        private const val BASE_URL = "https://api.kiwoom.com"
+        private const val PROD_URL = "https://api.kiwoom.com"
+        private const val MOCK_URL = "https://mockapi.kiwoom.com"
     }
 }
