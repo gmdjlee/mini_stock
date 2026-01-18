@@ -1,5 +1,6 @@
 package com.stockapp.core.di
 
+import com.stockapp.core.state.SelectedStockManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -48,4 +49,8 @@ object AppModule {
     @Provides
     @MainDispatcher
     fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
+
+    @Provides
+    @Singleton
+    fun provideSelectedStockManager(): SelectedStockManager = SelectedStockManager()
 }

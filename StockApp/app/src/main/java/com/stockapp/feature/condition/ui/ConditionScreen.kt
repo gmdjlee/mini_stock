@@ -112,7 +112,10 @@ fun ConditionScreen(
                     is ConditionSearchState.Success -> {
                         SearchResultContent(
                             result = state.result,
-                            onStockClick = onStockClick,
+                            onStockClick = { ticker, name ->
+                                viewModel.onStockSelected(ticker, name)
+                                onStockClick(ticker)
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -228,7 +231,7 @@ private fun ConditionItem(
 @Composable
 private fun SearchResultContent(
     result: ConditionResult,
-    onStockClick: (String) -> Unit,
+    onStockClick: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (result.stocks.isEmpty()) {
@@ -265,7 +268,7 @@ private fun SearchResultContent(
         items(result.stocks, key = { it.ticker }) { stock ->
             StockItem(
                 stock = stock,
-                onClick = { onStockClick(stock.ticker) }
+                onClick = { onStockClick(stock.ticker, stock.name) }
             )
             HorizontalDivider()
         }

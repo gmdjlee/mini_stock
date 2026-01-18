@@ -2,10 +2,13 @@ package com.stockapp.feature.condition.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.condition.domain.model.Condition
 import com.stockapp.feature.condition.domain.model.ConditionResult
 import com.stockapp.feature.condition.domain.usecase.GetConditionListUC
 import com.stockapp.feature.condition.domain.usecase.SearchConditionUC
+import com.stockapp.feature.search.domain.model.Market
+import com.stockapp.feature.search.domain.model.Stock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +38,8 @@ sealed class ConditionSearchState {
 @HiltViewModel
 class ConditionVm @Inject constructor(
     private val getConditionListUC: GetConditionListUC,
-    private val searchConditionUC: SearchConditionUC
+    private val searchConditionUC: SearchConditionUC,
+    private val selectedStockManager: SelectedStockManager
 ) : ViewModel() {
 
     private val _listState = MutableStateFlow<ConditionListState>(ConditionListState.Loading)
@@ -116,5 +120,19 @@ class ConditionVm @Inject constructor(
                 }
             )
         }
+    }
+
+    /**
+     * Handle stock selection from search results.
+     */
+    fun onStockSelected(ticker: String, name: String) {
+        // Update shared state for other screens
+        selectedStockManager.select(
+            Stock(
+                ticker = ticker,
+                name = name,
+                market = Market.OTHER
+            )
+        )
     }
 }

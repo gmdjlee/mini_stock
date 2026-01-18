@@ -71,7 +71,9 @@ data class TrendSummary(
     val fearGreedHistory: List<Double>,
     val ma5History: List<Int?>,
     val ma10History: List<Int?>,
-    val ma20History: List<Int?>
+    val ma20History: List<Int?>,
+    // Price history for chart
+    val priceHistory: List<Double> = emptyList()
 ) {
     val trendLabel: String
         get() = when (currentTrend) {
@@ -107,7 +109,11 @@ fun TrendSignal.toSummary(): TrendSummary = TrendSummary(
     fearGreedHistory = fearGreed,
     ma5History = ma5,
     ma10History = ma10,
-    ma20History = ma20
+    ma20History = ma20,
+    // Use MA20 as price reference (or MA10 if MA20 is empty)
+    priceHistory = ma20.mapNotNull { it?.toDouble() }.ifEmpty {
+        ma10.mapNotNull { it?.toDouble() }
+    }
 )
 
 // ========== Elder Impulse ==========
@@ -250,7 +256,9 @@ data class DemarkSummary(
     // Chart data
     val sellSetupHistory: List<Int>,
     val buySetupHistory: List<Int>,
-    val closeHistory: List<Int>
+    val closeHistory: List<Int>,
+    // Market cap history for chart overlay
+    val mcapHistory: List<Double> = emptyList()
 ) {
     val sellSignal: String
         get() = when {
@@ -280,7 +288,9 @@ fun DemarkSetup.toSummary(): DemarkSummary = DemarkSummary(
     maxBuySetup = buySetup.maxOrNull() ?: 0,
     sellSetupHistory = sellSetup,
     buySetupHistory = buySetup,
-    closeHistory = close
+    closeHistory = close,
+    // Use close price as mcap reference for chart
+    mcapHistory = close.map { it.toDouble() }
 )
 
 // ========== Common ==========

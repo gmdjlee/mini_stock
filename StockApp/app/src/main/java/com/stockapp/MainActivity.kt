@@ -42,34 +42,28 @@ fun MainScreen() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // Determine if bottom nav should be shown
-    val showBottomBar = Screen.bottomNavItems.any { screen ->
-        currentDestination?.hierarchy?.any { it.route == screen.route } == true
-    }
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    Screen.bottomNavItems.forEach { screen ->
-                        NavigationBarItem(
-                            icon = {
-                                screen.icon?.let { Icon(it, contentDescription = screen.title) }
-                            },
-                            label = { Text(screen.title) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
+            // Always show bottom navigation bar
+            NavigationBar {
+                Screen.bottomNavItems.forEach { screen ->
+                    NavigationBarItem(
+                        icon = {
+                            screen.icon?.let { Icon(it, contentDescription = screen.title) }
+                        },
+                        label = { Text(screen.title) },
+                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
                                 }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }
