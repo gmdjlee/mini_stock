@@ -1,8 +1,8 @@
 package com.stockapp.feature.indicator.ui
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.indicator.domain.model.DemarkSummary
 import com.stockapp.feature.indicator.domain.model.ElderSummary
 import com.stockapp.feature.indicator.domain.model.IndicatorType
@@ -11,7 +11,6 @@ import com.stockapp.feature.indicator.domain.model.toSummary
 import com.stockapp.feature.indicator.domain.usecase.GetDemarkUC
 import com.stockapp.feature.indicator.domain.usecase.GetElderUC
 import com.stockapp.feature.indicator.domain.usecase.GetTrendUC
-import com.stockapp.nav.NavArgs
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +22,7 @@ import javax.inject.Inject
  * Sealed class for indicator UI state.
  */
 sealed class IndicatorState {
+    data object NoStock : IndicatorState()
     data object Loading : IndicatorState()
     data class Success(
         val stockName: String,
@@ -35,17 +35,24 @@ sealed class IndicatorState {
     data class Error(val code: String, val msg: String) : IndicatorState()
 }
 
+/**
+ * Timeframe for indicator data.
+ */
+enum class Timeframe(val label: String, val apiValue: String) {
+    DAILY("일봉", "daily"),
+    WEEKLY("주봉", "weekly"),
+    MONTHLY("월봉", "monthly")
+}
+
 @HiltViewModel
 class IndicatorVm @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val selectedStockManager: SelectedStockManager,
     private val getTrendUC: GetTrendUC,
     private val getElderUC: GetElderUC,
     private val getDemarkUC: GetDemarkUC
 ) : ViewModel() {
 
-    private val ticker: String = savedStateHandle[NavArgs.TICKER] ?: ""
-
-    private val _state = MutableStateFlow<IndicatorState>(IndicatorState.Loading)
+    private val _state = MutableStateFlow<IndicatorState>(IndicatorState.NoStock)
     val state: StateFlow<IndicatorState> = _state.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
@@ -54,44 +61,82 @@ class IndicatorVm @Inject constructor(
     private val _selectedTab = MutableStateFlow(IndicatorType.TREND)
     val selectedTab: StateFlow<IndicatorType> = _selectedTab.asStateFlow()
 
+    private val _selectedTimeframe = MutableStateFlow(Timeframe.DAILY)
+    val selectedTimeframe: StateFlow<Timeframe> = _selectedTimeframe.asStateFlow()
+
     // Store loaded data
     private var trendData: TrendSummary? = null
     private var elderData: ElderSummary? = null
     private var demarkData: DemarkSummary? = null
     private var stockName: String = ""
+    private var currentTicker: String? = null
 
     init {
-        loadInitialData()
+        // Observe selected stock changes
+        viewModelScope.launch {
+            selectedStockManager.selectedTicker.collect { ticker ->
+                if (ticker != null && ticker != currentTicker) {
+                    currentTicker = ticker
+                    // Clear cached data for new stock
+                    clearCachedData()
+                    loadInitialData(ticker)
+                } else if (ticker == null) {
+                    currentTicker = null
+                    clearCachedData()
+                    _state.value = IndicatorState.NoStock
+                }
+            }
+        }
+    }
+
+    private fun clearCachedData() {
+        trendData = null
+        elderData = null
+        demarkData = null
+        stockName = ""
     }
 
     fun selectTab(tab: IndicatorType) {
         _selectedTab.value = tab
-        loadTabData(tab, useCache = true)
-    }
-
-    fun refresh() {
-        _isRefreshing.value = true
-        loadTabData(_selectedTab.value, useCache = false)
-    }
-
-    fun retry() {
-        _state.value = IndicatorState.Loading
-        loadTabData(_selectedTab.value, useCache = false)
-    }
-
-    private fun loadInitialData() {
-        viewModelScope.launch {
-            loadTabData(IndicatorType.TREND, useCache = true)
+        currentTicker?.let { ticker ->
+            loadTabData(ticker, tab, useCache = true)
         }
     }
 
-    private fun loadTabData(tab: IndicatorType, useCache: Boolean) {
+    fun selectTimeframe(timeframe: Timeframe) {
+        _selectedTimeframe.value = timeframe
+        // Clear cached data and reload with new timeframe
+        clearCachedData()
+        currentTicker?.let { ticker ->
+            loadTabData(ticker, _selectedTab.value, useCache = false)
+        }
+    }
+
+    fun refresh() {
+        val ticker = currentTicker ?: return
+        _isRefreshing.value = true
+        loadTabData(ticker, _selectedTab.value, useCache = false)
+    }
+
+    fun retry() {
+        val ticker = currentTicker ?: return
+        _state.value = IndicatorState.Loading
+        loadTabData(ticker, _selectedTab.value, useCache = false)
+    }
+
+    private fun loadInitialData(ticker: String) {
+        viewModelScope.launch {
+            loadTabData(ticker, IndicatorType.TREND, useCache = true)
+        }
+    }
+
+    private fun loadTabData(ticker: String, tab: IndicatorType, useCache: Boolean) {
         viewModelScope.launch {
             try {
                 when (tab) {
-                    IndicatorType.TREND -> loadTrend(useCache)
-                    IndicatorType.ELDER -> loadElder(useCache)
-                    IndicatorType.DEMARK -> loadDemark(useCache)
+                    IndicatorType.TREND -> loadTrend(ticker, useCache)
+                    IndicatorType.ELDER -> loadElder(ticker, useCache)
+                    IndicatorType.DEMARK -> loadDemark(ticker, useCache)
                 }
             } finally {
                 _isRefreshing.value = false
@@ -99,17 +144,18 @@ class IndicatorVm @Inject constructor(
         }
     }
 
-    private suspend fun loadTrend(useCache: Boolean) {
+    private suspend fun loadTrend(ticker: String, useCache: Boolean) {
         if (useCache && trendData != null) {
-            updateSuccessState()
+            updateSuccessState(ticker)
             return
         }
 
-        getTrendUC(ticker, DAYS, TIMEFRAME, useCache).fold(
+        val timeframe = _selectedTimeframe.value.apiValue
+        getTrendUC(ticker, DAYS, timeframe, useCache).fold(
             onSuccess = { trend ->
                 trendData = trend.toSummary()
                 stockName = trend.ticker
-                updateSuccessState()
+                updateSuccessState(ticker)
             },
             onFailure = { e ->
                 handleError(e)
@@ -117,17 +163,18 @@ class IndicatorVm @Inject constructor(
         )
     }
 
-    private suspend fun loadElder(useCache: Boolean) {
+    private suspend fun loadElder(ticker: String, useCache: Boolean) {
         if (useCache && elderData != null) {
-            updateSuccessState()
+            updateSuccessState(ticker)
             return
         }
 
-        getElderUC(ticker, DAYS, TIMEFRAME, useCache).fold(
+        val timeframe = _selectedTimeframe.value.apiValue
+        getElderUC(ticker, DAYS, timeframe, useCache).fold(
             onSuccess = { elder ->
                 elderData = elder.toSummary()
                 if (stockName.isEmpty()) stockName = elder.ticker
-                updateSuccessState()
+                updateSuccessState(ticker)
             },
             onFailure = { e ->
                 handleError(e)
@@ -135,17 +182,18 @@ class IndicatorVm @Inject constructor(
         )
     }
 
-    private suspend fun loadDemark(useCache: Boolean) {
+    private suspend fun loadDemark(ticker: String, useCache: Boolean) {
         if (useCache && demarkData != null) {
-            updateSuccessState()
+            updateSuccessState(ticker)
             return
         }
 
-        getDemarkUC(ticker, DAYS, TIMEFRAME, useCache).fold(
+        val timeframe = _selectedTimeframe.value.apiValue
+        getDemarkUC(ticker, DAYS, timeframe, useCache).fold(
             onSuccess = { demark ->
                 demarkData = demark.toSummary()
                 if (stockName.isEmpty()) stockName = demark.ticker
-                updateSuccessState()
+                updateSuccessState(ticker)
             },
             onFailure = { e ->
                 handleError(e)
@@ -153,7 +201,7 @@ class IndicatorVm @Inject constructor(
         )
     }
 
-    private fun updateSuccessState() {
+    private fun updateSuccessState(ticker: String) {
         _state.value = IndicatorState.Success(
             stockName = stockName.ifEmpty { ticker },
             ticker = ticker,
@@ -173,6 +221,5 @@ class IndicatorVm @Inject constructor(
 
     companion object {
         private const val DAYS = 180
-        private const val TIMEFRAME = "daily"
     }
 }

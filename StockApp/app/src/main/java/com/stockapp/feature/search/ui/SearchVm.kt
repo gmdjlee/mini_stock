@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.core.cache.CacheState
 import com.stockapp.core.cache.StockCacheManager
+import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.search.domain.model.Stock
 import com.stockapp.feature.search.domain.repo.SearchRepo
 import com.stockapp.feature.search.domain.usecase.SaveHistoryUC
@@ -36,7 +37,8 @@ class SearchVm @Inject constructor(
     private val searchUC: SearchStockUC,
     private val saveHistoryUC: SaveHistoryUC,
     private val repo: SearchRepo,
-    private val cacheManager: StockCacheManager
+    private val cacheManager: StockCacheManager,
+    private val selectedStockManager: SelectedStockManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
@@ -147,6 +149,9 @@ class SearchVm @Inject constructor(
      * Handle stock selection.
      */
     fun onStockSelected(stock: Stock) {
+        // Update shared state for other screens
+        selectedStockManager.select(stock)
+
         viewModelScope.launch {
             saveHistoryUC(stock)
         }

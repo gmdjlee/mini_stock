@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
  * Navigation destinations.
+ * All screens are now in bottom navigation - no detail screens.
  */
 sealed class Screen(
     val route: String,
@@ -25,22 +26,13 @@ sealed class Screen(
     data object Condition : Screen("condition", "조건검색", Icons.Default.FilterList)
     data object Settings : Screen("settings", "설정", Icons.Default.Settings)
 
-    // Detail screens
-    data object StockDetail : Screen("stock/{ticker}", "종목 상세") {
-        fun createRoute(ticker: String) = "stock/$ticker"
-    }
-
-    data object IndicatorDetail : Screen("indicator_detail/{ticker}", "지표 상세") {
-        fun createRoute(ticker: String) = "indicator_detail/$ticker"
-    }
-
     companion object {
         val bottomNavItems = listOf(Search, Analysis, Indicator, Market, Condition, Settings)
     }
 }
 
 /**
- * Navigation arguments.
+ * Navigation arguments - kept for backward compatibility.
  */
 object NavArgs {
     const val TICKER = "ticker"

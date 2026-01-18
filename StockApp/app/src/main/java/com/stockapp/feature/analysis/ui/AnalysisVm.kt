@@ -1,13 +1,12 @@
 package com.stockapp.feature.analysis.ui
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
 import com.stockapp.feature.analysis.domain.usecase.GetAnalysisSummaryUC
 import com.stockapp.feature.analysis.domain.usecase.RefreshAnalysisUC
 import com.stockapp.feature.analysis.domain.model.toSummary
-import com.stockapp.nav.NavArgs
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +18,7 @@ import javax.inject.Inject
  * Analysis screen state.
  */
 sealed class AnalysisState {
+    data object NoStock : AnalysisState()
     data object Loading : AnalysisState()
     data class Success(val summary: AnalysisSummary) : AnalysisState()
     data class Error(val code: String, val msg: String) : AnalysisState()
@@ -26,34 +26,43 @@ sealed class AnalysisState {
 
 @HiltViewModel
 class AnalysisVm @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val selectedStockManager: SelectedStockManager,
     private val getAnalysisSummaryUC: GetAnalysisSummaryUC,
     private val refreshAnalysisUC: RefreshAnalysisUC
 ) : ViewModel() {
 
-    val ticker: String = savedStateHandle.get<String>(NavArgs.TICKER) ?: ""
-
-    private val _state = MutableStateFlow<AnalysisState>(AnalysisState.Loading)
+    private val _state = MutableStateFlow<AnalysisState>(AnalysisState.NoStock)
     val state: StateFlow<AnalysisState> = _state.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private var currentTicker: String? = null
+
     init {
-        if (ticker.isNotBlank()) {
-            loadAnalysis()
-        } else {
-            _state.value = AnalysisState.Error(
-                code = "INVALID_ARG",
-                msg = "종목코드가 없습니다"
-            )
+        // Observe selected stock changes
+        viewModelScope.launch {
+            selectedStockManager.selectedTicker.collect { ticker ->
+                if (ticker != null && ticker != currentTicker) {
+                    currentTicker = ticker
+                    loadAnalysis(ticker)
+                } else if (ticker == null) {
+                    currentTicker = null
+                    _state.value = AnalysisState.NoStock
+                }
+            }
         }
     }
 
     /**
+     * Get current ticker.
+     */
+    fun getTicker(): String? = currentTicker
+
+    /**
      * Load analysis data.
      */
-    fun loadAnalysis() {
+    private fun loadAnalysis(ticker: String) {
         viewModelScope.launch {
             _state.value = AnalysisState.Loading
 
@@ -74,6 +83,8 @@ class AnalysisVm @Inject constructor(
      * Refresh analysis data (force fetch from API).
      */
     fun refresh() {
+        val ticker = currentTicker ?: return
+
         viewModelScope.launch {
             _isRefreshing.value = true
 
@@ -96,7 +107,7 @@ class AnalysisVm @Inject constructor(
      * Retry after error.
      */
     fun retry() {
-        loadAnalysis()
+        currentTicker?.let { loadAnalysis(it) }
     }
 
     private fun extractErrorCode(e: Throwable): String {

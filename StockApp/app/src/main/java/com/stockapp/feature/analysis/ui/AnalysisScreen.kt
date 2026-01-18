@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -33,6 +32,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +41,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
+import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
+import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
 import com.stockapp.feature.analysis.domain.model.SupplySignal
 import java.text.DecimalFormat
@@ -48,8 +60,6 @@ import java.text.DecimalFormat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalysisScreen(
-    onBackClick: () -> Unit,
-    onIndicatorClick: ((String) -> Unit)? = null,
     viewModel: AnalysisVm = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -65,55 +75,89 @@ fun AnalysisScreen(
                     }
                     Text(title)
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "뒤로가기"
-                        )
-                    }
-                },
                 actions = {
-                    IconButton(
-                        onClick = viewModel::refresh,
-                        enabled = !isRefreshing
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "새로고침"
-                        )
+                    if (state is AnalysisState.Success || state is AnalysisState.Error) {
+                        IconButton(
+                            onClick = viewModel::refresh,
+                            enabled = !isRefreshing
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "새로고침"
+                            )
+                        }
                     }
                 }
             )
         }
     ) { paddingValues ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = viewModel::refresh,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (val currentState = state) {
-                is AnalysisState.Loading -> {
-                    LoadingContent()
-                }
+        when (val currentState = state) {
+            is AnalysisState.NoStock -> {
+                NoStockContent(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                )
+            }
 
-                is AnalysisState.Success -> {
+            is AnalysisState.Loading -> {
+                LoadingContent(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                )
+            }
+
+            is AnalysisState.Success -> {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = viewModel::refresh,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
                     AnalysisContent(
                         summary = currentState.summary,
-                        onIndicatorClick = onIndicatorClick?.let { { it(currentState.summary.ticker) } },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-
-                is AnalysisState.Error -> {
-                    ErrorContent(
-                        message = currentState.msg,
-                        onRetry = viewModel::retry
-                    )
-                }
             }
+
+            is AnalysisState.Error -> {
+                ErrorContent(
+                    message = currentState.msg,
+                    onRetry = viewModel::retry,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoStockContent(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "수급 분석",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "검색에서 종목을 선택하세요",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -121,7 +165,6 @@ fun AnalysisScreen(
 @Composable
 private fun AnalysisContent(
     summary: AnalysisSummary,
-    onIndicatorClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -172,18 +215,24 @@ private fun AnalysisContent(
             valueColor = getValueColor(summary.supplyRatio)
         )
 
-        // Indicator button
-        if (onIndicatorClick != null) {
-            androidx.compose.material3.OutlinedButton(
-                onClick = onIndicatorClick,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp)
+        // Market Cap & Oscillator Chart (similar to screenshot)
+        if (summary.mcapHistory.isNotEmpty()) {
+            ChartCard(title = "시가총액 & 수급 오실레이터") {
+                MarketCapOscillatorChart(
+                    mcapHistory = summary.mcapHistory.takeLast(120),
+                    for5dHistory = summary.for5dHistory.takeLast(120),
+                    ins5dHistory = summary.ins5dHistory.takeLast(120)
                 )
-                Text("기술 지표 보기")
+            }
+        }
+
+        // Foreign/Institution Net Buying Chart
+        if (summary.for5dHistory.isNotEmpty()) {
+            ChartCard(title = "외국인/기관 순매수 추이") {
+                SupplyDemandBarChart(
+                    for5dHistory = summary.for5dHistory.takeLast(60),
+                    ins5dHistory = summary.ins5dHistory.takeLast(60)
+                )
             }
         }
 
@@ -311,6 +360,135 @@ private fun MetricCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ChartCard(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(modifier = Modifier.height(200.dp)) {
+                content()
+            }
+        }
+    }
+}
+
+// ========== Chart Components ==========
+
+@Composable
+private fun MarketCapOscillatorChart(
+    mcapHistory: List<Double>,
+    for5dHistory: List<Double>,
+    ins5dHistory: List<Double>
+) {
+    if (mcapHistory.isEmpty()) {
+        NoChartData()
+        return
+    }
+
+    // Calculate oscillator as (foreign + institution) / mcap
+    val oscillator = mcapHistory.mapIndexed { index, mcap ->
+        if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
+            (for5dHistory[index] + ins5dHistory[index]) / mcap
+        } else {
+            0.0
+        }
+    }
+
+    val modelProducer = remember { CartesianChartModelProducer() }
+
+    androidx.compose.runtime.LaunchedEffect(mcapHistory, oscillator) {
+        modelProducer.runTransaction {
+            lineSeries {
+                series(mcapHistory)  // Market cap (black line)
+                series(oscillator.map { it * 10000 })  // Oscillator scaled (magenta line)
+            }
+        }
+    }
+
+    CartesianChartHost(
+        chart = rememberCartesianChart(
+            rememberLineCartesianLayer(),
+            startAxis = rememberStartAxis(
+                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
+            ),
+            bottomAxis = rememberBottomAxis()
+        ),
+        modelProducer = modelProducer,
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+@Composable
+private fun SupplyDemandBarChart(
+    for5dHistory: List<Double>,
+    ins5dHistory: List<Double>
+) {
+    if (for5dHistory.isEmpty() || ins5dHistory.isEmpty()) {
+        NoChartData()
+        return
+    }
+
+    val modelProducer = remember { CartesianChartModelProducer() }
+
+    androidx.compose.runtime.LaunchedEffect(for5dHistory, ins5dHistory) {
+        modelProducer.runTransaction {
+            columnSeries {
+                series(for5dHistory)  // Foreign (red)
+                series(ins5dHistory)  // Institution (blue)
+            }
+        }
+    }
+
+    CartesianChartHost(
+        chart = rememberCartesianChart(
+            rememberColumnCartesianLayer(
+                columnProvider = ColumnCartesianLayer.ColumnProvider.series(
+                    rememberLineComponent(
+                        color = Color(0xFFF44336),  // Red for foreign
+                        thickness = 4.dp
+                    ),
+                    rememberLineComponent(
+                        color = Color(0xFF2196F3),  // Blue for institution
+                        thickness = 4.dp
+                    )
+                )
+            ),
+            startAxis = rememberStartAxis(
+                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
+            ),
+            bottomAxis = rememberBottomAxis()
+        ),
+        modelProducer = modelProducer,
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+@Composable
+private fun NoChartData() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "차트 데이터 없음",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
