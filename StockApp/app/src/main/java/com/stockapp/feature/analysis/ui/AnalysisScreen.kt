@@ -32,7 +32,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,18 +40,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
-import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
-import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
+import com.stockapp.core.ui.component.chart.ChartCard
+import com.stockapp.core.ui.component.chart.MarketCapOscillatorChart
+import com.stockapp.core.ui.component.chart.SupplyDemandBarChart
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
 import com.stockapp.feature.analysis.domain.model.SupplySignal
 import java.text.DecimalFormat
@@ -167,6 +157,20 @@ private fun AnalysisContent(
     summary: AnalysisSummary,
     modifier: Modifier = Modifier
 ) {
+    val dates = summary.dates.takeLast(120)
+    val mcapHistory = summary.mcapHistory.takeLast(120)
+    val for5dHistory = summary.for5dHistory.takeLast(120)
+    val ins5dHistory = summary.ins5dHistory.takeLast(120)
+
+    // Calculate oscillator values
+    val oscillatorValues = mcapHistory.mapIndexed { index, mcap ->
+        if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
+            (for5dHistory[index] + ins5dHistory[index]) / (mcap * 10000)  // Scaled
+        } else {
+            0.0
+        }
+    }
+
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -215,23 +219,30 @@ private fun AnalysisContent(
             valueColor = getValueColor(summary.supplyRatio)
         )
 
-        // Market Cap & Oscillator Chart (similar to screenshot)
-        if (summary.mcapHistory.isNotEmpty()) {
-            ChartCard(title = "시가총액 & 수급 오실레이터") {
+        // Market Cap & Oscillator Chart (EtfMonitor style)
+        if (mcapHistory.isNotEmpty()) {
+            ChartCard(
+                title = "시가총액 & 수급 오실레이터",
+                subtitle = "시가총액(좌축), 오실레이터(우축)"
+            ) {
                 MarketCapOscillatorChart(
-                    mcapHistory = summary.mcapHistory.takeLast(120),
-                    for5dHistory = summary.for5dHistory.takeLast(120),
-                    ins5dHistory = summary.ins5dHistory.takeLast(120)
+                    dates = dates,
+                    mcapValues = mcapHistory.map { it * 10000 },  // Convert to 억
+                    oscillatorValues = oscillatorValues
                 )
             }
         }
 
-        // Foreign/Institution Net Buying Chart
-        if (summary.for5dHistory.isNotEmpty()) {
-            ChartCard(title = "외국인/기관 순매수 추이") {
+        // Foreign/Institution Net Buying Chart (EtfMonitor style)
+        if (for5dHistory.isNotEmpty()) {
+            ChartCard(
+                title = "외국인/기관 순매수 추이",
+                subtitle = "외국인(빨강), 기관(파랑)"
+            ) {
                 SupplyDemandBarChart(
-                    for5dHistory = summary.for5dHistory.takeLast(60),
-                    ins5dHistory = summary.ins5dHistory.takeLast(60)
+                    dates = dates.takeLast(60),
+                    foreignValues = for5dHistory.takeLast(60).map { it * 10 },  // Convert to 억
+                    institutionValues = ins5dHistory.takeLast(60).map { it * 10 }  // Convert to 억
                 )
             }
         }
@@ -360,135 +371,6 @@ private fun MetricCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ChartCard(
-    title: String,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(modifier = Modifier.height(200.dp)) {
-                content()
-            }
-        }
-    }
-}
-
-// ========== Chart Components ==========
-
-@Composable
-private fun MarketCapOscillatorChart(
-    mcapHistory: List<Double>,
-    for5dHistory: List<Double>,
-    ins5dHistory: List<Double>
-) {
-    if (mcapHistory.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    // Calculate oscillator as (foreign + institution) / mcap
-    val oscillator = mcapHistory.mapIndexed { index, mcap ->
-        if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
-            (for5dHistory[index] + ins5dHistory[index]) / mcap
-        } else {
-            0.0
-        }
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(mcapHistory, oscillator) {
-        modelProducer.runTransaction {
-            lineSeries {
-                series(mcapHistory)  // Market cap (black line)
-                series(oscillator.map { it * 10000 })  // Oscillator scaled (magenta line)
-            }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun SupplyDemandBarChart(
-    for5dHistory: List<Double>,
-    ins5dHistory: List<Double>
-) {
-    if (for5dHistory.isEmpty() || ins5dHistory.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(for5dHistory, ins5dHistory) {
-        modelProducer.runTransaction {
-            columnSeries {
-                series(for5dHistory)  // Foreign (red)
-                series(ins5dHistory)  // Institution (blue)
-            }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(
-                columnProvider = ColumnCartesianLayer.ColumnProvider.series(
-                    rememberLineComponent(
-                        color = Color(0xFFF44336),  // Red for foreign
-                        thickness = 4.dp
-                    ),
-                    rememberLineComponent(
-                        color = Color(0xFF2196F3),  // Blue for institution
-                        thickness = 4.dp
-                    )
-                )
-            ),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun NoChartData() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "차트 데이터 없음",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

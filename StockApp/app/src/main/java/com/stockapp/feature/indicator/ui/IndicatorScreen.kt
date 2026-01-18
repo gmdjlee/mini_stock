@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -35,7 +34,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,18 +42,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
-import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
-import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
+import com.stockapp.core.ui.component.chart.ChartCard
+import com.stockapp.core.ui.component.chart.DemarkTDChart
+import com.stockapp.core.ui.component.chart.ElderImpulseChart
+import com.stockapp.core.ui.component.chart.MacdChart
+import com.stockapp.core.ui.component.chart.MacdHistogramChart
+import com.stockapp.core.ui.component.chart.SimpleLineChart
+import com.stockapp.core.ui.component.chart.TrendSignalChart
+import com.stockapp.core.ui.theme.ChartPrimary
+import com.stockapp.core.ui.theme.ChartPurple
+import com.stockapp.core.ui.theme.ElderBlue
+import com.stockapp.core.ui.theme.ElderGreen
+import com.stockapp.core.ui.theme.ElderRed
 import com.stockapp.feature.indicator.domain.model.DemarkSummary
 import com.stockapp.feature.indicator.domain.model.ElderSummary
 import com.stockapp.feature.indicator.domain.model.IndicatorType
@@ -246,12 +244,12 @@ private fun TimeframeSelector(
                     .weight(1f)
                     .clip(RoundedCornerShape(24.dp))
                     .background(
-                        if (isSelected) Color(0xFF3D5A3D)
+                        if (isSelected) ChartPrimary
                         else MaterialTheme.colorScheme.surfaceVariant
                     )
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) Color(0xFF3D5A3D) else Color.Transparent,
+                        color = if (isSelected) ChartPrimary else Color.Transparent,
                         shape = RoundedCornerShape(24.dp)
                     )
                     .clickable { onTimeframeSelect(timeframe) }
@@ -272,21 +270,30 @@ private fun TimeframeSelector(
 
 @Composable
 private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
-    // Title with timeframe
+    val dates = summary.dates.takeLast(60)
+    val priceHistory = summary.priceHistory.takeLast(60)
+    val fearGreedHistory = summary.fearGreedHistory.takeLast(60)
+    val cmfHistory = summary.cmfHistory.takeLast(60)
+
+    // Title with current status
     Text(
         text = "추세 시그널 (MA/CMF/Fear&Greed)",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold
     )
-    Text(
-        text = "현재 상태: ${summary.trendLabel}",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 
-    // Main Trend Chart with price and indicators
-    ChartCard(title = "추세 시그널 (${timeframe.label})") {
-        TrendSignalChart(summary = summary)
+    // Main Trend Signal Chart (EtfMonitor style)
+    if (priceHistory.isNotEmpty() && fearGreedHistory.isNotEmpty()) {
+        ChartCard(
+            title = "추세 시그널 (${timeframe.label})",
+            subtitle = "현재 상태: ${summary.trendLabel}"
+        ) {
+            TrendSignalChart(
+                dates = dates,
+                priceValues = priceHistory,
+                fearGreedValues = fearGreedHistory
+            )
+        }
     }
 
     // Metrics Row
@@ -314,20 +321,28 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
         )
     }
 
-    // CMF Chart
-    ChartCard(title = "CMF (Chaikin Money Flow)") {
-        LineChartContent(
-            values = summary.cmfHistory.takeLast(60),
-            color = Color(0xFF2196F3)
-        )
+    // CMF Chart (EtfMonitor style)
+    if (cmfHistory.isNotEmpty()) {
+        ChartCard(title = "CMF (Chaikin Money Flow)") {
+            SimpleLineChart(
+                dates = dates,
+                values = cmfHistory,
+                lineColor = Color(0xFF2196F3),
+                label = "CMF"
+            )
+        }
     }
 
-    // Fear/Greed Chart
-    ChartCard(title = "Fear/Greed Index") {
-        LineChartContent(
-            values = summary.fearGreedHistory.takeLast(60),
-            color = Color(0xFFFF9800)
-        )
+    // Fear/Greed Chart (EtfMonitor style)
+    if (fearGreedHistory.isNotEmpty()) {
+        ChartCard(title = "Fear/Greed Index") {
+            SimpleLineChart(
+                dates = dates,
+                values = fearGreedHistory,
+                lineColor = ChartPurple,
+                label = "Fear/Greed"
+            )
+        }
     }
 }
 
@@ -335,26 +350,54 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
 
 @Composable
 private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
-    // Title with timeframe
+    val dates = summary.dates.takeLast(60)
+    val mcapHistory = summary.mcapHistory.takeLast(60)
+    val ema13History = summary.ema13History.takeLast(60)
+    val impulseStates = summary.impulseStates.takeLast(60)
+    val macdLineHistory = summary.macdLineHistory.takeLast(60)
+    val signalLineHistory = summary.signalLineHistory.takeLast(60)
+    val macdHistHistory = summary.macdHistHistory.takeLast(60)
+
+    // Title with current status
     Text(
         text = "Elder Impulse System (${timeframe.label})",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold
     )
-    Text(
-        text = "현재 상태: ${summary.colorLabel}",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 
-    // Elder Impulse Chart with colored dots
-    ChartCard(title = "Elder Impulse (${timeframe.label})") {
-        ElderImpulseChart(summary = summary)
+    // Elder Impulse Chart (EtfMonitor style with market cap and impulse markers)
+    if (mcapHistory.isNotEmpty() && ema13History.isNotEmpty() && impulseStates.isNotEmpty()) {
+        ChartCard(
+            title = "Elder Impulse (${timeframe.label})",
+            subtitle = "현재 상태: ${summary.colorLabel}"
+        ) {
+            ElderImpulseChart(
+                dates = dates,
+                mcapValues = mcapHistory,
+                ema13Values = ema13History,
+                impulseStates = impulseStates
+            )
+        }
     }
 
-    // MACD Chart
-    ChartCard(title = "MACD") {
-        MACDBarChart(values = summary.macdHistHistory.takeLast(60))
+    // MACD Chart (EtfMonitor style with MACD line, Signal line, and Histogram)
+    if (macdLineHistory.isNotEmpty() && signalLineHistory.isNotEmpty() && macdHistHistory.isNotEmpty()) {
+        ChartCard(title = "MACD") {
+            MacdChart(
+                dates = dates,
+                macdValues = macdLineHistory,
+                signalValues = signalLineHistory,
+                histogramValues = macdHistHistory
+            )
+        }
+    } else if (macdHistHistory.isNotEmpty()) {
+        // Fallback to histogram only if full MACD data not available
+        ChartCard(title = "MACD Histogram") {
+            MacdHistogramChart(
+                dates = dates,
+                histogramValues = macdHistHistory
+            )
+        }
     }
 
     // Impulse Signal Card
@@ -385,7 +428,12 @@ private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
 
 @Composable
 private fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
-    // Title with timeframe
+    val dates = summary.dates.takeLast(60)
+    val sellSetupHistory = summary.sellSetupHistory.takeLast(60)
+    val buySetupHistory = summary.buySetupHistory.takeLast(60)
+    val mcapHistory = summary.mcapHistory.takeLast(60)
+
+    // Title
     Text(
         text = "DeMark TD Setup (${timeframe.label})",
         style = MaterialTheme.typography.titleMedium,
@@ -393,23 +441,26 @@ private fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
     )
 
     val currentState = when {
+        summary.currentSellSetup >= 9 -> "매도 피로 (${summary.currentSellSetup}) - 하락 전환 가능"
+        summary.currentBuySetup >= 9 -> "매수 피로 (${summary.currentBuySetup}) - 상승 전환 가능"
         summary.currentSellSetup > summary.currentBuySetup -> "상승 지속 (${summary.currentSellSetup})"
         summary.currentBuySetup > summary.currentSellSetup -> "하락 지속 (${summary.currentBuySetup})"
         else -> "중립"
     }
-    Text(
-        text = "현재 상태: $currentState",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 
-    // DeMark Setup Chart (area chart style like screenshot)
-    ChartCard(title = "DeMark TD Setup (${timeframe.label})") {
-        DemarkAreaChart(
-            sellSetup = summary.sellSetupHistory.takeLast(60),
-            buySetup = summary.buySetupHistory.takeLast(60),
-            mcapHistory = summary.mcapHistory.takeLast(60)
-        )
+    // DeMark TD Setup Chart (EtfMonitor style with dual bars and optional market cap overlay)
+    if (sellSetupHistory.isNotEmpty() && buySetupHistory.isNotEmpty()) {
+        ChartCard(
+            title = "DeMark TD Setup (${timeframe.label})",
+            subtitle = "현재 상태: $currentState"
+        ) {
+            DemarkTDChart(
+                dates = dates,
+                sellSetupValues = sellSetupHistory,
+                buySetupValues = buySetupHistory,
+                mcapValues = mcapHistory
+            )
+        }
     }
 
     // Current Status Card
@@ -551,221 +602,6 @@ private fun SignalCard(
 }
 
 @Composable
-private fun ChartCard(
-    title: String,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(modifier = Modifier.height(240.dp)) {
-                content()
-            }
-        }
-    }
-}
-
-// ========== Chart Components ==========
-
-@Composable
-private fun TrendSignalChart(summary: TrendSummary) {
-    val priceHistory = summary.priceHistory.takeLast(60)
-    val fearGreedHistory = summary.fearGreedHistory.takeLast(60)
-
-    if (priceHistory.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(priceHistory, fearGreedHistory) {
-        modelProducer.runTransaction {
-            lineSeries {
-                series(priceHistory)  // Price (dashed black)
-                if (fearGreedHistory.isNotEmpty()) {
-                    series(fearGreedHistory.map { it * 50000 + 100000 })  // Fear/Greed scaled (purple)
-                }
-            }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun ElderImpulseChart(summary: ElderSummary) {
-    val ema13History = summary.ema13History.takeLast(60)
-    val macdHistHistory = summary.macdHistHistory.takeLast(60)
-
-    if (ema13History.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(ema13History, macdHistHistory) {
-        modelProducer.runTransaction {
-            lineSeries {
-                series(ema13History)  // EMA13 line
-            }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun MACDBarChart(values: List<Double>) {
-    if (values.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(values) {
-        modelProducer.runTransaction {
-            columnSeries { series(values) }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun DemarkAreaChart(
-    sellSetup: List<Int>,
-    buySetup: List<Int>,
-    mcapHistory: List<Double>
-) {
-    if (sellSetup.isEmpty() || buySetup.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(sellSetup, buySetup, mcapHistory) {
-        modelProducer.runTransaction {
-            // Show sell setup as positive (red area), buy setup as negative (green area)
-            columnSeries {
-                series(sellSetup.map { it.toDouble() })
-                series(buySetup.map { -it.toDouble() })
-            }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(
-                columnProvider = ColumnCartesianLayer.ColumnProvider.series(
-                    rememberLineComponent(
-                        color = Color(0xFFF44336).copy(alpha = 0.5f),
-                        thickness = 8.dp
-                    ),
-                    rememberLineComponent(
-                        color = Color(0xFF4CAF50).copy(alpha = 0.5f),
-                        thickness = 8.dp
-                    )
-                )
-            ),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun LineChartContent(
-    values: List<Double>,
-    color: Color
-) {
-    if (values.isEmpty()) {
-        NoChartData()
-        return
-    }
-
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    androidx.compose.runtime.LaunchedEffect(values) {
-        modelProducer.runTransaction {
-            lineSeries { series(values) }
-        }
-    }
-
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(
-                horizontalLabelPosition = VerticalAxis.HorizontalLabelPosition.Inside
-            ),
-            bottomAxis = rememberBottomAxis()
-        ),
-        modelProducer = modelProducer,
-        modifier = Modifier.fillMaxSize()
-    )
-}
-
-@Composable
-private fun NoChartData() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "차트 데이터 없음",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
 private fun DataNotLoaded() {
     Box(
         modifier = Modifier
@@ -815,7 +651,7 @@ private fun ErrorContent(
 // ========== Helper Functions ==========
 
 private fun getElderColor(color: String): Color = when (color) {
-    "green" -> Color(0xFF4CAF50)
-    "red" -> Color(0xFFF44336)
-    else -> Color(0xFF2196F3)
+    "green" -> ElderGreen
+    "red" -> ElderRed
+    else -> ElderBlue
 }

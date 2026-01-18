@@ -174,7 +174,14 @@ data class ElderSummary(
     // Chart data
     val colorHistory: List<String>,
     val ema13History: List<Double>,
-    val macdHistHistory: List<Double>
+    val macdHistHistory: List<Double>,
+    // MACD data for MACD chart
+    val macdLineHistory: List<Double> = emptyList(),
+    val signalLineHistory: List<Double> = emptyList(),
+    // Market cap history for Elder Impulse chart
+    val mcapHistory: List<Double> = emptyList(),
+    // Impulse states for chart markers (1=bullish, 0=neutral, -1=bearish)
+    val impulseStates: List<Int> = emptyList()
 ) {
     val colorLabel: String
         get() = when (currentColor) {
@@ -199,7 +206,19 @@ fun ElderImpulse.toSummary(): ElderSummary = ElderSummary(
     currentMacdHist = macdHist.firstOrNull() ?: 0.0,
     colorHistory = color,
     ema13History = ema13,
-    macdHistHistory = macdHist
+    macdHistHistory = macdHist,
+    macdLineHistory = macdLine,
+    signalLineHistory = signalLine,
+    // Use EMA13 as mcap proxy for chart display
+    mcapHistory = ema13,
+    // Convert color strings to impulse states
+    impulseStates = color.map { c ->
+        when (c) {
+            "green" -> 1
+            "red" -> -1
+            else -> 0
+        }
+    }
 )
 
 // ========== DeMark TD Setup ==========

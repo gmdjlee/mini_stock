@@ -54,9 +54,34 @@ val ElderGreen = Color(0xFF4CAF50)     // Bullish
 val ElderRed = Color(0xFFF44336)       // Bearish
 val ElderBlue = Color(0xFF2196F3)      // Neutral
 
-// Chart colors
+// Chart colors - EtfMonitor style (Moss Green Nature theme)
+val ChartPrimary = Color(0xFF4C6C43)      // Moss green (main line)
+val ChartSecondary = Color(0xFF396663)    // Teal (secondary line)
+val ChartTertiary = Color(0xFF586249)     // Olive (tertiary line)
+val ChartGreen = Color(0xFF2E7D5A)        // Teal green (bullish/positive)
+val ChartRed = Color(0xFFBA1A1A)          // Error red (bearish/negative)
+val ChartBlue = Color(0xFF396663)         // Teal (neutral)
+val ChartPurple = Color(0xFF8E7CC3)       // Purple (accent - Fear/Greed)
+val ChartOrange = Color(0xFFE0A050)       // Orange (warning/signal)
+val ChartCyan = Color(0xFFA0CFCF)         // Light teal (highlight)
+val ChartPink = Color(0xFFD4A5A5)         // Dusty pink (special)
+val ChartDefaultBlack = Color(0xFF1C1C1C) // Default black
+
+// Chart grid/background colors
+val ChartGridLight = Color(0xFFE1E4D5)    // Light grid
+val ChartGridDark = Color(0xFF353733)     // Dark grid
+val ChartCardBackgroundLight = Color(0xFFFFFFFF)  // Light chart card background
+val ChartCardBackgroundDark = Color(0xFFF5F7F5)   // Dark chart card background
+
+// Legacy chart colors (for backward compatibility)
 val ChartLine1 = Color(0xFF1976D2)
 val ChartLine2 = Color(0xFF388E3C)
 val ChartLine3 = Color(0xFFF57C00)
 val ChartLine4 = Color(0xFF7B1FA2)
 val ChartFill = Color(0x331976D2)
+
+// Signal colors for Korean market (Red=Up, Blue=Down)
+val SignalBuyStrong = Color(0xFFF44336)   // Strong buy - red
+val SignalBuyWeak = Color(0xFFFF8A80)     // Weak buy - light red
+val SignalSellStrong = Color(0xFF2196F3)  // Strong sell - blue
+val SignalSellWeak = Color(0xFF82B1FF)    // Weak sell - light blue

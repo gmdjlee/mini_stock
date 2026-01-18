@@ -16,6 +16,7 @@ kotlinxSerializationJson = "1.7.1"
 chaquopy = "15.0.1"
 vico = "2.0.0-alpha.28"
 hiltNavigationCompose = "1.2.0"
+mpandroidchart = "v3.1.0"
 
 # Testing
 junit = "4.13.2"
@@ -59,6 +60,9 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 # Vico Charts
 vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
 vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
+
+# MPAndroidChart
+mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpandroidchart" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
