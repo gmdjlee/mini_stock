@@ -180,12 +180,19 @@ class KiwoomClient:
 
     # ========== Stock Search ==========
 
-    def get_stock_list(self, market: str = "0") -> ApiResponse:
+    def get_stock_list(
+        self,
+        market: str = "0",
+        cont_yn: str = "",
+        next_key: str = "",
+    ) -> ApiResponse:
         """
         Get stock list (ka10099).
 
         Args:
             market: Market type (0: All, 1: KOSPI, 2: KOSDAQ)
+            cont_yn: Continuation flag (Y/N) for pagination
+            next_key: Next key for pagination
 
         Returns:
             ApiResponse with stock list
@@ -194,6 +201,8 @@ class KiwoomClient:
             "ka10099",
             "/api/dostk/stkinfo",
             {"mrkt_tp": market},
+            cont_yn=cont_yn,
+            next_key=next_key,
         )
 
     def get_stock_info(self, ticker: str) -> ApiResponse:

@@ -43,26 +43,43 @@ def search(client: KiwoomClient, query: str) -> Dict:
             "error": {"code": "INVALID_ARG", "msg": "검색어가 필요합니다"},
         }
 
-    # Get full stock list
-    resp = client.get_stock_list()
-    if not resp.ok:
-        return {"ok": False, "error": resp.error}
-
     # Filter by query
     query = query.strip().upper()
     results = []
 
-    stk_list = resp.data.get("stk_list", [])
-    for item in stk_list:
-        ticker = item.get("stk_cd", "")
-        name = item.get("stk_nm", "")
+    # Get stock list with pagination
+    cont_yn = ""
+    next_key = ""
+    max_pages = 50  # Safety limit
 
-        if query in ticker or query in name.upper():
-            results.append({
-                "ticker": ticker,
-                "name": name,
-                "market": _get_market_name(item.get("mrkt_tp", "")),
-            })
+    for _ in range(max_pages):
+        resp = client.get_stock_list(cont_yn=cont_yn, next_key=next_key)
+        if not resp.ok:
+            return {"ok": False, "error": resp.error}
+
+        stk_list = resp.data.get("stk_list", [])
+        for item in stk_list:
+            ticker = item.get("stk_cd", "")
+            name = item.get("stk_nm", "")
+
+            if query in ticker or query in name.upper():
+                results.append({
+                    "ticker": ticker,
+                    "name": name,
+                    "market": _get_market_name(item.get("mrkt_tp", "")),
+                })
+
+                # Early exit if we have enough results
+                if len(results) >= 50:
+                    break
+
+        # Stop if we have enough results or no more pages
+        if len(results) >= 50 or not resp.has_next:
+            break
+
+        # Prepare for next page
+        cont_yn = "Y"
+        next_key = resp.next_key or ""
 
     log_info("stock.search", "search complete", {"query": query, "count": len(results)})
 
@@ -86,17 +103,30 @@ def get_all(client: KiwoomClient, market: str = "0") -> Dict:
             ]
         }
     """
-    resp = client.get_stock_list(market)
-    if not resp.ok:
-        return {"ok": False, "error": resp.error}
-
     results = []
-    for item in resp.data.get("stk_list", []):
-        results.append({
-            "ticker": item.get("stk_cd", ""),
-            "name": item.get("stk_nm", ""),
-            "market": _get_market_name(item.get("mrkt_tp", "")),
-        })
+    cont_yn = ""
+    next_key = ""
+    max_pages = 100  # Safety limit
+
+    for _ in range(max_pages):
+        resp = client.get_stock_list(market, cont_yn=cont_yn, next_key=next_key)
+        if not resp.ok:
+            return {"ok": False, "error": resp.error}
+
+        for item in resp.data.get("stk_list", []):
+            results.append({
+                "ticker": item.get("stk_cd", ""),
+                "name": item.get("stk_nm", ""),
+                "market": _get_market_name(item.get("mrkt_tp", "")),
+            })
+
+        # Stop if no more pages
+        if not resp.has_next:
+            break
+
+        # Prepare for next page
+        cont_yn = "Y"
+        next_key = resp.next_key or ""
 
     log_info("stock.search", "get_all complete", {"market": market, "count": len(results)})
 

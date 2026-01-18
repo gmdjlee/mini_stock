@@ -60,7 +60,7 @@ class TestGetAll:
         """Test get all stocks with market filter."""
         result = get_all(mock_kiwoom_client, market="1")
         assert result["ok"] is True
-        mock_kiwoom_client.get_stock_list.assert_called_with("1")
+        mock_kiwoom_client.get_stock_list.assert_called_with("1", cont_yn="", next_key="")
 
 
 class TestGetInfo:
