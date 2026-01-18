@@ -37,6 +37,7 @@ sealed class IndicatorState {
 
 /**
  * Timeframe for indicator data.
+ * Reference recommends WEEKLY for Trend and Elder indicators.
  */
 enum class Timeframe(val label: String, val apiValue: String) {
     DAILY("일봉", "daily"),
@@ -61,7 +62,8 @@ class IndicatorVm @Inject constructor(
     private val _selectedTab = MutableStateFlow(IndicatorType.TREND)
     val selectedTab: StateFlow<IndicatorType> = _selectedTab.asStateFlow()
 
-    private val _selectedTimeframe = MutableStateFlow(Timeframe.DAILY)
+    // Default to WEEKLY as recommended by reference (Trend/Elder use weekly data)
+    private val _selectedTimeframe = MutableStateFlow(Timeframe.WEEKLY)
     val selectedTimeframe: StateFlow<Timeframe> = _selectedTimeframe.asStateFlow()
 
     // Store loaded data
