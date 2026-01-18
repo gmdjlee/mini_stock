@@ -1,123 +1,128 @@
-# Stock Input Autocomplete Module - 개발 명세서
+# Stock Input Autocomplete Module - StockApp 개발 명세서
 
-**Version**: 1.0
+**Version**: 1.1 (StockApp Adapted)
 **Created**: 2026-01-18
-**Based on**: EtfMonitor UnifiedStockSearchField 컴포넌트
+**Updated**: 2026-01-18
+**Target Project**: StockApp (mini_stock)
 
 ---
 
 ## 1. 모듈 개요
 
 ### 1.1 목표
-EtfMonitor에 구현된 **자동완성 기능이 포함된 종목 입력 텍스트필드**를 독립적인 재사용 가능 모듈로 분리하여, 다른 프로젝트에서도 쉽게 사용할 수 있도록 함.
+StockApp의 **자동완성 기능이 포함된 종목 입력 컴포넌트**를 독립적인 재사용 가능 모듈로 구현하여, SearchScreen뿐만 아니라 Analysis, Indicator 등 다른 화면에서도 쉽게 사용할 수 있도록 함.
 
 ### 1.2 현재 구현 현황
 
 | 항목 | 현재 상태 |
 |------|----------|
-| 메인 컴포넌트 | `UnifiedStockSearchField.kt` |
-| 사용 화면 | 3개 (Stock Hub, ETF Statistics, AI Analysis) |
-| 검색 히스토리 | Room DB 저장, 유형별 분리 (STOCK, STATISTICS, AI_ANALYSIS) |
-| 검색 소스 | `StockDao.searchStocks()` (Room DB) |
+| 메인 화면 | `SearchScreen.kt` (전체 화면 방식) |
+| 사용 화면 | 1개 (Search) |
+| 검색 히스토리 | Room DB 저장 (SearchHistoryEntity) |
+| 검색 소스 | PyClient → Python API (`stock_analyzer.stock.search`) |
 
 ### 1.3 핵심 기능
 
 | # | 기능 | 설명 | 우선순위 |
 |---|------|------|----------|
-| 1 | 자동완성 검색 | 종목명/코드 입력 시 실시간 검색 결과 표시 | P0 |
+| 1 | 자동완성 검색 | 종목명/코드 입력 시 드롭다운 결과 표시 | P0 |
 | 2 | 검색 히스토리 | 최근 검색 기록 저장 및 표시 | P0 |
 | 3 | 디바운싱 | 입력 시 300ms 지연 후 검색 실행 | P0 |
-| 4 | 선택 콜백 | 종목 선택 시 ticker, name 반환 | P0 |
-| 5 | 히스토리 유형 분리 | 화면별 독립적인 검색 히스토리 | P1 |
-| 6 | 커스텀 스타일링 | Material 3 테마 호환 | P1 |
+| 4 | 선택 콜백 | 종목 선택 시 Stock 객체 반환 | P0 |
+| 5 | 커스텀 스타일링 | Material 3 테마 호환 | P1 |
+| 6 | 인라인 사용 | 다른 화면에 삽입 가능한 컴포넌트 | P1 |
 
-### 1.4 모듈 분리 원칙
+### 1.4 모듈 설계 원칙
 
 ```
-✓ Composable 단독 사용 가능 (ViewModel 의존성 제거)
-✓ 검색 로직 외부 주입 (콜백 기반)
-✓ 히스토리 저장 로직 분리 (옵션)
+✓ Composable 단독 사용 가능 (ViewModel 의존성 최소화)
+✓ 검색 로직 외부 주입 (콜백 기반) 또는 내장 State 사용
+✓ 기존 SearchRepo/PyClient 재사용
 ✓ Material 3 테마 호환
-✓ 다양한 커스터마이징 지원
-✓ 최소 의존성 (Compose Material 3만 필수)
+✓ 기존 Stock, SearchHistoryEntity 모델 활용
+✓ 최소 의존성 (Compose Material 3 + Room)
 ```
 
 ---
 
-## 2. 현재 구현 분석
+## 2. StockApp 아키텍처 분석
 
-### 2.1 컴포넌트 구조
+### 2.1 현재 검색 구조
 
 ```
-UnifiedStockSearchField
-├── OutlinedTextField (검색 입력)
-│   ├── Leading Icon (Search / Loading)
-│   └── Trailing Icons
-│       ├── History Button (빈 입력 시)
-│       └── Clear Button (입력 있을 시)
-├── Card (자동완성 드롭다운) - 오버레이
-│   └── LazyColumn
-│       └── ListItem (검색 결과)
-└── StockSearchHistoryDialog (히스토리 다이얼로그)
-    └── LazyColumn
-        └── ListItem (히스토리 항목)
+feature/search/
+├── ui/
+│   ├── SearchScreen.kt      # 전체 화면 (Scaffold 기반)
+│   └── SearchVm.kt          # ViewModel (debounce 300ms)
+├── domain/
+│   ├── model/Stock.kt       # Stock, Market enum
+│   ├── repo/SearchRepo.kt   # 검색 Repository 인터페이스
+│   └── usecase/
+│       ├── SearchStockUC.kt
+│       └── SaveHistoryUC.kt
+├── data/
+│   └── repo/SearchRepoImpl.kt  # PyClient 호출
+└── di/
+    └── SearchModule.kt
 ```
 
-### 2.2 현재 파라미터
+### 2.2 데이터 흐름
+
+```
+User Input
+    ↓
+SearchVm (debounce 300ms)
+    ↓
+SearchStockUC
+    ↓
+SearchRepoImpl
+    ↓
+PyClient.call("stock_analyzer.stock.search", "search", [query])
+    ↓
+Python API → 키움증권 REST API
+    ↓
+SearchResponse (JSON)
+    ↓
+List<Stock>
+```
+
+### 2.3 기존 데이터 모델
 
 ```kotlin
-@Composable
-fun UnifiedStockSearchField(
-    // 필수 파라미터
-    searchQuery: String,                              // 현재 검색어
-    onSearchQueryChange: (String) -> Unit,            // 검색어 변경 콜백
-    searchResults: List<StockSearchItem>,             // 검색 결과
-    searchHistory: List<SearchHistory>,               // 검색 히스토리
-    onSelectStock: (ticker: String, name: String) -> Unit,  // 선택 콜백
-
-    // 선택 파라미터
-    isSearching: Boolean = false,                     // 로딩 상태
-    placeholder: String = "종목명 또는 티커 검색...",   // 플레이스홀더
-    onSelectFromHistory: ((ticker: String, name: String) -> Unit)? = null,
-    modifier: Modifier = Modifier
-)
-```
-
-### 2.3 데이터 모델
-
-```kotlin
-// 검색 결과 아이템
-data class StockSearchItem(
+// domain/model/Stock.kt
+data class Stock(
     val ticker: String,
     val name: String,
-    val market: String = ""
+    val market: Market
 )
 
-// 검색 히스토리 (Room Entity)
+enum class Market {
+    KOSPI, KOSDAQ, OTHER
+}
+
+// core/db/entity/StockEntity.kt
 @Entity(tableName = "search_history")
-data class SearchHistory(
+data class SearchHistoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val ticker: String,
     val name: String,
-    val market: String,
-    val historyType: String = SearchHistoryType.STATISTICS,
     val searchedAt: Long = System.currentTimeMillis()
 )
-
-object SearchHistoryType {
-    const val STATISTICS = "STATISTICS"
-    const val STOCK = "STOCK"
-    const val AI_ANALYSIS = "AI_ANALYSIS"
-}
 ```
 
-### 2.4 현재 사용 화면별 구현
+### 2.4 현재 UI 구조
 
-| 화면 | ViewModel | 히스토리 타입 | 디바운스 | 최소 쿼리 |
-|------|-----------|--------------|----------|-----------|
-| Stock Hub | OscillatorViewModel | STOCK | 300ms | 1자 |
-| ETF Statistics | StatisticsViewModel | STATISTICS | 없음 | 2자 |
-| AI Analysis | NewAIAnalysisViewModel | AI_ANALYSIS | 없음 | - |
+```
+SearchScreen (Scaffold)
+├── TopAppBar ("종목 검색")
+└── Column
+    ├── SearchBar (OutlinedTextField)
+    └── Content (state-based)
+        ├── Idle → HistoryList
+        ├── Loading → CircularProgressIndicator
+        ├── Results → StockList
+        └── Error → ErrorState
+```
 
 ---
 
@@ -126,14 +131,14 @@ object SearchHistoryType {
 ### 3.1 모듈 구조
 
 ```
-stockinput/
-├── StockInputField.kt           # 메인 Composable
-├── StockInputHistoryDialog.kt   # 히스토리 다이얼로그
-├── StockInputDefaults.kt        # 기본값 및 스타일
+core/ui/component/stockinput/
+├── StockInputField.kt              # 메인 Composable
+├── StockInputHistoryDialog.kt      # 히스토리 다이얼로그
+├── StockInputDefaults.kt           # 기본값 및 스타일
 ├── model/
-│   └── StockInputModels.kt      # 데이터 모델
+│   └── StockInputModels.kt         # 데이터 모델
 └── state/
-    └── StockInputState.kt       # 상태 관리 (선택적)
+    └── StockInputState.kt          # 상태 관리 (선택적)
 ```
 
 ### 3.2 핵심 API 설계
@@ -146,24 +151,23 @@ fun StockInputField(
     // 필수
     value: String,
     onValueChange: (String) -> Unit,
-    suggestions: List<StockSuggestion>,
-    onSelect: (StockSuggestion) -> Unit,
+    suggestions: List<Stock>,
+    onSelect: (Stock) -> Unit,
 
     // 선택
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    readOnly: Boolean = false,
     isLoading: Boolean = false,
-    placeholder: String = "종목명 또는 종목코드 입력",
+    placeholder: String = "종목명 또는 코드 검색",
 
     // 히스토리 (선택)
-    history: List<StockSuggestion> = emptyList(),
-    onHistorySelect: ((StockSuggestion) -> Unit)? = null,
+    history: List<Stock> = emptyList(),
+    onHistorySelect: ((Stock) -> Unit)? = null,
+    onHistoryClick: (() -> Unit)? = null,  // 히스토리 버튼 클릭
 
     // 커스터마이징
     colors: StockInputColors = StockInputDefaults.colors(),
-    shape: Shape = StockInputDefaults.shape,
-    contentPadding: PaddingValues = StockInputDefaults.contentPadding
+    shape: Shape = StockInputDefaults.shape
 )
 ```
 
@@ -174,71 +178,64 @@ fun StockInputField(
 fun rememberStockInputState(
     initialValue: String = "",
     debounceMs: Long = 300L,
-    onSearch: suspend (String) -> List<StockSuggestion>
+    onSearch: suspend (String) -> List<Stock>
 ): StockInputState
 
 class StockInputState {
     val value: String
-    val suggestions: List<StockSuggestion>
+    val suggestions: List<Stock>
     val isLoading: Boolean
-    val selectedStock: StockSuggestion?
+    val selectedStock: Stock?
 
     fun onValueChange(newValue: String)
-    fun onSelect(stock: StockSuggestion)
+    fun onSelect(stock: Stock)
     fun clear()
 }
 
-// 사용 예시
+// State 기반 오버로드
 @Composable
-fun MyScreen(viewModel: MyViewModel) {
-    val state = rememberStockInputState(
-        onSearch = { query -> viewModel.searchStocks(query) }
-    )
-
-    StockInputField(
-        state = state,
-        onSelect = { stock -> viewModel.analyzeStock(stock.ticker) }
-    )
-}
+fun StockInputField(
+    state: StockInputState,
+    onSelect: (Stock) -> Unit,
+    modifier: Modifier = Modifier,
+    // ... 기타 파라미터
+)
 ```
 
 ### 3.3 데이터 모델
 
+기존 Stock 모델을 재사용하며, 필요시 확장:
+
 ```kotlin
-/**
- * 종목 검색 결과/제안 항목
- */
-data class StockSuggestion(
-    val ticker: String,
-    val name: String,
-    val market: String = "",
-    val extra: Map<String, Any> = emptyMap()  // 확장용
-) {
-    companion object {
-        /**
-         * SearchHistory에서 변환
-         */
-        fun fromHistory(history: SearchHistory) = StockSuggestion(
-            ticker = history.ticker,
-            name = history.name,
-            market = history.market
-        )
-    }
-}
+// core/ui/component/stockinput/model/StockInputModels.kt
+
+import com.stockapp.feature.search.domain.model.Stock
+import com.stockapp.feature.search.domain.model.Market
+import com.stockapp.core.db.entity.SearchHistoryEntity
 
 /**
- * 선택된 종목 결과
+ * SearchHistoryEntity를 Stock으로 변환
  */
-data class SelectedStock(
-    val ticker: String,
-    val name: String,
-    val market: String = ""
+fun SearchHistoryEntity.toStock(): Stock = Stock(
+    ticker = ticker,
+    name = name,
+    market = Market.OTHER  // 히스토리에는 market 정보 없음
+)
+
+/**
+ * Stock을 SearchHistoryEntity로 변환
+ */
+fun Stock.toHistoryEntity(): SearchHistoryEntity = SearchHistoryEntity(
+    ticker = ticker,
+    name = name
 )
 ```
 
 ### 3.4 스타일링 API
 
 ```kotlin
+// core/ui/component/stockinput/StockInputDefaults.kt
+
 object StockInputDefaults {
 
     val shape: Shape
@@ -248,12 +245,12 @@ object StockInputDefaults {
 
     @Composable
     fun colors(
-        containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-        focusedContainerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+        containerColor: Color = MaterialTheme.colorScheme.surface,
+        focusedContainerColor: Color = MaterialTheme.colorScheme.surface,
         textColor: Color = MaterialTheme.colorScheme.onSurface,
         placeholderColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
         iconColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-        focusedBorderColor: Color = MaterialTheme.colorScheme.outline,
+        focusedBorderColor: Color = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor: Color = MaterialTheme.colorScheme.outline,
         dropdownContainerColor: Color = MaterialTheme.colorScheme.surface,
         dropdownElevation: Dp = 8.dp
@@ -291,6 +288,7 @@ data class StockInputColors(
 ### 4.1 StockInputField
 
 #### 구조
+
 ```
 Box (fillMaxWidth)
 ├── OutlinedTextField
@@ -301,14 +299,14 @@ Box (fillMaxWidth)
 │       ├── IconButton(History) (value.isEmpty && history.isNotEmpty)
 │       └── IconButton(Clear) (value.isNotEmpty)
 │
-├── Card (드롭다운, suggestions.isNotEmpty && value.isNotBlank)
-│   └── LazyColumn
-│       └── items(suggestions)
-│           └── SuggestionItem
-│               ├── headlineContent: Text(name)
-│               └── supportingContent: Text("ticker • market")
-│
-└── HistoryDialog (showHistoryDialog = true)
+└── Card (드롭다운, suggestions.isNotEmpty && value.isNotBlank)
+    └── LazyColumn (heightIn(max = 300.dp))
+        └── items(suggestions)
+            └── SuggestionItem
+                ├── Column
+                │   ├── Text(name)
+                │   └── Text("ticker • market")
+                └── MarketBadge
 ```
 
 #### 동작 흐름
@@ -318,14 +316,15 @@ Box (fillMaxWidth)
    └─→ onValueChange(newValue) 호출
        └─→ 외부에서 검색 실행 (debounce 적용)
            └─→ suggestions 업데이트
+               └─→ 드롭다운 표시
 
 2. 제안 항목 클릭
    └─→ value = suggestion.name 설정
    └─→ onSelect(suggestion) 호출
-   └─→ suggestions 클리어
+   └─→ suggestions 클리어 (드롭다운 닫힘)
 
 3. 히스토리 버튼 클릭
-   └─→ 히스토리 다이얼로그 표시
+   └─→ onHistoryClick() 호출 또는 히스토리 다이얼로그 표시
 
 4. 히스토리 항목 선택
    └─→ value = history.name 설정
@@ -338,9 +337,9 @@ Box (fillMaxWidth)
 ```kotlin
 @Composable
 fun StockInputHistoryDialog(
-    history: List<StockSuggestion>,
+    history: List<Stock>,
     onDismiss: () -> Unit,
-    onSelect: (StockSuggestion) -> Unit,
+    onSelect: (Stock) -> Unit,
 
     // 커스터마이징
     title: String = "최근 검색",
@@ -354,24 +353,30 @@ fun StockInputHistoryDialog(
 ```kotlin
 @Composable
 private fun SuggestionItem(
-    suggestion: StockSuggestion,
+    stock: Stock,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ListItem(
-        headlineContent = { Text(suggestion.name) },
-        supportingContent = {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                if (suggestion.market.isNotEmpty()) {
-                    "${suggestion.ticker} • ${suggestion.market}"
-                } else {
-                    suggestion.ticker
-                },
-                style = MaterialTheme.typography.bodySmall
+                text = stock.name,
+                style = MaterialTheme.typography.bodyLarge
             )
-        },
-        modifier = modifier.clickable(onClick = onClick)
-    )
+            Text(
+                text = stock.ticker,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        MarketBadge(market = stock.market)
+    }
 }
 ```
 
@@ -382,24 +387,26 @@ private fun SuggestionItem(
 ### 5.1 StockInputState 클래스
 
 ```kotlin
+// core/ui/component/stockinput/state/StockInputState.kt
+
 @Stable
 class StockInputState(
     initialValue: String = "",
     private val debounceMs: Long = 300L,
-    private val onSearch: suspend (String) -> List<StockSuggestion>,
+    private val onSearch: suspend (String) -> List<Stock>,
     private val scope: CoroutineScope
 ) {
     private val _value = mutableStateOf(initialValue)
     val value: String by _value
 
-    private val _suggestions = mutableStateOf<List<StockSuggestion>>(emptyList())
-    val suggestions: List<StockSuggestion> by _suggestions
+    private val _suggestions = mutableStateOf<List<Stock>>(emptyList())
+    val suggestions: List<Stock> by _suggestions
 
     private val _isLoading = mutableStateOf(false)
     val isLoading: Boolean by _isLoading
 
-    private val _selectedStock = mutableStateOf<StockSuggestion?>(null)
-    val selectedStock: StockSuggestion? by _selectedStock
+    private val _selectedStock = mutableStateOf<Stock?>(null)
+    val selectedStock: Stock? by _selectedStock
 
     private var searchJob: Job? = null
 
@@ -418,19 +425,22 @@ class StockInputState(
             _isLoading.value = true
             try {
                 _suggestions.value = onSearch(newValue)
+            } catch (e: Exception) {
+                _suggestions.value = emptyList()
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun onSelect(stock: StockSuggestion) {
+    fun onSelect(stock: Stock) {
         _value.value = stock.name
         _selectedStock.value = stock
         _suggestions.value = emptyList()
     }
 
     fun clear() {
+        searchJob?.cancel()
         _value.value = ""
         _suggestions.value = emptyList()
         _selectedStock.value = null
@@ -441,7 +451,7 @@ class StockInputState(
 fun rememberStockInputState(
     initialValue: String = "",
     debounceMs: Long = 300L,
-    onSearch: suspend (String) -> List<StockSuggestion>
+    onSearch: suspend (String) -> List<Stock>
 ): StockInputState {
     val scope = rememberCoroutineScope()
     return remember {
@@ -461,72 +471,71 @@ fun rememberStockInputState(
 @Composable
 fun StockInputField(
     state: StockInputState,
-    onSelect: (StockSuggestion) -> Unit,
+    onSelect: (Stock) -> Unit,
     modifier: Modifier = Modifier,
-    // ... 기타 파라미터
+    placeholder: String = "종목명 또는 코드 검색",
+    history: List<Stock> = emptyList(),
+    onHistorySelect: ((Stock) -> Unit)? = null,
+    colors: StockInputColors = StockInputDefaults.colors(),
+    shape: Shape = StockInputDefaults.shape
 ) {
     StockInputField(
         value = state.value,
         onValueChange = state::onValueChange,
         suggestions = state.suggestions,
-        onSelect = { suggestion ->
-            state.onSelect(suggestion)
-            onSelect(suggestion)
+        onSelect = { stock ->
+            state.onSelect(stock)
+            onSelect(stock)
         },
         isLoading = state.isLoading,
         modifier = modifier,
-        // ...
+        placeholder = placeholder,
+        history = history,
+        onHistorySelect = onHistorySelect ?: { stock ->
+            state.onSelect(stock)
+            onSelect(stock)
+        },
+        colors = colors,
+        shape = shape
     )
 }
 ```
 
 ---
 
-## 6. 히스토리 관리 (선택적 확장)
+## 6. SearchRepo 통합
 
-### 6.1 히스토리 인터페이스
+### 6.1 검색 함수 추가
+
+기존 SearchRepo에 suspend 함수 추가:
 
 ```kotlin
-interface StockInputHistoryManager {
-    fun getHistory(): Flow<List<StockSuggestion>>
-    suspend fun saveToHistory(stock: StockSuggestion)
+// feature/search/domain/repo/SearchRepo.kt
+
+interface SearchRepo {
+    suspend fun search(query: String): Result<List<Stock>>
+    fun getAll(): Flow<List<Stock>>
+    fun getHistory(): Flow<List<Stock>>
+    suspend fun saveHistory(stock: Stock)
     suspend fun clearHistory()
-    suspend fun removeFromHistory(stock: StockSuggestion)
+
+    // 추가: State용 검색 함수
+    suspend fun searchForSuggestions(query: String): List<Stock>
 }
-```
 
-### 6.2 Room 기반 구현 예시
+// feature/search/data/repo/SearchRepoImpl.kt
 
-```kotlin
-class RoomStockInputHistoryManager(
-    private val searchHistoryDao: SearchHistoryDao,
-    private val historyType: String,
-    private val maxHistorySize: Int = 20
-) : StockInputHistoryManager {
+class SearchRepoImpl @Inject constructor(
+    private val pyClient: PyClient,
+    private val stockDao: StockDao,
+    private val historyDao: SearchHistoryDao,
+    private val json: Json
+) : SearchRepo {
 
-    override fun getHistory(): Flow<List<StockSuggestion>> {
-        return searchHistoryDao.getRecentSearchesByType(historyType, maxHistorySize)
-            .map { list -> list.map { StockSuggestion.fromHistory(it) } }
-    }
+    // ... 기존 구현 ...
 
-    override suspend fun saveToHistory(stock: StockSuggestion) {
-        searchHistoryDao.insertSearch(
-            SearchHistory(
-                ticker = stock.ticker,
-                name = stock.name,
-                market = stock.market,
-                historyType = historyType
-            )
-        )
-        searchHistoryDao.deleteOldSearchesByType(historyType, maxHistorySize)
-    }
-
-    override suspend fun clearHistory() {
-        searchHistoryDao.deleteAllByType(historyType)
-    }
-
-    override suspend fun removeFromHistory(stock: StockSuggestion) {
-        searchHistoryDao.deleteByTicker(stock.ticker, historyType)
+    override suspend fun searchForSuggestions(query: String): List<Stock> {
+        return search(query).getOrElse { emptyList() }
     }
 }
 ```
@@ -535,70 +544,172 @@ class RoomStockInputHistoryManager(
 
 ## 7. 사용 예시
 
-### 7.1 기본 사용 (Stateless)
+### 7.1 기본 사용 (Stateless - ViewModel 연동)
 
 ```kotlin
+// 기존 SearchScreen 리팩토링
+
 @Composable
-fun SearchScreen(viewModel: SearchViewModel = hiltViewModel()) {
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val suggestions by viewModel.suggestions.collectAsState()
-    val isSearching by viewModel.isSearching.collectAsState()
-    val history by viewModel.searchHistory.collectAsState(initial = emptyList())
+fun SearchScreen(
+    onStockClick: (String) -> Unit,
+    viewModel: SearchVm = hiltViewModel()
+) {
+    val query by viewModel.query.collectAsState()
+    val state by viewModel.state.collectAsState()
+    val history by viewModel.history.collectAsState()
 
-    Column {
-        StockInputField(
-            value = searchQuery,
-            onValueChange = { viewModel.onSearchQueryChanged(it) },
-            suggestions = suggestions,
-            onSelect = { stock ->
-                viewModel.analyzeStock(stock.ticker)
-            },
-            isLoading = isSearching,
-            history = history.map { StockSuggestion.fromHistory(it) },
-            onHistorySelect = { stock ->
-                viewModel.analyzeStock(stock.ticker)
-            }
-        )
-
-        // 분석 결과 표시
-        // ...
+    val suggestions = when (val s = state) {
+        is SearchState.Results -> s.stocks
+        else -> emptyList()
     }
-}
-```
 
-### 7.2 상태 관리 사용 (Stateful)
+    val isLoading = state is SearchState.Loading
 
-```kotlin
-@Composable
-fun QuickSearchScreen(viewModel: QuickSearchViewModel = hiltViewModel()) {
-    val state = rememberStockInputState(
-        debounceMs = 300L,
-        onSearch = { query -> viewModel.searchStocks(query) }
-    )
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("종목 검색") }) }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            StockInputField(
+                value = query,
+                onValueChange = viewModel::onQueryChange,
+                suggestions = suggestions,
+                onSelect = { stock ->
+                    viewModel.onStockSelected(stock)
+                    onStockClick(stock.ticker)
+                },
+                isLoading = isLoading,
+                history = history,
+                onHistorySelect = { stock ->
+                    viewModel.onStockSelected(stock)
+                    onStockClick(stock.ticker)
+                }
+            )
 
-    Column {
-        StockInputField(
-            state = state,
-            onSelect = { stock ->
-                viewModel.onStockSelected(stock.ticker, stock.name)
-            }
-        )
-
-        // 선택된 종목 표시
-        state.selectedStock?.let { stock ->
-            Card {
-                Text("선택: ${stock.name} (${stock.ticker})")
+            // 에러 상태 표시
+            if (state is SearchState.Error) {
+                ErrorCard(
+                    code = (state as SearchState.Error).code,
+                    message = (state as SearchState.Error).msg,
+                    onRetry = viewModel::retry,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
             }
         }
     }
 }
 ```
 
-### 7.3 커스텀 스타일링
+### 7.2 상태 관리 사용 (Stateful - 다른 화면에서 사용)
+
+```kotlin
+// Analysis 화면에서 종목 선택
+
+@Composable
+fun AnalysisScreen(
+    ticker: String? = null,
+    viewModel: AnalysisVm = hiltViewModel()
+) {
+    val searchRepo = // Hilt로 주입 또는 ViewModel에서 제공
+
+    val stockInputState = rememberStockInputState(
+        debounceMs = 300L,
+        onSearch = { query -> searchRepo.searchForSuggestions(query) }
+    )
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // 종목이 선택되지 않은 경우 입력 필드 표시
+        if (ticker == null && stockInputState.selectedStock == null) {
+            Text(
+                text = "분석할 종목을 선택하세요",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            StockInputField(
+                state = stockInputState,
+                onSelect = { stock ->
+                    viewModel.loadAnalysis(stock.ticker)
+                }
+            )
+        } else {
+            // 선택된 종목의 분석 데이터 표시
+            val selectedTicker = ticker ?: stockInputState.selectedStock?.ticker
+            // ... 분석 UI
+        }
+    }
+}
+```
+
+### 7.3 Indicator 화면에서 사용
 
 ```kotlin
 @Composable
-fun ThemedSearchScreen() {
+fun IndicatorScreen(
+    ticker: String? = null,
+    viewModel: IndicatorVm = hiltViewModel()
+) {
+    val searchRepo by viewModel.searchRepo  // ViewModel에서 제공
+
+    val stockInputState = rememberStockInputState(
+        onSearch = { query -> searchRepo.searchForSuggestions(query) }
+    )
+
+    var selectedTicker by remember { mutableStateOf(ticker) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // 종목 선택 헤더
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (selectedTicker != null) {
+                Text(
+                    text = "선택: ${stockInputState.selectedStock?.name ?: selectedTicker}",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = {
+                    selectedTicker = null
+                    stockInputState.clear()
+                }) {
+                    Text("변경")
+                }
+            }
+        }
+
+        // 종목 선택 UI
+        if (selectedTicker == null) {
+            StockInputField(
+                state = stockInputState,
+                onSelect = { stock ->
+                    selectedTicker = stock.ticker
+                    viewModel.loadIndicator(stock.ticker)
+                },
+                placeholder = "지표를 볼 종목 검색"
+            )
+        }
+
+        // 지표 탭 UI
+        if (selectedTicker != null) {
+            // ... Trend, Elder, Demark 탭
+        }
+    }
+}
+```
+
+### 7.4 커스텀 스타일링
+
+```kotlin
+@Composable
+fun ThemedStockInput() {
+    var query by remember { mutableStateOf("") }
+    var suggestions by remember { mutableStateOf<List<Stock>>(emptyList()) }
+
     StockInputField(
         value = query,
         onValueChange = { query = it },
@@ -607,113 +718,90 @@ fun ThemedSearchScreen() {
 
         // 커스텀 스타일
         colors = StockInputDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             dropdownElevation = 12.dp
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         placeholder = "종목 검색..."
-    )
-}
-```
-
-### 7.4 다른 프로젝트에서 사용
-
-```kotlin
-// build.gradle.kts
-dependencies {
-    implementation("com.yourcompany:stock-input:1.0.0")
-}
-
-// 사용
-@Composable
-fun MyAppSearchScreen() {
-    var query by remember { mutableStateOf("") }
-    var suggestions by remember { mutableStateOf<List<StockSuggestion>>(emptyList()) }
-
-    // 자체 검색 로직 연결
-    LaunchedEffect(query) {
-        if (query.length >= 2) {
-            delay(300)
-            suggestions = myStockApi.search(query).map {
-                StockSuggestion(it.code, it.name, it.market)
-            }
-        }
-    }
-
-    StockInputField(
-        value = query,
-        onValueChange = { query = it },
-        suggestions = suggestions,
-        onSelect = { stock ->
-            navigateToDetail(stock.ticker)
-        }
     )
 }
 ```
 
 ---
 
-## 8. 마이그레이션 가이드
+## 8. SearchScreen 마이그레이션 가이드
 
-### 8.1 현재 코드 → 새 모듈
+### 8.1 현재 → 새 컴포넌트
 
-#### Before (현재)
+#### Before (현재 SearchScreen)
 
 ```kotlin
-UnifiedStockSearchField(
-    searchQuery = searchQuery,
-    onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
-    searchResults = suggestions.map { stock ->
-        StockSearchItem(
-            ticker = stock.ticker,
-            name = stock.name,
-            market = stock.market
+@Composable
+fun SearchScreen(onStockClick: (String) -> Unit, viewModel: SearchVm) {
+    // ... Scaffold, TopAppBar ...
+
+    Column {
+        // 기존 SearchBar
+        SearchBar(
+            query = query,
+            onQueryChange = viewModel::onQueryChange,
+            onClear = viewModel::clearSearch
         )
-    },
-    searchHistory = searchHistory,
-    isSearching = false,
-    placeholder = stringResource(R.string.search_hint),
-    onSelectStock = { ticker, _ ->
-        viewModel.onClearSuggestions()
-        viewModel.analyzeStock(ticker)
+
+        // State 기반 콘텐츠
+        when (state) {
+            is SearchState.Idle -> HistoryList(...)
+            is SearchState.Loading -> LoadingState()
+            is SearchState.Results -> StockList(...)
+            is SearchState.Error -> ErrorState(...)
+        }
     }
-)
+}
 ```
 
-#### After (새 모듈)
+#### After (새 컴포넌트 사용)
 
 ```kotlin
-StockInputField(
-    value = searchQuery,
-    onValueChange = { viewModel.onSearchQueryChanged(it) },
-    suggestions = suggestions.map { stock ->
-        StockSuggestion(
-            ticker = stock.ticker,
-            name = stock.name,
-            market = stock.market
+@Composable
+fun SearchScreen(onStockClick: (String) -> Unit, viewModel: SearchVm) {
+    // ... Scaffold, TopAppBar ...
+
+    Column {
+        // 새 StockInputField (드롭다운 자동완성)
+        StockInputField(
+            value = query,
+            onValueChange = viewModel::onQueryChange,
+            suggestions = (state as? SearchState.Results)?.stocks ?: emptyList(),
+            onSelect = { stock ->
+                viewModel.onStockSelected(stock)
+                onStockClick(stock.ticker)
+            },
+            isLoading = state is SearchState.Loading,
+            history = history,
+            onHistorySelect = { stock ->
+                viewModel.onStockSelected(stock)
+                onStockClick(stock.ticker)
+            }
         )
-    },
-    history = searchHistory.map { StockSuggestion.fromHistory(it) },
-    isLoading = false,
-    placeholder = stringResource(R.string.search_hint),
-    onSelect = { suggestion ->
-        viewModel.onClearSuggestions()
-        viewModel.analyzeStock(suggestion.ticker)
+
+        // 에러만 별도 표시
+        if (state is SearchState.Error) {
+            ErrorCard(...)
+        }
     }
-)
+}
 ```
 
 ### 8.2 변경점 요약
 
 | 항목 | 이전 | 이후 |
 |------|------|------|
-| 컴포넌트명 | `UnifiedStockSearchField` | `StockInputField` |
-| 검색어 파라미터 | `searchQuery` | `value` |
-| 결과 타입 | `StockSearchItem` | `StockSuggestion` |
-| 히스토리 타입 | `SearchHistory` (Entity) | `StockSuggestion` |
-| 선택 콜백 | `onSelectStock(ticker, name)` | `onSelect(StockSuggestion)` |
-| 히스토리 콜백 | `onSelectFromHistory` | `onHistorySelect` |
+| 검색 UI | 전체 화면 결과 리스트 | 드롭다운 자동완성 |
+| 히스토리 | 별도 섹션 표시 | 버튼 + 다이얼로그 |
+| 로딩 | 전체 화면 로딩 | 입력 필드 내 로딩 아이콘 |
+| 에러 | 전체 화면 에러 | 별도 ErrorCard |
+| 재사용성 | SearchScreen 전용 | 모든 화면에서 사용 가능 |
 
 ---
 
@@ -745,16 +833,33 @@ class StockInputStateTest {
     }
 
     @Test
-    fun `onSelect updates value and clears suggestions`() {
+    fun `onSelect updates value and clears suggestions`() = runTest {
         val state = StockInputState(
-            onSearch = { listOf(StockSuggestion("005930", "삼성전자", "KOSPI")) },
-            scope = TestScope()
+            onSearch = { listOf(Stock("005930", "삼성전자", Market.KOSPI)) },
+            scope = this
         )
 
-        state.onSelect(StockSuggestion("005930", "삼성전자", "KOSPI"))
+        val stock = Stock("005930", "삼성전자", Market.KOSPI)
+        state.onSelect(stock)
 
         assertEquals("삼성전자", state.value)
         assertEquals("005930", state.selectedStock?.ticker)
+        assertTrue(state.suggestions.isEmpty())
+    }
+
+    @Test
+    fun `clear resets all state`() = runTest {
+        val state = StockInputState(
+            onSearch = { emptyList() },
+            scope = this
+        )
+
+        state.onValueChange("삼성")
+        state.onSelect(Stock("005930", "삼성전자", Market.KOSPI))
+        state.clear()
+
+        assertEquals("", state.value)
+        assertNull(state.selectedStock)
         assertTrue(state.suggestions.isEmpty())
     }
 }
@@ -771,8 +876,8 @@ class StockInputFieldTest {
     @Test
     fun `shows suggestions when input has text`() {
         val suggestions = listOf(
-            StockSuggestion("005930", "삼성전자", "KOSPI"),
-            StockSuggestion("000660", "SK하이닉스", "KOSPI")
+            Stock("005930", "삼성전자", Market.KOSPI),
+            Stock("000660", "SK하이닉스", Market.KOSPI)
         )
 
         composeTestRule.setContent {
@@ -789,14 +894,14 @@ class StockInputFieldTest {
     }
 
     @Test
-    fun `shows history button when input is empty`() {
+    fun `shows history button when input is empty and history exists`() {
         composeTestRule.setContent {
             StockInputField(
                 value = "",
                 onValueChange = {},
                 suggestions = emptyList(),
                 onSelect = {},
-                history = listOf(StockSuggestion("005930", "삼성전자", "KOSPI"))
+                history = listOf(Stock("005930", "삼성전자", Market.KOSPI))
             )
         }
 
@@ -816,108 +921,153 @@ class StockInputFieldTest {
 
         composeTestRule.onNodeWithContentDescription("지우기").assertIsDisplayed()
     }
+
+    @Test
+    fun `hides dropdown when suggestions are empty`() {
+        composeTestRule.setContent {
+            StockInputField(
+                value = "xyz",
+                onValueChange = {},
+                suggestions = emptyList(),
+                onSelect = {}
+            )
+        }
+
+        composeTestRule.onNodeWithTag("suggestions_dropdown").assertDoesNotExist()
+    }
 }
 ```
 
 ---
 
-## 10. 의존성
+## 10. 파일 구조 (최종)
 
-### 10.1 필수 의존성
-
-```toml
-# gradle/libs.versions.toml
-[versions]
-compose-bom = "2024.12.01"
-
-[libraries]
-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
-compose-material3 = { module = "androidx.compose.material3:material3" }
-compose-material-icons = { module = "androidx.compose.material:material-icons-extended" }
+```
+StockApp/app/src/main/java/com/stockapp/
+├── core/
+│   ├── ui/
+│   │   ├── component/
+│   │   │   ├── stockinput/                    # 새 모듈
+│   │   │   │   ├── StockInputField.kt         # 메인 Composable
+│   │   │   │   ├── StockInputHistoryDialog.kt # 히스토리 다이얼로그
+│   │   │   │   ├── StockInputDefaults.kt      # 기본값 및 스타일
+│   │   │   │   ├── model/
+│   │   │   │   │   └── StockInputModels.kt    # 변환 함수
+│   │   │   │   └── state/
+│   │   │   │       └── StockInputState.kt     # 상태 관리
+│   │   │   ├── LoadingIndicator.kt            # (기존)
+│   │   │   └── ErrorCard.kt                   # (기존)
+│   │   └── theme/
+│   ├── db/
+│   │   └── entity/
+│   │       └── StockEntity.kt                 # SearchHistoryEntity (기존)
+│   └── py/
+│       └── PyClient.kt                        # (기존)
+│
+└── feature/
+    └── search/
+        ├── domain/
+        │   ├── model/Stock.kt                 # Stock, Market (기존)
+        │   └── repo/SearchRepo.kt             # searchForSuggestions 추가
+        ├── data/
+        │   └── repo/SearchRepoImpl.kt         # 구현 추가
+        └── ui/
+            ├── SearchScreen.kt                # 리팩토링
+            └── SearchVm.kt                    # (기존 유지)
 ```
 
-### 10.2 선택 의존성
+---
+
+## 11. 구현 체크리스트
+
+### Phase 1: 핵심 컴포넌트 (P0)
+
+- [ ] `StockInputModels.kt` - 변환 함수 정의
+- [ ] `StockInputColors.kt` - 스타일 클래스 정의
+- [ ] `StockInputDefaults.kt` - 기본값 객체 정의
+- [ ] `StockInputField.kt` - 메인 Composable 구현
+- [ ] `StockInputHistoryDialog.kt` - 히스토리 다이얼로그 구현
+- [ ] 기본 단위 테스트 작성
+
+### Phase 2: 상태 관리 (P1)
+
+- [ ] `StockInputState.kt` - 상태 클래스 구현
+- [ ] `rememberStockInputState` 함수 구현
+- [ ] Stateful 오버로드 함수 구현
+- [ ] 디바운싱 테스트 작성
+- [ ] SearchRepo에 `searchForSuggestions` 추가
+
+### Phase 3: 통합 (P1)
+
+- [ ] SearchScreen 리팩토링
+- [ ] AnalysisScreen 통합 (선택적)
+- [ ] IndicatorScreen 통합 (선택적)
+- [ ] UI 테스트 작성
+
+### Phase 4: 최적화 (P2)
+
+- [ ] 키보드 동작 최적화 (IME Action)
+- [ ] 접근성 개선 (Content Description)
+- [ ] 포커스 관리 개선
+- [ ] KDoc 문서 작성
+
+---
+
+## 12. 의존성
+
+### 12.1 기존 의존성 활용 (추가 불필요)
 
 ```toml
-# Room (히스토리 저장 시)
+# gradle/libs.versions.toml (StockApp에 이미 포함)
+[libraries]
+compose-bom = { module = "androidx.compose:compose-bom", version = "2024.12.01" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons = { module = "androidx.compose.material:material-icons-extended" }
 room-runtime = { module = "androidx.room:room-runtime", version = "2.8.3" }
 room-ktx = { module = "androidx.room:room-ktx", version = "2.8.3" }
-
-# Coroutines (State 사용 시)
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.10.2" }
 ```
 
 ---
 
-## 11. 파일 구조 (최종)
-
-```
-stock-input-module/
-├── build.gradle.kts
-├── src/main/kotlin/com/stockinput/
-│   ├── StockInputField.kt              # 메인 Composable (Stateless)
-│   ├── StockInputFieldStateful.kt      # State 기반 오버로드
-│   ├── StockInputHistoryDialog.kt      # 히스토리 다이얼로그
-│   ├── StockInputDefaults.kt           # 기본값 및 스타일
-│   │
-│   ├── model/
-│   │   ├── StockSuggestion.kt          # 제안/결과 모델
-│   │   └── StockInputColors.kt         # 색상 설정
-│   │
-│   ├── state/
-│   │   └── StockInputState.kt          # 상태 관리 클래스
-│   │
-│   └── internal/
-│       ├── SuggestionItem.kt           # 내부 컴포넌트
-│       └── SuggestionDropdown.kt       # 드롭다운 컴포넌트
-│
-└── src/test/kotlin/com/stockinput/
-    ├── StockInputStateTest.kt
-    └── StockInputFieldTest.kt
-```
-
----
-
-## 12. 구현 체크리스트
-
-### Phase 1: 핵심 컴포넌트 (P0)
-- [ ] `StockSuggestion` 데이터 모델 정의
-- [ ] `StockInputColors` 스타일 클래스 정의
-- [ ] `StockInputDefaults` 기본값 객체 정의
-- [ ] `StockInputField` 메인 Composable 구현
-- [ ] `StockInputHistoryDialog` 구현
-- [ ] 기본 단위 테스트 작성
-
-### Phase 2: 상태 관리 (P1)
-- [ ] `StockInputState` 클래스 구현
-- [ ] `rememberStockInputState` 함수 구현
-- [ ] Stateful 오버로드 함수 구현
-- [ ] 디바운싱 테스트 작성
-
-### Phase 3: 확장 기능 (P2)
-- [ ] `StockInputHistoryManager` 인터페이스 정의
-- [ ] Room 기반 구현 예시 작성
-- [ ] 키보드 동작 최적화 (IME Action)
-- [ ] 접근성 개선 (Content Description)
-
-### Phase 4: 문서화 (P2)
-- [ ] API 문서 (KDoc) 작성
-- [ ] 사용 예시 README 작성
-- [ ] 마이그레이션 가이드 완성
-
----
-
-## 부록 A: 현재 구현 파일 참조
+## 부록 A: StockApp 참조 파일
 
 | 파일 | 경로 | 역할 |
 |------|------|------|
-| UnifiedStockSearchField | `core/ui/component/UnifiedStockSearchField.kt` | 현재 메인 컴포넌트 |
-| SearchHistory Entity | `core/database/entities/SearchHistory.kt` | 히스토리 Entity |
-| SearchHistoryDao | `core/database/SearchHistoryDao.kt` | 히스토리 DAO |
-| StockDao | `core/database/StockDao.kt` | 종목 검색 DAO |
-| OscillatorViewModel | `feature/stock/presentation/oscillator/OscillatorViewModel.kt` | Stock Hub VM |
-| StatisticsViewModel | `feature/stock/presentation/statistics/StatisticsViewModel.kt` | Statistics VM |
-| NewAIAnalysisViewModel | `feature/analysis/presentation/aianalysis/NewAIAnalysisViewModel.kt` | AI Analysis VM |
+| SearchScreen | `feature/search/ui/SearchScreen.kt` | 현재 검색 화면 |
+| SearchVm | `feature/search/ui/SearchVm.kt` | 검색 ViewModel |
+| Stock | `feature/search/domain/model/Stock.kt` | 도메인 모델 |
+| SearchRepo | `feature/search/domain/repo/SearchRepo.kt` | Repository 인터페이스 |
+| SearchRepoImpl | `feature/search/data/repo/SearchRepoImpl.kt` | PyClient 연동 |
+| SearchHistoryEntity | `core/db/entity/StockEntity.kt` | 히스토리 Entity |
+| SearchHistoryDao | `core/db/dao/SearchHistoryDao.kt` | 히스토리 DAO |
+| PyClient | `core/py/PyClient.kt` | Python 호출 |
+
+---
+
+## 부록 B: Python API 참조
+
+### stock_analyzer.stock.search
+
+```python
+def search(client: KiwoomClient, query: str) -> dict:
+    """
+    종목 검색
+
+    Args:
+        client: KiwoomClient 인스턴스
+        query: 검색어 (종목명 또는 코드)
+
+    Returns:
+        {
+            "ok": True,
+            "data": [
+                {"ticker": "005930", "name": "삼성전자", "market": "KOSPI"},
+                {"ticker": "005935", "name": "삼성전자우", "market": "KOSPI"}
+            ]
+        }
+    """
+```
 
 ---
 
