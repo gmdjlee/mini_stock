@@ -24,6 +24,7 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.data.ScatterData
 import com.github.mikephil.charting.data.ScatterDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.interfaces.datasets.IScatterDataSet
 import com.stockapp.core.ui.theme.ChartDefaultBlack
 import com.stockapp.core.ui.theme.ChartGreen
 import com.stockapp.core.ui.theme.ChartGridDark
@@ -84,8 +85,8 @@ fun MacdChart(
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
-                    gridColor = gridColor
-                    textColor = textColor
+                    this.gridColor = gridColor
+                    this.textColor = textColor
                     enableGridDashedLine(10f, 10f, 0f)
                     setLabelCount(ChartLabelCalculator.calculateOptimalLabelCount(dates.size), false)
                     valueFormatter = object : ValueFormatter() {
@@ -327,7 +328,7 @@ fun TrendSignalChart(
                 }
 
                 if (scatterDataSets.isNotEmpty()) {
-                    combinedData.setData(ScatterData(scatterDataSets))
+                    combinedData.setData(ScatterData(scatterDataSets as List<IScatterDataSet>))
                 }
             }
 
