@@ -43,26 +43,44 @@ def search(client: KiwoomClient, query: str) -> Dict:
             "error": {"code": "INVALID_ARG", "msg": "검색어가 필요합니다"},
         }
 
-    # Get full stock list
-    resp = client.get_stock_list()
-    if not resp.ok:
-        return {"ok": False, "error": resp.error}
-
     # Filter by query
     query = query.strip().upper()
     results = []
 
-    stk_list = resp.data.get("stk_list", [])
-    for item in stk_list:
-        ticker = item.get("stk_cd", "")
-        name = item.get("stk_nm", "")
+    # Get stock list with pagination
+    cont_yn = ""
+    next_key = ""
+    max_pages = 50  # Safety limit
 
-        if query in ticker or query in name.upper():
-            results.append({
-                "ticker": ticker,
-                "name": name,
-                "market": _get_market_name(item.get("mrkt_tp", "")),
-            })
+    for _ in range(max_pages):
+        resp = client.get_stock_list(cont_yn=cont_yn, next_key=next_key)
+        if not resp.ok:
+            return {"ok": False, "error": resp.error}
+
+        # API returns 'list' with 'code', 'name', 'marketName' fields
+        stk_list = resp.data.get("list", [])
+        for item in stk_list:
+            ticker = item.get("code", "")
+            name = item.get("name", "")
+
+            if query in ticker or query in name.upper():
+                results.append({
+                    "ticker": ticker,
+                    "name": name,
+                    "market": _get_market_name(item.get("marketName", "")),
+                })
+
+                # Early exit if we have enough results
+                if len(results) >= 50:
+                    break
+
+        # Stop if we have enough results or no more pages
+        if len(results) >= 50 or not resp.has_next:
+            break
+
+        # Prepare for next page
+        cont_yn = "Y"
+        next_key = resp.next_key or ""
 
     log_info("stock.search", "search complete", {"query": query, "count": len(results)})
 
@@ -86,17 +104,31 @@ def get_all(client: KiwoomClient, market: str = "0") -> Dict:
             ]
         }
     """
-    resp = client.get_stock_list(market)
-    if not resp.ok:
-        return {"ok": False, "error": resp.error}
-
     results = []
-    for item in resp.data.get("stk_list", []):
-        results.append({
-            "ticker": item.get("stk_cd", ""),
-            "name": item.get("stk_nm", ""),
-            "market": _get_market_name(item.get("mrkt_tp", "")),
-        })
+    cont_yn = ""
+    next_key = ""
+    max_pages = 100  # Safety limit
+
+    for _ in range(max_pages):
+        resp = client.get_stock_list(market, cont_yn=cont_yn, next_key=next_key)
+        if not resp.ok:
+            return {"ok": False, "error": resp.error}
+
+        # API returns 'list' with 'code', 'name', 'marketName' fields
+        for item in resp.data.get("list", []):
+            results.append({
+                "ticker": item.get("code", ""),
+                "name": item.get("name", ""),
+                "market": _get_market_name(item.get("marketName", "")),
+            })
+
+        # Stop if no more pages
+        if not resp.has_next:
+            break
+
+        # Prepare for next page
+        cont_yn = "Y"
+        next_key = resp.next_key or ""
 
     log_info("stock.search", "get_all complete", {"market": market, "count": len(results)})
 
@@ -181,6 +213,13 @@ def _to_float(value) -> float:
         return 0.0
 
 
-def _get_market_name(market_tp: str) -> str:
-    """Convert market type code to name."""
-    return {"1": "KOSPI", "2": "KOSDAQ"}.get(market_tp, "기타")
+def _get_market_name(market_name: str) -> str:
+    """Convert market name to standardized format."""
+    if not market_name:
+        return "기타"
+    name_upper = market_name.upper()
+    if "코스피" in market_name or "KOSPI" in name_upper:
+        return "KOSPI"
+    if "코스닥" in market_name or "KOSDAQ" in name_upper:
+        return "KOSDAQ"
+    return market_name or "기타"
