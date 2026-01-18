@@ -98,22 +98,21 @@ object ChartLabelCalculator {
 
 /**
  * DateFormatter - Format dates for chart display
+ * Python reference style: YYYY-MM format for longer datasets
  */
 object DateFormatter {
     fun formatForChartByDataCount(date: String, dataCount: Int): String {
         // date format: "YYYY-MM-DD" or "YYYYMMDD"
         return try {
             val normalizedDate = date.replace("-", "")
+            val year = normalizedDate.substring(0, 4)
             val month = normalizedDate.substring(4, 6)
             val day = normalizedDate.substring(6, 8)
 
             when {
                 dataCount <= 30 -> "$month/$day"           // Show month/day
-                dataCount <= 180 -> "$month/$day"          // Show month/day
-                else -> {
-                    val year = normalizedDate.substring(2, 4)
-                    "$year/$month"                          // Show year/month
-                }
+                dataCount <= 90 -> "$month/$day"           // Show month/day for up to 3 months
+                else -> "$year-$month"                     // Python style: YYYY-MM for longer periods
             }
         } catch (e: Exception) {
             date.takeLast(5)

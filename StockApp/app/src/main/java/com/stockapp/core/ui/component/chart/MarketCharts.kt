@@ -25,13 +25,18 @@ import com.stockapp.core.ui.theme.ChartGreen
 import com.stockapp.core.ui.theme.ChartGridDark
 import com.stockapp.core.ui.theme.ChartGridLight
 import com.stockapp.core.ui.theme.ChartRed
-import com.stockapp.core.ui.theme.ChartTertiary
+import com.stockapp.core.ui.theme.HistogramRed
+import com.stockapp.core.ui.theme.HistogramTeal
+import com.stockapp.core.ui.theme.MacdBlue
+import com.stockapp.core.ui.theme.MacdSignalOrange
+import com.stockapp.core.ui.theme.OscillatorBlue
+import com.stockapp.core.ui.theme.OscillatorOrange
 import com.stockapp.core.ui.theme.SignalBuyStrong
 import com.stockapp.core.ui.theme.SignalSellStrong
 
 /**
  * MarketCapOscillatorChart - Market Cap & Supply Oscillator Chart
- * EtfMonitor style dual-axis chart with market cap and oscillator lines
+ * Python reference style dual-axis chart with market cap and oscillator lines
  *
  * @param dates List of date strings
  * @param mcapValues Market cap values (in 억)
@@ -61,7 +66,7 @@ fun MarketCapOscillatorChart(
                 setExtraBottomOffset(10f)
                 setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
-                // X Axis
+                // X Axis - Python style
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -79,11 +84,11 @@ fun MarketCapOscillatorChart(
                     }
                 }
 
-                // Left Y Axis (Market Cap)
+                // Left Y Axis (Market Cap) - Python style: blue text
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
-                    this.textColor = textColor
+                    this.textColor = OscillatorBlue.toArgb()  // Blue like Python
                     enableGridDashedLine(10f, 10f, 0f)
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
@@ -92,11 +97,11 @@ fun MarketCapOscillatorChart(
                     }
                 }
 
-                // Right Y Axis (Oscillator percentage)
+                // Right Y Axis (Oscillator percentage) - Python style: orange text
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = ChartTertiary.toArgb()
+                    this.textColor = OscillatorOrange.toArgb()  // Orange like Python
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
                             return String.format("%.2f%%", value)
@@ -118,30 +123,33 @@ fun MarketCapOscillatorChart(
         update = { chart ->
             val combinedData = CombinedData()
 
-            // Market Cap line (left axis) - black cubic bezier
+            // Market Cap line (left axis) - Python style: blue (#1976D2)
             val mcapEntries = mcapValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val mcapDataSet = LineDataSet(mcapEntries, "시가총액").apply {
-                color = ChartDefaultBlack.toArgb()
-                lineWidth = 2.5f
+            val mcapDataSet = LineDataSet(mcapEntries, "Market Cap").apply {
+                color = OscillatorBlue.toArgb()  // Blue like Python
+                lineWidth = 2f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
+                mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.LEFT
+                setDrawFilled(true)
+                fillColor = OscillatorBlue.toArgb()
+                fillAlpha = 50  // 20% alpha like Python
             }
 
-            // Oscillator line (right axis) - tertiary color cubic bezier
+            // Oscillator line (right axis) - Python style: orange (#FF5722)
             // Convert oscillator values to percentage for display
             val oscillatorEntries = oscillatorValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), (value * 100).toFloat())  // Convert to percentage
             }
-            val oscillatorDataSet = LineDataSet(oscillatorEntries, "오실레이터").apply {
-                color = ChartTertiary.toArgb()
-                lineWidth = 2.5f
+            val oscillatorDataSet = LineDataSet(oscillatorEntries, "Oscillator (%)").apply {
+                color = OscillatorOrange.toArgb()  // Orange like Python
+                lineWidth = 2f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
+                mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.RIGHT
             }
 
