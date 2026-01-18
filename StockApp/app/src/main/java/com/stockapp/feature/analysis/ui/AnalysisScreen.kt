@@ -14,10 +14,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingFlat
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -179,7 +179,7 @@ private fun AnalysisContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
-                    imageVector = Icons.Default.TrendingUp,
+                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                     contentDescription = null,
                     modifier = Modifier.padding(end = 8.dp)
                 )
@@ -354,27 +354,27 @@ private fun ErrorContent(
 private fun getSignalDisplay(signal: SupplySignal): Triple<ImageVector, Color, String> {
     return when (signal) {
         SupplySignal.STRONG_BUY -> Triple(
-            Icons.Default.TrendingUp,
+            Icons.AutoMirrored.Filled.TrendingUp,
             Color(0xFF4CAF50),
             "강력 매수"
         )
         SupplySignal.BUY -> Triple(
-            Icons.Default.TrendingUp,
+            Icons.AutoMirrored.Filled.TrendingUp,
             Color(0xFF8BC34A),
             "매수"
         )
         SupplySignal.NEUTRAL -> Triple(
-            Icons.Default.TrendingFlat,
+            Icons.AutoMirrored.Filled.TrendingFlat,
             Color(0xFF9E9E9E),
             "중립"
         )
         SupplySignal.SELL -> Triple(
-            Icons.Default.TrendingDown,
+            Icons.AutoMirrored.Filled.TrendingDown,
             Color(0xFFFF9800),
             "매도"
         )
         SupplySignal.STRONG_SELL -> Triple(
-            Icons.Default.TrendingDown,
+            Icons.AutoMirrored.Filled.TrendingDown,
             Color(0xFFF44336),
             "강력 매도"
         )

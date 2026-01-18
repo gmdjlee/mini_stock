@@ -28,7 +28,7 @@ object DbModule {
             AppDb::class.java,
             AppDb.DB_NAME
         )
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 

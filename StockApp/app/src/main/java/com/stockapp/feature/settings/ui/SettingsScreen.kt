@@ -15,11 +15,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -276,7 +276,7 @@ private fun InvestmentModeSelector(
                     Icon(
                         imageVector = when (mode) {
                             InvestmentMode.MOCK -> Icons.Default.Science
-                            InvestmentMode.PRODUCTION -> Icons.Default.TrendingUp
+                            InvestmentMode.PRODUCTION -> Icons.AutoMirrored.Filled.TrendingUp
                         },
                         contentDescription = null,
                         tint = if (mode == InvestmentMode.PRODUCTION) {
