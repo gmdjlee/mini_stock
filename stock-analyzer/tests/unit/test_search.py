@@ -54,7 +54,7 @@ class TestGetAll:
         """Test get all stocks."""
         result = get_all(mock_kiwoom_client)
         assert result["ok"] is True
-        assert len(result["data"]) == 5
+        assert len(result["data"]) == 6
 
     def test_get_all_with_market(self, mock_kiwoom_client):
         """Test get all stocks with market filter."""

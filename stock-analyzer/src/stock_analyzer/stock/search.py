@@ -57,16 +57,17 @@ def search(client: KiwoomClient, query: str) -> Dict:
         if not resp.ok:
             return {"ok": False, "error": resp.error}
 
-        stk_list = resp.data.get("stk_list", [])
+        # API returns 'list' with 'code', 'name', 'marketName' fields
+        stk_list = resp.data.get("list", [])
         for item in stk_list:
-            ticker = item.get("stk_cd", "")
-            name = item.get("stk_nm", "")
+            ticker = item.get("code", "")
+            name = item.get("name", "")
 
             if query in ticker or query in name.upper():
                 results.append({
                     "ticker": ticker,
                     "name": name,
-                    "market": _get_market_name(item.get("mrkt_tp", "")),
+                    "market": _get_market_name(item.get("marketName", "")),
                 })
 
                 # Early exit if we have enough results
@@ -113,11 +114,12 @@ def get_all(client: KiwoomClient, market: str = "0") -> Dict:
         if not resp.ok:
             return {"ok": False, "error": resp.error}
 
-        for item in resp.data.get("stk_list", []):
+        # API returns 'list' with 'code', 'name', 'marketName' fields
+        for item in resp.data.get("list", []):
             results.append({
-                "ticker": item.get("stk_cd", ""),
-                "name": item.get("stk_nm", ""),
-                "market": _get_market_name(item.get("mrkt_tp", "")),
+                "ticker": item.get("code", ""),
+                "name": item.get("name", ""),
+                "market": _get_market_name(item.get("marketName", "")),
             })
 
         # Stop if no more pages
@@ -211,6 +213,13 @@ def _to_float(value) -> float:
         return 0.0
 
 
-def _get_market_name(market_tp: str) -> str:
-    """Convert market type code to name."""
-    return {"1": "KOSPI", "2": "KOSDAQ"}.get(market_tp, "기타")
+def _get_market_name(market_name: str) -> str:
+    """Convert market name to standardized format."""
+    if not market_name:
+        return "기타"
+    name_upper = market_name.upper()
+    if "코스피" in market_name or "KOSPI" in name_upper:
+        return "KOSPI"
+    if "코스닥" in market_name or "KOSDAQ" in name_upper:
+        return "KOSDAQ"
+    return market_name or "기타"

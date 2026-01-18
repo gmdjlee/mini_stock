@@ -19,14 +19,15 @@ def mock_token_response():
 
 @pytest.fixture
 def mock_stock_list_response():
-    """Mock stock list response data."""
+    """Mock stock list response data (matches ka10099 API response)."""
     return {
-        "stk_list": [
-            {"stk_cd": "005930", "stk_nm": "삼성전자", "mrkt_tp": "1"},
-            {"stk_cd": "000660", "stk_nm": "SK하이닉스", "mrkt_tp": "1"},
-            {"stk_cd": "035720", "stk_nm": "카카오", "mrkt_tp": "1"},
-            {"stk_cd": "035420", "stk_nm": "NAVER", "mrkt_tp": "1"},
-            {"stk_cd": "373220", "stk_nm": "LG에너지솔루션", "mrkt_tp": "1"},
+        "list": [
+            {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
+            {"code": "000660", "name": "SK하이닉스", "marketName": "코스피"},
+            {"code": "035720", "name": "카카오", "marketName": "코스피"},
+            {"code": "035420", "name": "NAVER", "marketName": "코스피"},
+            {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스피"},
+            {"code": "267250", "name": "HD현대", "marketName": "코스피"},
         ],
         "return_code": 0,
         "return_msg": "정상적으로 처리되었습니다",
