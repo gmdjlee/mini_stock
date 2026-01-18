@@ -98,6 +98,9 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
+    // DataStore
+    implementation(libs.datastore.preferences)
+
     // Serialization
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)

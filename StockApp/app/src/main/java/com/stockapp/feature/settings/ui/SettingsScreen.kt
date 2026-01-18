@@ -1,0 +1,303 @@
+package com.stockapp.feature.settings.ui
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    viewModel: SettingsVm = hiltViewModel()
+) {
+    val selectedTab by viewModel.selectedTab.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("설정") }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Tab row
+            ScrollableTabRow(
+                selectedTabIndex = SettingsTab.entries.indexOf(selectedTab),
+                edgePadding = 16.dp
+            ) {
+                SettingsTab.entries.forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { viewModel.selectTab(tab) },
+                        text = { Text(tab.title) }
+                    )
+                }
+            }
+
+            // Tab content
+            when (selectedTab) {
+                SettingsTab.API_KEY -> ApiKeyTab(viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApiKeyTab(viewModel: SettingsVm) {
+    val appKey by viewModel.appKey.collectAsState()
+    val secretKey by viewModel.secretKey.collectAsState()
+    val testResult by viewModel.testResult.collectAsState()
+    val isSaving by viewModel.isSaving.collectAsState()
+
+    var showAppKey by remember { mutableStateOf(false) }
+    var showSecretKey by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Info card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Key,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "키움증권 API Key 설정",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "API Key와 Secret Key를 입력하고 저장하세요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // App Key input
+        OutlinedTextField(
+            value = appKey,
+            onValueChange = { viewModel.updateAppKey(it) },
+            label = { Text("App Key") },
+            placeholder = { Text("앱 키를 입력하세요") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (showAppKey) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { showAppKey = !showAppKey }) {
+                    Icon(
+                        imageVector = if (showAppKey) {
+                            Icons.Default.VisibilityOff
+                        } else {
+                            Icons.Default.Visibility
+                        },
+                        contentDescription = if (showAppKey) "숨기기" else "보기"
+                    )
+                }
+            },
+            enabled = !isSaving
+        )
+
+        // Secret Key input
+        OutlinedTextField(
+            value = secretKey,
+            onValueChange = { viewModel.updateSecretKey(it) },
+            label = { Text("Secret Key") },
+            placeholder = { Text("시크릿 키를 입력하세요") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (showSecretKey) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { showSecretKey = !showSecretKey }) {
+                    Icon(
+                        imageVector = if (showSecretKey) {
+                            Icons.Default.VisibilityOff
+                        } else {
+                            Icons.Default.Visibility
+                        },
+                        contentDescription = if (showSecretKey) "숨기기" else "보기"
+                    )
+                }
+            },
+            enabled = !isSaving
+        )
+
+        // Save & Test button
+        Button(
+            onClick = { viewModel.saveAndTest() },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSaving && appKey.isNotBlank() && secretKey.isNotBlank()
+        ) {
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                text = if (isSaving) "저장 및 테스트 중..." else "저장 및 연결 테스트"
+            )
+        }
+
+        // Test result
+        AnimatedVisibility(visible = testResult != TestResult.Idle) {
+            TestResultCard(result = testResult)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun TestResultCard(result: TestResult) {
+    val (containerColor, contentColor, icon, title, description) = when (result) {
+        is TestResult.Idle -> return
+        is TestResult.Testing -> TestResultInfo(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            icon = null,
+            title = "연결 테스트 중...",
+            description = "API 서버에 연결을 시도하고 있습니다."
+        )
+        is TestResult.Success -> TestResultInfo(
+            containerColor = Color(0xFFE8F5E9),
+            contentColor = Color(0xFF2E7D32),
+            icon = Icons.Default.CheckCircle,
+            title = "연결 성공",
+            description = "API Key가 정상적으로 확인되었습니다."
+        )
+        is TestResult.Failure -> TestResultInfo(
+            containerColor = Color(0xFFFFEBEE),
+            contentColor = Color(0xFFC62828),
+            icon = Icons.Default.Error,
+            title = "연결 실패",
+            description = result.message
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = containerColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            } else {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = contentColor,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor
+                )
+            }
+        }
+    }
+}
+
+private data class TestResultInfo(
+    val containerColor: Color,
+    val contentColor: Color,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    val title: String,
+    val description: String
+)
