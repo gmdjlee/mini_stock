@@ -104,6 +104,16 @@ class SearchRepoImpl @Inject constructor(
         return search(query).getOrElse { emptyList() }
     }
 
+    override suspend fun isCacheAvailable(): Boolean {
+        val count = stockDao.count()
+        Log.d(TAG, "isCacheAvailable() count=$count")
+        return count > 0
+    }
+
+    override suspend fun getCacheCount(): Int {
+        return stockDao.count()
+    }
+
     private fun parseSearchResponse(jsonStr: String): List<Stock> {
         Log.d(TAG, "parseSearchResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
 

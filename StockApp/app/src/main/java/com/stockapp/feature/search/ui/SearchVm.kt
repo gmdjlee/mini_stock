@@ -3,6 +3,8 @@ package com.stockapp.feature.search.ui
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stockapp.core.cache.CacheState
+import com.stockapp.core.cache.StockCacheManager
 import com.stockapp.feature.search.domain.model.Stock
 import com.stockapp.feature.search.domain.repo.SearchRepo
 import com.stockapp.feature.search.domain.usecase.SaveHistoryUC
@@ -33,7 +35,8 @@ sealed class SearchState {
 class SearchVm @Inject constructor(
     private val searchUC: SearchStockUC,
     private val saveHistoryUC: SaveHistoryUC,
-    private val repo: SearchRepo
+    private val repo: SearchRepo,
+    private val cacheManager: StockCacheManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
@@ -45,6 +48,11 @@ class SearchVm @Inject constructor(
     private val _history = MutableStateFlow<List<Stock>>(emptyList())
     val history: StateFlow<List<Stock>> = _history.asStateFlow()
 
+    private val _cacheCount = MutableStateFlow(0)
+    val cacheCount: StateFlow<Int> = _cacheCount.asStateFlow()
+
+    val cacheState: StateFlow<CacheState> = cacheManager.state
+
     private var searchJob: Job? = null
 
     init {
@@ -53,6 +61,24 @@ class SearchVm @Inject constructor(
             repo.getHistory()
                 .catch { /* ignore errors */ }
                 .collect { _history.value = it }
+        }
+
+        // Check cache status
+        viewModelScope.launch {
+            _cacheCount.value = repo.getCacheCount()
+            Log.d(TAG, "init() cache count: ${_cacheCount.value}")
+        }
+    }
+
+    /**
+     * Refresh stock cache manually.
+     */
+    fun refreshCache() {
+        viewModelScope.launch {
+            Log.d(TAG, "refreshCache() started")
+            cacheManager.refreshCache()
+            _cacheCount.value = repo.getCacheCount()
+            Log.d(TAG, "refreshCache() done, count: ${_cacheCount.value}")
         }
     }
 

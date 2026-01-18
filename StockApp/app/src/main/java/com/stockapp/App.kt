@@ -1,16 +1,21 @@
 package com.stockapp
 
 import android.app.Application
+import android.util.Log
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
+import com.stockapp.core.cache.StockCacheManager
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val TAG = "App"
 
 @HiltAndroidApp
 class App : Application() {
@@ -19,25 +24,53 @@ class App : Application() {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
-    interface SettingsRepoEntryPoint {
+    interface AppEntryPoint {
         fun settingsRepo(): SettingsRepo
+        fun stockCacheManager(): StockCacheManager
     }
 
     override fun onCreate() {
         super.onCreate()
-        initializePyClientWithSavedKeys()
+        initializeApp()
     }
 
-    private fun initializePyClientWithSavedKeys() {
+    private fun initializeApp() {
         applicationScope.launch {
             try {
                 val entryPoint = EntryPointAccessors.fromApplication(
                     this@App,
-                    SettingsRepoEntryPoint::class.java
+                    AppEntryPoint::class.java
                 )
+
+                // 1. Initialize PyClient with saved API keys
+                Log.d(TAG, "Initializing PyClient with saved keys...")
                 val settingsRepo = entryPoint.settingsRepo()
-                settingsRepo.initializeWithSavedKeys()
+                val initResult = settingsRepo.initializeWithSavedKeys()
+
+                if (initResult.isSuccess) {
+                    Log.d(TAG, "PyClient initialized successfully")
+
+                    // 2. Initialize stock cache after PyClient is ready
+                    // Small delay to ensure PyClient is fully ready
+                    delay(500)
+
+                    Log.d(TAG, "Initializing stock cache...")
+                    val cacheManager = entryPoint.stockCacheManager()
+                    val cacheResult = cacheManager.initializeIfNeeded()
+
+                    cacheResult.fold(
+                        onSuccess = { count ->
+                            Log.d(TAG, "Stock cache initialized with $count stocks")
+                        },
+                        onFailure = { e ->
+                            Log.w(TAG, "Stock cache initialization failed: ${e.message}")
+                        }
+                    )
+                } else {
+                    Log.w(TAG, "PyClient initialization failed, skipping cache init")
+                }
             } catch (e: Exception) {
+                Log.e(TAG, "App initialization error: ${e.message}", e)
                 // Silently fail - user will need to configure API keys in settings
             }
         }
