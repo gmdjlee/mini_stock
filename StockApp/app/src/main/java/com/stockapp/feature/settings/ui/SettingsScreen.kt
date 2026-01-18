@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -29,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.stockapp.feature.settings.domain.model.InvestmentMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +99,7 @@ fun SettingsScreen(
 private fun ApiKeyTab(viewModel: SettingsVm) {
     val appKey by viewModel.appKey.collectAsState()
     val secretKey by viewModel.secretKey.collectAsState()
+    val investmentMode by viewModel.investmentMode.collectAsState()
     val testResult by viewModel.testResult.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
 
@@ -198,6 +203,13 @@ private fun ApiKeyTab(viewModel: SettingsVm) {
             enabled = !isSaving
         )
 
+        // Investment mode selection
+        InvestmentModeSelector(
+            selectedMode = investmentMode,
+            onModeSelected = { viewModel.updateInvestmentMode(it) },
+            enabled = !isSaving
+        )
+
         // Save & Test button
         Button(
             onClick = { viewModel.saveAndTest() },
@@ -223,6 +235,108 @@ private fun ApiKeyTab(viewModel: SettingsVm) {
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun InvestmentModeSelector(
+    selectedMode: InvestmentMode,
+    onModeSelected: (InvestmentMode) -> Unit,
+    enabled: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "투자 구분",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            InvestmentMode.entries.forEach { mode ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = selectedMode == mode,
+                        onClick = { onModeSelected(mode) },
+                        enabled = enabled
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = when (mode) {
+                            InvestmentMode.MOCK -> Icons.Default.Science
+                            InvestmentMode.PRODUCTION -> Icons.Default.TrendingUp
+                        },
+                        contentDescription = null,
+                        tint = if (mode == InvestmentMode.PRODUCTION) {
+                            Color(0xFFC62828)
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = mode.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (selectedMode == mode) FontWeight.Bold else FontWeight.Normal,
+                            color = if (mode == InvestmentMode.PRODUCTION) {
+                                Color(0xFFC62828)
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                        Text(
+                            text = mode.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Warning for production mode
+            AnimatedVisibility(visible = selectedMode == InvestmentMode.PRODUCTION) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFFF3E0)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = null,
+                            tint = Color(0xFFE65100),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "실전투자 모드입니다. 실제 거래가 발생할 수 있습니다.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE65100)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

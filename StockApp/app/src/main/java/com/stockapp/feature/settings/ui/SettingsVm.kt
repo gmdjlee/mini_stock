@@ -3,6 +3,7 @@ package com.stockapp.feature.settings.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.feature.settings.domain.model.ApiKeyConfig
+import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.usecase.GetApiKeyConfigUC
 import com.stockapp.feature.settings.domain.usecase.SaveApiKeyConfigUC
 import com.stockapp.feature.settings.domain.usecase.TestApiKeyUC
@@ -46,6 +47,9 @@ class SettingsVm @Inject constructor(
     private val _secretKey = MutableStateFlow("")
     val secretKey: StateFlow<String> = _secretKey.asStateFlow()
 
+    private val _investmentMode = MutableStateFlow(InvestmentMode.MOCK)
+    val investmentMode: StateFlow<InvestmentMode> = _investmentMode.asStateFlow()
+
     private val _testResult = MutableStateFlow<TestResult>(TestResult.Idle)
     val testResult: StateFlow<TestResult> = _testResult.asStateFlow()
 
@@ -64,6 +68,7 @@ class SettingsVm @Inject constructor(
             getApiKeyConfigUC().collect { config ->
                 _appKey.value = config.appKey
                 _secretKey.value = config.secretKey
+                _investmentMode.value = config.investmentMode
             }
         }
     }
@@ -82,6 +87,11 @@ class SettingsVm @Inject constructor(
         resetStates()
     }
 
+    fun updateInvestmentMode(mode: InvestmentMode) {
+        _investmentMode.value = mode
+        resetStates()
+    }
+
     private fun resetStates() {
         _testResult.value = TestResult.Idle
         _saveSuccess.value = false
@@ -90,7 +100,8 @@ class SettingsVm @Inject constructor(
     fun saveAndTest() {
         val config = ApiKeyConfig(
             appKey = _appKey.value.trim(),
-            secretKey = _secretKey.value.trim()
+            secretKey = _secretKey.value.trim(),
+            investmentMode = _investmentMode.value
         )
 
         if (!config.isValid()) {

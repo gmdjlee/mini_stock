@@ -3,11 +3,13 @@ package com.stockapp.feature.settings.data.repo
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.stockapp.core.py.PyClient
 import com.stockapp.feature.settings.domain.model.ApiKeyConfig
+import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -28,13 +30,19 @@ class SettingsRepoImpl @Inject constructor(
     private object Keys {
         val APP_KEY = stringPreferencesKey("api_app_key")
         val SECRET_KEY = stringPreferencesKey("api_secret_key")
+        val IS_PRODUCTION = booleanPreferencesKey("is_production")
     }
 
     override fun getApiKeyConfig(): Flow<ApiKeyConfig> {
         return context.dataStore.data.map { prefs ->
             ApiKeyConfig(
                 appKey = prefs[Keys.APP_KEY] ?: "",
-                secretKey = prefs[Keys.SECRET_KEY] ?: ""
+                secretKey = prefs[Keys.SECRET_KEY] ?: "",
+                investmentMode = if (prefs[Keys.IS_PRODUCTION] == true) {
+                    InvestmentMode.PRODUCTION
+                } else {
+                    InvestmentMode.MOCK
+                }
             )
         }
     }
@@ -43,6 +51,7 @@ class SettingsRepoImpl @Inject constructor(
         context.dataStore.edit { prefs ->
             prefs[Keys.APP_KEY] = config.appKey
             prefs[Keys.SECRET_KEY] = config.secretKey
+            prefs[Keys.IS_PRODUCTION] = config.investmentMode == InvestmentMode.PRODUCTION
         }
     }
 
