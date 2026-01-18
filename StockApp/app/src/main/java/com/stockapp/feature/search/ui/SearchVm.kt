@@ -1,5 +1,6 @@
 package com.stockapp.feature.search.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.feature.search.domain.model.Stock
@@ -15,6 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val TAG = "SearchVm"
 
 /**
  * Search screen state.
@@ -57,9 +60,11 @@ class SearchVm @Inject constructor(
      * Update query and trigger debounced search.
      */
     fun onQueryChange(newQuery: String) {
+        Log.d(TAG, "onQueryChange() query: $newQuery")
         _query.value = newQuery
 
         if (newQuery.isBlank()) {
+            Log.d(TAG, "onQueryChange() blank query, setting Idle")
             _state.value = SearchState.Idle
             return
         }
@@ -67,7 +72,9 @@ class SearchVm @Inject constructor(
         // Debounce search
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            Log.d(TAG, "onQueryChange() debounce delay started")
             delay(300) // 300ms debounce
+            Log.d(TAG, "onQueryChange() debounce delay complete, triggering search")
             search(newQuery)
         }
     }
@@ -76,23 +83,32 @@ class SearchVm @Inject constructor(
      * Execute search.
      */
     fun search(query: String = _query.value) {
+        Log.d(TAG, "search() called with query: $query")
+
         if (query.isBlank()) {
+            Log.d(TAG, "search() blank query, setting Idle")
             _state.value = SearchState.Idle
             return
         }
 
         viewModelScope.launch {
+            Log.d(TAG, "search() setting Loading state")
             _state.value = SearchState.Loading
 
+            Log.d(TAG, "search() invoking searchUC")
             searchUC(query)
                 .onSuccess { stocks ->
+                    Log.d(TAG, "search() success: ${stocks.size} stocks found")
                     _state.value = if (stocks.isEmpty()) {
+                        Log.d(TAG, "search() empty results, setting Results(emptyList)")
                         SearchState.Results(emptyList())
                     } else {
+                        Log.d(TAG, "search() setting Results with ${stocks.size} stocks")
                         SearchState.Results(stocks)
                     }
                 }
                 .onFailure { e ->
+                    Log.e(TAG, "search() failure: ${e.message}", e)
                     _state.value = SearchState.Error(
                         code = "SEARCH_ERROR",
                         msg = e.message ?: "검색 실패"
