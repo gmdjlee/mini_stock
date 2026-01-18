@@ -89,7 +89,10 @@ class PyClient @Inject constructor(
                 allArgs.addAll(args)
 
                 val result = pyModule.callAttr(func, *allArgs.toTypedArray())
-                val jsonStr = result.toString()
+
+                // Convert Python dict to JSON string using json.dumps()
+                val jsonModule = py.getModule("json")
+                val jsonStr = jsonModule.callAttr("dumps", result).toString()
 
                 // Parse response
                 val parsed = parser(jsonStr)
@@ -118,7 +121,10 @@ class PyClient @Inject constructor(
                 val pyModule = py.getModule(module)
 
                 val result = pyModule.callAttr(func, *args.toTypedArray())
-                val jsonStr = result.toString()
+
+                // Convert Python dict to JSON string using json.dumps()
+                val jsonModule = py.getModule("json")
+                val jsonStr = jsonModule.callAttr("dumps", result).toString()
 
                 val parsed = parser(jsonStr)
                 Result.success(parsed)
