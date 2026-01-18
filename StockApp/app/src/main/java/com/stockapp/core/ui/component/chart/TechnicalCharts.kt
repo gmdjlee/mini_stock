@@ -24,26 +24,32 @@ import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.data.ScatterData
 import com.github.mikephil.charting.data.ScatterDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import com.github.mikephil.charting.interfaces.datasets.IScatterDataSet
+import com.stockapp.core.ui.theme.AdditionalBuy
+import com.stockapp.core.ui.theme.AdditionalSell
 import com.stockapp.core.ui.theme.ChartDefaultBlack
 import com.stockapp.core.ui.theme.ChartGreen
 import com.stockapp.core.ui.theme.ChartGridDark
 import com.stockapp.core.ui.theme.ChartGridLight
 import com.stockapp.core.ui.theme.ChartOrange
-import com.stockapp.core.ui.theme.ChartPurple
 import com.stockapp.core.ui.theme.ChartRed
-import com.stockapp.core.ui.theme.ElderBlue
+import com.stockapp.core.ui.theme.DemarkBlue
+import com.stockapp.core.ui.theme.DemarkRed
 import com.stockapp.core.ui.theme.ElderGreen
 import com.stockapp.core.ui.theme.ElderRed
-import com.stockapp.core.ui.theme.SignalBuyStrong
-import com.stockapp.core.ui.theme.SignalBuyWeak
-import com.stockapp.core.ui.theme.SignalSellStrong
-import com.stockapp.core.ui.theme.SignalSellWeak
+import com.stockapp.core.ui.theme.FearGreedGreen
+import com.stockapp.core.ui.theme.FearGreedRed
+import com.stockapp.core.ui.theme.PrimaryBuy
+import com.stockapp.core.ui.theme.PrimarySell
+import com.stockapp.core.ui.theme.TabBlue
+import com.stockapp.core.ui.theme.TabGray
+import com.stockapp.core.ui.theme.TabOrange
 import com.github.mikephil.charting.charts.ScatterChart
 
 /**
  * MacdChart - MACD chart with histogram and signal line
- * EtfMonitor style implementation using MPAndroidChart
+ * Python reference style implementation using MPAndroidChart
  *
  * @param dates List of date strings
  * @param macdValues MACD line values
@@ -63,8 +69,9 @@ fun MacdChart(
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     val textColor = if (isDark) Color.WHITE else Color.BLACK
 
-    val lineColor1 = ChartDefaultBlack.toArgb()  // MACD line
-    val lineColor2 = ChartOrange.toArgb()        // Signal line (dashed)
+    // Python style colors: MACD blue (#2196F3), Signal orange (#FF9800)
+    val lineColor1 = com.stockapp.core.ui.theme.MacdBlue.toArgb()  // MACD line - blue
+    val lineColor2 = com.stockapp.core.ui.theme.MacdSignalOrange.toArgb()  // Signal line (dashed) - orange
 
     AndroidView(
         factory = { ctx ->
@@ -123,12 +130,17 @@ fun MacdChart(
             val combinedData = CombinedData()
 
             // Histogram bars
+            // Histogram bars - Python style: teal (#26A69A) for positive, red (#EF5350) for negative
             val barEntries = histogramValues.mapIndexed { index, value ->
                 BarEntry(index.toFloat(), value.toFloat())
             }
             val barDataSet = BarDataSet(barEntries, "Histogram").apply {
                 colors = histogramValues.map { value ->
-                    if (value >= 0) ChartGreen.toArgb() else ChartRed.toArgb()
+                    if (value >= 0) {
+                        com.stockapp.core.ui.theme.HistogramTeal.toArgb()  // Teal for positive
+                    } else {
+                        com.stockapp.core.ui.theme.HistogramRed.toArgb()   // Red for negative
+                    }
                 }
                 setDrawValues(false)
             }
@@ -172,19 +184,29 @@ fun MacdChart(
 
 /**
  * TrendSignalChart - Trend Signal chart with price, MA, and Fear/Greed
- * EtfMonitor style with dual Y-axis and signal markers
+ * Python reference style with dual Y-axis and signal markers
+ * Style: {ticker}.KS Weekly Strategy + Fear & Greed
  *
  * @param dates List of date strings
  * @param priceValues Close price values
+ * @param ma10Values MA10 values (optional, for overlay)
  * @param fearGreedValues Fear/Greed index values (-1 to 1.5)
- * @param buySignals List of indices with buy signals
- * @param sellSignals List of indices with sell signals
+ * @param primaryBuySignals List of indices with primary buy signals (bullish trend)
+ * @param additionalBuySignals List of indices with additional buy signals
+ * @param primarySellSignals List of indices with primary sell signals (bearish trend)
+ * @param additionalSellSignals List of indices with additional sell signals
  */
 @Composable
 fun TrendSignalChart(
     dates: List<String>,
     priceValues: List<Double>,
     fearGreedValues: List<Double>,
+    ma10Values: List<Double> = emptyList(),
+    primaryBuySignals: List<Int> = emptyList(),
+    additionalBuySignals: List<Int> = emptyList(),
+    primarySellSignals: List<Int> = emptyList(),
+    additionalSellSignals: List<Int> = emptyList(),
+    // Legacy parameters for backward compatibility
     buySignals: List<Int> = emptyList(),
     sellSignals: List<Int> = emptyList(),
     modifier: Modifier = Modifier
@@ -193,6 +215,10 @@ fun TrendSignalChart(
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+    // Merge legacy signals with new ones
+    val effectivePrimaryBuy = if (primaryBuySignals.isEmpty()) buySignals else primaryBuySignals
+    val effectivePrimarySell = if (primarySellSignals.isEmpty()) sellSignals else primarySellSignals
 
     AndroidView(
         factory = { ctx ->
@@ -209,7 +235,7 @@ fun TrendSignalChart(
                     CombinedChart.DrawOrder.SCATTER
                 ))
 
-                // X Axis
+                // X Axis - Python style
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -235,11 +261,11 @@ fun TrendSignalChart(
                     enableGridDashedLine(10f, 10f, 0f)
                 }
 
-                // Right Y Axis (Fear/Greed: -1 to 1.5)
+                // Right Y Axis (Fear/Greed: -1.5 to 1.5) - Python style
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = ChartPurple.toArgb()
+                    this.textColor = TabOrange.toArgb()  // Orange like Python
                     axisMinimum = -1.5f
                     axisMaximum = 1.5f
                 }
@@ -255,81 +281,165 @@ fun TrendSignalChart(
         },
         update = { chart ->
             val combinedData = CombinedData()
+            val lineDataSets = mutableListOf<LineDataSet>()
 
-            // Price line (left axis)
+            // Close price line (left axis) - Python style: tab:blue, solid
             val priceEntries = priceValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val priceDataSet = LineDataSet(priceEntries, "Price").apply {
-                color = ChartDefaultBlack.toArgb()
-                lineWidth = 2f
+            val priceDataSet = LineDataSet(priceEntries, "Close").apply {
+                color = TabBlue.toArgb()  // tab:blue
+                lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
+                mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.LEFT
-                enableDashedLine(10f, 5f, 0f)
+            }
+            lineDataSets.add(priceDataSet)
+
+            // MA10 line (left axis) - Python style: tab:orange, dashed
+            if (ma10Values.isNotEmpty()) {
+                val ma10Entries = ma10Values.mapIndexed { index, value ->
+                    Entry(index.toFloat(), value.toFloat())
+                }
+                val ma10DataSet = LineDataSet(ma10Entries, "MA10").apply {
+                    color = TabOrange.toArgb()  // tab:orange
+                    lineWidth = 1.5f
+                    setDrawCircles(false)
+                    setDrawValues(false)
+                    mode = LineDataSet.Mode.LINEAR
+                    axisDependency = YAxis.AxisDependency.LEFT
+                    enableDashedLine(10f, 5f, 0f)  // Dashed line
+                }
+                lineDataSets.add(ma10DataSet)
             }
 
-            // Fear/Greed line (right axis)
+            // Fear/Greed line (right axis) - Python style: orange
             val fearGreedEntries = fearGreedValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val fearGreedDataSet = LineDataSet(fearGreedEntries, "Fear/Greed").apply {
-                color = ChartPurple.toArgb()
-                lineWidth = 2f
+            val fearGreedDataSet = LineDataSet(fearGreedEntries, "FG Index").apply {
+                color = TabOrange.toArgb()  // Orange like Python
+                lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
+                mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.RIGHT
             }
+            lineDataSets.add(fearGreedDataSet)
 
-            combinedData.setData(LineData(priceDataSet, fearGreedDataSet))
+            // Threshold lines for Fear/Greed (±0.5) - Python style
+            // +0.5 threshold (Greed - red dashed)
+            val threshold05Entries = dates.indices.map { Entry(it.toFloat(), 0.5f) }
+            val threshold05DataSet = LineDataSet(threshold05Entries, "").apply {
+                color = FearGreedRed.toArgb()
+                lineWidth = 1f
+                setDrawCircles(false)
+                setDrawValues(false)
+                enableDashedLine(10f, 10f, 0f)
+                axisDependency = YAxis.AxisDependency.RIGHT
+                isHighlightEnabled = false
+            }
+            lineDataSets.add(threshold05DataSet)
 
-            // Signal markers
-            if (buySignals.isNotEmpty() || sellSignals.isNotEmpty()) {
-                val scatterDataSets = mutableListOf<ScatterDataSet>()
+            // -0.5 threshold (Fear - green dashed)
+            val thresholdNeg05Entries = dates.indices.map { Entry(it.toFloat(), -0.5f) }
+            val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "").apply {
+                color = FearGreedGreen.toArgb()
+                lineWidth = 1f
+                setDrawCircles(false)
+                setDrawValues(false)
+                enableDashedLine(10f, 10f, 0f)
+                axisDependency = YAxis.AxisDependency.RIGHT
+                isHighlightEnabled = false
+            }
+            lineDataSets.add(thresholdNeg05DataSet)
 
-                // Buy signals (red triangles - Korean convention)
-                if (buySignals.isNotEmpty()) {
-                    val buyEntries = buySignals.mapNotNull { index ->
-                        if (index >= 0 && index < priceValues.size) {
-                            Entry(index.toFloat(), priceValues[index].toFloat())
-                        } else null
-                    }
-                    if (buyEntries.isNotEmpty()) {
-                        val buyDataSet = ScatterDataSet(buyEntries, "Buy").apply {
-                            color = SignalBuyStrong.toArgb()
-                            setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
-                            scatterShapeSize = 24f
-                            setDrawValues(false)
-                            axisDependency = YAxis.AxisDependency.LEFT
-                        }
-                        scatterDataSets.add(buyDataSet)
-                    }
+            combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
+
+            // Signal markers - Python style
+            val scatterDataSets = mutableListOf<ScatterDataSet>()
+
+            // Additional Buy (light red, smaller) - Python style
+            if (additionalBuySignals.isNotEmpty()) {
+                val entries = additionalBuySignals.mapNotNull { index ->
+                    if (index >= 0 && index < priceValues.size) {
+                        Entry(index.toFloat(), priceValues[index].toFloat())
+                    } else null
                 }
-
-                // Sell signals (blue inverted triangles)
-                if (sellSignals.isNotEmpty()) {
-                    val sellEntries = sellSignals.mapNotNull { index ->
-                        if (index >= 0 && index < priceValues.size) {
-                            Entry(index.toFloat(), priceValues[index].toFloat())
-                        } else null
+                if (entries.isNotEmpty()) {
+                    val dataSet = ScatterDataSet(entries, "Add. Buy").apply {
+                        color = AdditionalBuy.toArgb()
+                        setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
+                        scatterShapeSize = 16f
+                        setDrawValues(false)
+                        axisDependency = YAxis.AxisDependency.LEFT
+                        shapeRenderer = TriangleShapeRenderer()
                     }
-                    if (sellEntries.isNotEmpty()) {
-                        val sellDataSet = ScatterDataSet(sellEntries, "Sell").apply {
-                            color = SignalSellStrong.toArgb()
-                            scatterShapeSize = 24f
-                            setDrawValues(false)
-                            axisDependency = YAxis.AxisDependency.LEFT
-                            shapeRenderer = InvertedTriangleShapeRenderer()
-                        }
-                        scatterDataSets.add(sellDataSet)
-                    }
+                    scatterDataSets.add(dataSet)
                 }
+            }
 
-                if (scatterDataSets.isNotEmpty()) {
-                    combinedData.setData(ScatterData(scatterDataSets as List<IScatterDataSet>))
+            // Primary Buy (dark red, larger) - Python style: darkred
+            if (effectivePrimaryBuy.isNotEmpty()) {
+                val entries = effectivePrimaryBuy.mapNotNull { index ->
+                    if (index >= 0 && index < priceValues.size) {
+                        Entry(index.toFloat(), priceValues[index].toFloat())
+                    } else null
                 }
+                if (entries.isNotEmpty()) {
+                    val dataSet = ScatterDataSet(entries, "Primary Buy").apply {
+                        color = PrimaryBuy.toArgb()  // darkred
+                        setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
+                        scatterShapeSize = 24f
+                        setDrawValues(false)
+                        axisDependency = YAxis.AxisDependency.LEFT
+                        shapeRenderer = TriangleShapeRenderer()
+                    }
+                    scatterDataSets.add(dataSet)
+                }
+            }
+
+            // Additional Sell (light blue, smaller) - Python style
+            if (additionalSellSignals.isNotEmpty()) {
+                val entries = additionalSellSignals.mapNotNull { index ->
+                    if (index >= 0 && index < priceValues.size) {
+                        Entry(index.toFloat(), priceValues[index].toFloat())
+                    } else null
+                }
+                if (entries.isNotEmpty()) {
+                    val dataSet = ScatterDataSet(entries, "Add. Sell").apply {
+                        color = AdditionalSell.toArgb()
+                        scatterShapeSize = 16f
+                        setDrawValues(false)
+                        axisDependency = YAxis.AxisDependency.LEFT
+                        shapeRenderer = InvertedTriangleShapeRenderer()
+                    }
+                    scatterDataSets.add(dataSet)
+                }
+            }
+
+            // Primary Sell (dark blue, larger) - Python style: darkblue
+            if (effectivePrimarySell.isNotEmpty()) {
+                val entries = effectivePrimarySell.mapNotNull { index ->
+                    if (index >= 0 && index < priceValues.size) {
+                        Entry(index.toFloat(), priceValues[index].toFloat())
+                    } else null
+                }
+                if (entries.isNotEmpty()) {
+                    val dataSet = ScatterDataSet(entries, "Primary Sell").apply {
+                        color = PrimarySell.toArgb()  // darkblue
+                        scatterShapeSize = 24f
+                        setDrawValues(false)
+                        axisDependency = YAxis.AxisDependency.LEFT
+                        shapeRenderer = InvertedTriangleShapeRenderer()
+                    }
+                    scatterDataSets.add(dataSet)
+                }
+            }
+
+            if (scatterDataSets.isNotEmpty()) {
+                combinedData.setData(ScatterData(scatterDataSets as List<IScatterDataSet>))
             }
 
             chart.data = combinedData
@@ -343,25 +453,31 @@ fun TrendSignalChart(
 
 /**
  * ElderImpulseChart - Elder Impulse System chart
- * Shows market cap with impulse color markers
+ * Python reference style: Close line with EMA13, color dots on price
+ * Style: {ticker}.KS Elder Impulse System (Weekly, last 1 year)
  *
  * @param dates List of date strings
- * @param mcapValues Market cap values (in 억)
+ * @param priceValues Close price values
  * @param ema13Values EMA13 values
- * @param impulseStates Impulse states: 1=bullish, 0=neutral, -1=bearish
+ * @param impulseStates Impulse states: 1=bullish(green), 0=neutral(gray), -1=bearish(red)
  */
 @Composable
 fun ElderImpulseChart(
     dates: List<String>,
-    mcapValues: List<Double>,
+    priceValues: List<Double>,
     ema13Values: List<Double>,
     impulseStates: List<Int>,
+    // Legacy parameter for backward compatibility
+    mcapValues: List<Double> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+    // Use priceValues or fall back to mcapValues for backward compatibility
+    val effectivePriceValues = if (priceValues.isNotEmpty()) priceValues else mcapValues
 
     AndroidView(
         factory = { ctx ->
@@ -378,7 +494,7 @@ fun ElderImpulseChart(
                     CombinedChart.DrawOrder.SCATTER
                 ))
 
-                // X Axis
+                // X Axis - Python style
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -396,25 +512,16 @@ fun ElderImpulseChart(
                     }
                 }
 
-                // Left Y Axis (Market Cap)
+                // Left Y Axis (Price)
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
                     this.textColor = textColor
                     enableGridDashedLine(10f, 10f, 0f)
-                    valueFormatter = object : ValueFormatter() {
-                        override fun getFormattedValue(value: Float): String {
-                            return formatMarketCapForChart(value.toDouble())
-                        }
-                    }
                 }
 
-                // Right Y Axis (EMA13)
-                axisRight.apply {
-                    isEnabled = true
-                    setDrawGridLines(false)
-                    this.textColor = Color.GRAY
-                }
+                // Right Y Axis (disabled - EMA13 shares same axis)
+                axisRight.isEnabled = false
 
                 legend.apply {
                     isEnabled = true
@@ -422,61 +529,104 @@ fun ElderImpulseChart(
                 }
 
                 // Marker
-                marker = ElderImpulseMarkerView(ctx, dates, mcapValues, impulseStates)
+                marker = ElderImpulseMarkerView(ctx, dates, effectivePriceValues, impulseStates)
             }
         },
         update = { chart ->
             val combinedData = CombinedData()
+            val lineDataSets = mutableListOf<LineDataSet>()
 
-            // Market Cap line (left axis)
-            val mcapEntries = mcapValues.mapIndexed { index, value ->
+            // Close price line (left axis) - Python style: tab:blue, solid
+            val priceEntries = effectivePriceValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val mcapDataSet = LineDataSet(mcapEntries, "시가총액").apply {
-                color = ChartDefaultBlack.toArgb()
-                lineWidth = 2f
-                setDrawCircles(false)
-                setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-                axisDependency = YAxis.AxisDependency.LEFT
-            }
-
-            // EMA13 line (right axis)
-            val ema13Entries = ema13Values.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
-            val ema13DataSet = LineDataSet(ema13Entries, "EMA13").apply {
-                color = Color.GRAY
+            val priceDataSet = LineDataSet(priceEntries, "Close").apply {
+                color = TabBlue.toArgb()  // tab:blue
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-                axisDependency = YAxis.AxisDependency.RIGHT
-                enableDashedLine(10f, 5f, 0f)
-            }
-
-            combinedData.setData(LineData(mcapDataSet, ema13DataSet))
-
-            // Impulse markers
-            val impulseEntries = impulseStates.mapIndexedNotNull { index, state ->
-                if (index < mcapValues.size) {
-                    Entry(index.toFloat(), mcapValues[index].toFloat())
-                } else null
-            }
-            val impulseDataSet = ScatterDataSet(impulseEntries, "Impulse").apply {
-                colors = impulseStates.map { state ->
-                    when (state) {
-                        1 -> ElderGreen.toArgb()
-                        -1 -> ElderRed.toArgb()
-                        else -> ElderBlue.toArgb()
-                    }
-                }
-                setScatterShape(ScatterChart.ScatterShape.CIRCLE)
-                scatterShapeSize = 12f
-                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.LEFT
             }
-            combinedData.setData(ScatterData(impulseDataSet))
+            lineDataSets.add(priceDataSet)
+
+            // EMA13 line (left axis) - Python style: tab:orange, dashed
+            if (ema13Values.isNotEmpty()) {
+                val ema13Entries = ema13Values.mapIndexed { index, value ->
+                    Entry(index.toFloat(), value.toFloat())
+                }
+                val ema13DataSet = LineDataSet(ema13Entries, "EMA13 (Weekly)").apply {
+                    color = TabOrange.toArgb()  // tab:orange
+                    lineWidth = 1.5f
+                    setDrawCircles(false)
+                    setDrawValues(false)
+                    mode = LineDataSet.Mode.LINEAR
+                    axisDependency = YAxis.AxisDependency.LEFT
+                    enableDashedLine(10f, 5f, 0f)  // Dashed line
+                }
+                lineDataSets.add(ema13DataSet)
+            }
+
+            combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
+
+            // Impulse color markers ON price line - Python style
+            // Neutral (gray) - draw first (smaller, behind)
+            val neutralEntries = mutableListOf<Entry>()
+            val bullishEntries = mutableListOf<Entry>()
+            val bearishEntries = mutableListOf<Entry>()
+
+            impulseStates.forEachIndexed { index, state ->
+                if (index < effectivePriceValues.size) {
+                    val entry = Entry(index.toFloat(), effectivePriceValues[index].toFloat())
+                    when (state) {
+                        1 -> bullishEntries.add(entry)
+                        -1 -> bearishEntries.add(entry)
+                        else -> neutralEntries.add(entry)
+                    }
+                }
+            }
+
+            val scatterDataSets = mutableListOf<ScatterDataSet>()
+
+            // Neutral (gray) - Python style: gray, smaller
+            if (neutralEntries.isNotEmpty()) {
+                val neutralDataSet = ScatterDataSet(neutralEntries, "Neutral").apply {
+                    color = TabGray.toArgb()  // gray
+                    setScatterShape(ScatterChart.ScatterShape.CIRCLE)
+                    scatterShapeSize = 10f
+                    setDrawValues(false)
+                    axisDependency = YAxis.AxisDependency.LEFT
+                }
+                scatterDataSets.add(neutralDataSet)
+            }
+
+            // Bullish (green) - Python style
+            if (bullishEntries.isNotEmpty()) {
+                val bullishDataSet = ScatterDataSet(bullishEntries, "Bullish Impulse").apply {
+                    color = ElderGreen.toArgb()  // green
+                    setScatterShape(ScatterChart.ScatterShape.CIRCLE)
+                    scatterShapeSize = 12f
+                    setDrawValues(false)
+                    axisDependency = YAxis.AxisDependency.LEFT
+                }
+                scatterDataSets.add(bullishDataSet)
+            }
+
+            // Bearish (red) - Python style
+            if (bearishEntries.isNotEmpty()) {
+                val bearishDataSet = ScatterDataSet(bearishEntries, "Bearish Impulse").apply {
+                    color = ElderRed.toArgb()  // red
+                    setScatterShape(ScatterChart.ScatterShape.CIRCLE)
+                    scatterShapeSize = 12f
+                    setDrawValues(false)
+                    axisDependency = YAxis.AxisDependency.LEFT
+                }
+                scatterDataSets.add(bearishDataSet)
+            }
+
+            if (scatterDataSets.isNotEmpty()) {
+                combinedData.setData(ScatterData(scatterDataSets as List<IScatterDataSet>))
+            }
 
             chart.data = combinedData
             chart.invalidate()
@@ -489,18 +639,23 @@ fun ElderImpulseChart(
 
 /**
  * DemarkTDChart - DeMark TD Setup chart
- * Shows sell/buy setup counts as filled area chart
+ * Python reference style: Close line with TD Sell/Buy lines
+ * Style: {ticker}.KS Daily/Weekly/Monthly DeMark TD Setup Counts (last 1 year)
  *
  * @param dates List of date strings
- * @param sellSetupValues Sell setup counts (positive)
- * @param buySetupValues Buy setup counts (shown as negative for visual separation)
- * @param mcapValues Optional market cap values for overlay
+ * @param sellSetupValues Sell setup counts
+ * @param buySetupValues Buy setup counts
+ * @param priceValues Close price values (left axis)
+ * @param chartType Chart type for title: "Daily", "Weekly", "Monthly"
  */
 @Composable
 fun DemarkTDChart(
     dates: List<String>,
     sellSetupValues: List<Int>,
     buySetupValues: List<Int>,
+    priceValues: List<Double> = emptyList(),
+    chartType: String = "Daily",
+    // Legacy parameter for backward compatibility
     mcapValues: List<Double> = emptyList(),
     modifier: Modifier = Modifier
 ) {
@@ -508,6 +663,9 @@ fun DemarkTDChart(
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+    // Use priceValues or fall back to mcapValues for backward compatibility
+    val effectivePriceValues = if (priceValues.isNotEmpty()) priceValues else mcapValues
 
     AndroidView(
         factory = { ctx ->
@@ -520,11 +678,10 @@ fun DemarkTDChart(
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
                 setDrawOrder(arrayOf(
-                    CombinedChart.DrawOrder.BAR,
                     CombinedChart.DrawOrder.LINE
                 ))
 
-                // X Axis
+                // X Axis - Python style
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -542,26 +699,26 @@ fun DemarkTDChart(
                     }
                 }
 
-                // Left Y Axis (TD Setup counts)
+                // Left Y Axis (Close Price) - Python style
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
                     this.textColor = textColor
                     enableGridDashedLine(10f, 10f, 0f)
-                    axisMinimum = -15f
-                    axisMaximum = 15f
                 }
 
-                // Right Y Axis (Market Cap - optional)
+                // Right Y Axis (TD Setup Count) - Python style: gray
                 axisRight.apply {
-                    isEnabled = mcapValues.isNotEmpty()
+                    isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = Color.GRAY
-                    valueFormatter = object : ValueFormatter() {
-                        override fun getFormattedValue(value: Float): String {
-                            return formatMarketCapForChart(value.toDouble())
-                        }
-                    }
+                    this.textColor = TabGray.toArgb()  // gray like Python
+                    // Dynamic Y-axis range based on max TD count
+                    val maxTD = maxOf(
+                        sellSetupValues.maxOrNull() ?: 0,
+                        buySetupValues.maxOrNull() ?: 0
+                    )
+                    axisMinimum = 0f
+                    axisMaximum = (maxTD + 2).toFloat()
                 }
 
                 legend.apply {
@@ -575,44 +732,53 @@ fun DemarkTDChart(
         },
         update = { chart ->
             val combinedData = CombinedData()
+            val lineDataSets = mutableListOf<LineDataSet>()
 
-            // Sell Setup bars (positive - red with 50% alpha fill)
-            val sellEntries = sellSetupValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
-            val sellDataSet = BarDataSet(sellEntries, "Sell Setup").apply {
-                color = ChartRed.copy(alpha = 0.5f).toArgb()
-                setDrawValues(false)
-            }
-
-            // Buy Setup bars (negative - green with 50% alpha fill)
-            val buyEntries = buySetupValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), -value.toFloat())  // Negative for visual
-            }
-            val buyDataSet = BarDataSet(buyEntries, "Buy Setup").apply {
-                color = ChartGreen.copy(alpha = 0.5f).toArgb()
-                setDrawValues(false)
-            }
-
-            combinedData.setData(BarData(sellDataSet, buyDataSet).apply {
-                barWidth = 0.4f
-            })
-
-            // Market Cap line (optional overlay)
-            if (mcapValues.isNotEmpty()) {
-                val mcapEntries = mcapValues.mapIndexed { index, value ->
+            // Close price line (left axis) - Python style: black
+            if (effectivePriceValues.isNotEmpty()) {
+                val priceEntries = effectivePriceValues.mapIndexed { index, value ->
                     Entry(index.toFloat(), value.toFloat())
                 }
-                val mcapDataSet = LineDataSet(mcapEntries, "시가총액").apply {
-                    color = ChartDefaultBlack.toArgb()
+                val priceDataSet = LineDataSet(priceEntries, "Close").apply {
+                    color = ChartDefaultBlack.toArgb()  // black
                     lineWidth = 1.5f
                     setDrawCircles(false)
                     setDrawValues(false)
-                    mode = LineDataSet.Mode.CUBIC_BEZIER
-                    axisDependency = YAxis.AxisDependency.RIGHT
+                    mode = LineDataSet.Mode.LINEAR
+                    axisDependency = YAxis.AxisDependency.LEFT
                 }
-                combinedData.setData(LineData(mcapDataSet))
+                lineDataSets.add(priceDataSet)
             }
+
+            // TD Sell Setup line (right axis) - Python style: red
+            val sellEntries = sellSetupValues.mapIndexed { index, value ->
+                Entry(index.toFloat(), value.toFloat())
+            }
+            val sellDataSet = LineDataSet(sellEntries, "TD Sell Setup").apply {
+                color = DemarkRed.toArgb()  // red
+                lineWidth = 1.5f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            lineDataSets.add(sellDataSet)
+
+            // TD Buy Setup line (right axis) - Python style: blue
+            val buyEntries = buySetupValues.mapIndexed { index, value ->
+                Entry(index.toFloat(), value.toFloat())
+            }
+            val buyDataSet = LineDataSet(buyEntries, "TD Buy Setup").apply {
+                color = DemarkBlue.toArgb()  // blue
+                lineWidth = 1.5f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            lineDataSets.add(buyDataSet)
+
+            combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
 
             chart.data = combinedData
             chart.invalidate()
@@ -625,7 +791,7 @@ fun DemarkTDChart(
 
 /**
  * Simple MACD Bar Chart (histogram only)
- * For use when only histogram values are needed
+ * Python reference style - for use when only histogram values are needed
  */
 @Composable
 fun MacdHistogramChart(
@@ -649,7 +815,7 @@ fun MacdHistogramChart(
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
 
-                // X Axis
+                // X Axis - Python style
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -677,12 +843,17 @@ fun MacdHistogramChart(
             }
         },
         update = { chart ->
+            // Python style: teal (#26A69A) for positive, red (#EF5350) for negative
             val barEntries = histogramValues.mapIndexed { index, value ->
                 BarEntry(index.toFloat(), value.toFloat())
             }
             val barDataSet = BarDataSet(barEntries, "MACD Histogram").apply {
                 colors = histogramValues.map { value ->
-                    if (value >= 0) ChartGreen.toArgb() else ChartRed.toArgb()
+                    if (value >= 0) {
+                        com.stockapp.core.ui.theme.HistogramTeal.toArgb()
+                    } else {
+                        com.stockapp.core.ui.theme.HistogramRed.toArgb()
+                    }
                 }
                 setDrawValues(false)
             }

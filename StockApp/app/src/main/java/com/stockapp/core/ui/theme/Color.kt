@@ -85,3 +85,28 @@ val SignalBuyStrong = Color(0xFFF44336)   // Strong buy - red
 val SignalBuyWeak = Color(0xFFFF8A80)     // Weak buy - light red
 val SignalSellStrong = Color(0xFF2196F3)  // Strong sell - blue
 val SignalSellWeak = Color(0xFF82B1FF)    // Weak sell - light blue
+
+// Matplotlib tab colors for Python chart compatibility
+val TabBlue = Color(0xFF1F77B4)           // matplotlib tab:blue - Close price line
+val TabOrange = Color(0xFFFF7F0E)         // matplotlib tab:orange - MA, Signal, EMA13
+val TabGreen = Color(0xFF2CA02C)          // matplotlib tab:green
+val TabRed = Color(0xFFD62728)            // matplotlib tab:red
+val TabGray = Color(0xFF7F7F7F)           // matplotlib gray - Neutral (Elder)
+
+// Python chart reference colors
+val PrimaryBuy = Color(0xFF8B0000)        // darkred - Primary Buy signal
+val AdditionalBuy = Color(0xFFFF0000)     // red with alpha - Additional Buy
+val PrimarySell = Color(0xFF00008B)       // darkblue - Primary Sell signal
+val AdditionalSell = Color(0xFF0000FF)    // blue with alpha - Additional Sell
+val DemarkRed = Color(0xFFFF0000)         // red - TD Sell Setup line
+val DemarkBlue = Color(0xFF0000FF)        // blue - TD Buy Setup line
+val FearGreedGreen = Color(0xFF008000)    // green - Fear threshold line
+val FearGreedRed = Color(0xFFFF0000)      // red - Greed threshold line
+
+// Oscillator chart colors (Python style)
+val OscillatorBlue = Color(0xFF1976D2)    // Market cap fill/line
+val OscillatorOrange = Color(0xFFFF5722)  // Oscillator line
+val HistogramTeal = Color(0xFF26A69A)     // Positive histogram
+val HistogramRed = Color(0xFFEF5350)      // Negative histogram
+val MacdBlue = Color(0xFF2196F3)          // MACD line
+val MacdSignalOrange = Color(0xFFFF9800)  // Signal line
