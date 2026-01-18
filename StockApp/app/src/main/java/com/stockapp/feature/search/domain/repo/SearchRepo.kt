@@ -31,4 +31,10 @@ interface SearchRepo {
      * Clear search history.
      */
     suspend fun clearHistory()
+
+    /**
+     * Search for suggestions (State용 검색 함수).
+     * Returns empty list on error.
+     */
+    suspend fun searchForSuggestions(query: String): List<Stock>
 }

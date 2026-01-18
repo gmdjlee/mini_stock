@@ -82,6 +82,10 @@ class SearchRepoImpl @Inject constructor(
         historyDao.deleteAll()
     }
 
+    override suspend fun searchForSuggestions(query: String): List<Stock> {
+        return search(query).getOrElse { emptyList() }
+    }
+
     private fun parseSearchResponse(jsonStr: String): List<Stock> {
         val response = json.decodeFromString<SearchResponse>(jsonStr)
         if (response.ok && response.data != null) {
