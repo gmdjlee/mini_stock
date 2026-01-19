@@ -1,12 +1,12 @@
-"""DeMark TD Setup indicator (Custom version).
+"""DeMark TD Setup indicator (EtfMonitor reference version).
 
-Custom TD Setup rules (based on reference):
+TD Setup rules (matching EtfMonitor reference):
 - Sell Setup: Close(t) > Close(t-4) 연속이면 +1, 아니면 0으로 리셋
-- Buy Setup: Close(t) < Close(t-2) 연속이면 +1, 아니면 0으로 리셋
+- Buy Setup: Close(t) < Close(t-4) 연속이면 +1, 아니면 0으로 리셋
 - Sell과 Buy는 독립적으로 카운트 (동시에 값이 있을 수 있음)
 - 카운트 한도 없음 (무한 증가)
 
-Reference: Shows Daily, Weekly, and Monthly TD Setup charts.
+Reference: EtfMonitor_Rel trend_signal.py _calc_td_setup()
 """
 
 from typing import Dict, List, Literal
@@ -23,11 +23,11 @@ def calc(
     timeframe: Literal["daily", "weekly", "monthly"] = "daily",
 ) -> Dict:
     """
-    Calculate Custom DeMark TD Setup.
+    Calculate DeMark TD Setup (EtfMonitor reference).
 
-    Custom TD Setup Rules:
+    TD Setup Rules (matching EtfMonitor):
     - Sell Setup: Close > Close[4] 연속이면 +1, 아니면 0으로 리셋 (상승 피로)
-    - Buy Setup: Close < Close[2] 연속이면 +1, 아니면 0으로 리셋 (하락 피로)
+    - Buy Setup: Close < Close[4] 연속이면 +1, 아니면 0으로 리셋 (하락 피로)
     - Sell과 Buy는 독립적으로 카운트 (동시에 값이 있을 수 있음)
 
     Args:
@@ -124,7 +124,7 @@ def calc_from_ohlcv(
     timeframe: str = "daily",
 ) -> Dict:
     """
-    Calculate Custom DeMark TD Setup from OHLCV data directly.
+    Calculate DeMark TD Setup from OHLCV data directly (EtfMonitor reference).
 
     Args:
         ticker: Stock code
@@ -157,11 +157,11 @@ def calc_from_ohlcv(
 
 def _calc_td_setup(closes: List[int]) -> tuple:
     """
-    Calculate Custom TD Setup counts.
+    Calculate TD Setup counts (EtfMonitor reference).
 
-    Custom TD Setup Rules:
+    TD Setup Rules (matching EtfMonitor trend_signal.py _calc_td_setup):
     - Sell Setup: Close > Close[4] 연속이면 +1, 아니면 0으로 리셋
-    - Buy Setup: Close < Close[2] 연속이면 +1, 아니면 0으로 리셋
+    - Buy Setup: Close < Close[4] 연속이면 +1, 아니면 0으로 리셋
     - 둘은 독립적으로 계산 (동시에 값이 있을 수 있음)
 
     Note: Data is in reverse order (newest first)
@@ -188,8 +188,8 @@ def _calc_td_setup(closes: List[int]) -> tuple:
         else:
             sell_chrono[i] = 0
 
-        # Buy Setup: 2일 전보다 아래 있으면 카운트 증가
-        if i >= 2 and closes_chrono[i] < closes_chrono[i - 2]:
+        # Buy Setup: 4일 전보다 아래 있으면 카운트 증가 (EtfMonitor reference: 대칭적)
+        if i >= 4 and closes_chrono[i] < closes_chrono[i - 4]:
             buy_chrono[i] = buy_chrono[i - 1] + 1
         else:
             buy_chrono[i] = 0
