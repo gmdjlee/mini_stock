@@ -99,9 +99,25 @@ class IndicatorVm @Inject constructor(
     }
 
     fun selectTab(tab: IndicatorType) {
+        if (_selectedTab.value == tab) return // Skip if same tab
+
         _selectedTab.value = tab
+
+        // Check if we already have cached data for this tab
+        val hasCachedData = when (tab) {
+            IndicatorType.TREND -> trendData != null
+            IndicatorType.ELDER -> elderData != null
+            IndicatorType.DEMARK -> demarkData != null
+        }
+
         currentTicker?.let { ticker ->
-            loadTabData(ticker, tab, useCache = true)
+            if (hasCachedData) {
+                // Immediately update state with cached data (no loading)
+                updateSuccessState(ticker)
+            } else {
+                // Need to load data
+                loadTabData(ticker, tab, useCache = true)
+            }
         }
     }
 

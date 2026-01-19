@@ -3,13 +3,18 @@ package com.stockapp.core.py
 import android.content.Context
 import android.util.Log
 import com.chaquo.python.PyObject
+import com.stockapp.BuildConfig
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,35 +31,41 @@ class PyClient @Inject constructor(
         isLenient = true
     }
 
-    private var kiwoomClient: PyObject? = null
-    private var isInitialized = false
+    // Thread-safe client state using AtomicReference and Mutex
+    private val kiwoomClientRef = AtomicReference<PyObject?>(null)
+    private val initializedFlag = AtomicBoolean(false)
+    private val initMutex = Mutex()
 
     /**
      * Initialize Python environment.
      * Must be called before any Python calls.
+     * Thread-safe: uses Mutex to prevent concurrent initialization.
      */
     suspend fun initialize(
         appKey: String,
         secretKey: String,
         baseUrl: String = "https://api.kiwoom.com"
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            if (!Python.isStarted()) {
-                Python.start(AndroidPlatform(ctx))
-            }
+    ): Result<Unit> = initMutex.withLock {
+        withContext(Dispatchers.IO) {
+            try {
+                if (!Python.isStarted()) {
+                    Python.start(AndroidPlatform(ctx))
+                }
 
-            val py = Python.getInstance()
-            val kiwoomModule = py.getModule("stock_analyzer.client.kiwoom")
-            kiwoomClient = kiwoomModule.callAttr(
-                "KiwoomClient",
-                appKey,
-                secretKey,
-                baseUrl
-            )
-            isInitialized = true
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(PyError.InitError(e.message ?: "Python initialization failed"))
+                val py = Python.getInstance()
+                val kiwoomModule = py.getModule("stock_analyzer.client.kiwoom")
+                val client = kiwoomModule.callAttr(
+                    "KiwoomClient",
+                    appKey,
+                    secretKey,
+                    baseUrl
+                )
+                kiwoomClientRef.set(client)
+                initializedFlag.set(true)
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(PyError.InitError(e.message ?: "Python initialization failed"))
+            }
         }
     }
 
@@ -74,10 +85,13 @@ class PyClient @Inject constructor(
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "call() started: module=$module, func=$func, args=$args")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "call() started: module=$module, func=$func")
+        }
 
         try {
-            if (!isInitialized || kiwoomClient == null) {
+            val client = kiwoomClientRef.get()
+            if (!initializedFlag.get() || client == null) {
                 Log.e(TAG, "call() failed: PyClient not initialized")
                 return@withContext Result.failure(
                     PyError.NotInitialized("PyClient not initialized. Call initialize() first.")
@@ -86,25 +100,24 @@ class PyClient @Inject constructor(
 
             withTimeout(timeoutMs) {
                 val py = Python.getInstance()
-                Log.d(TAG, "call() getting module: $module")
                 val pyModule = py.getModule(module)
 
                 // Build args: [client, ...args]
-                val allArgs = mutableListOf<Any>(kiwoomClient!!)
+                val allArgs = mutableListOf<Any>(client)
                 allArgs.addAll(args)
-                Log.d(TAG, "call() invoking $func with ${allArgs.size} args")
 
                 val result = pyModule.callAttr(func, *allArgs.toTypedArray())
-                Log.d(TAG, "call() Python returned result type: ${result?.javaClass?.simpleName}")
 
                 // Convert Python dict to JSON string using json.dumps()
                 val jsonModule = py.getModule("json")
                 val jsonStr = jsonModule.callAttr("dumps", result).toString()
-                Log.d(TAG, "call() JSON response (first 500 chars): ${jsonStr.take(500)}")
+
+                if (BuildConfig.DEBUG) {
+                    Log.d(TAG, "call() response length: ${jsonStr.length}")
+                }
 
                 // Parse response
                 val parsed = parser(jsonStr)
-                Log.d(TAG, "call() parsed successfully: ${parsed?.javaClass?.simpleName}")
                 Result.success(parsed)
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
@@ -158,7 +171,8 @@ class PyClient @Inject constructor(
         timeoutMs: Long = DEFAULT_TIMEOUT_MS
     ): Result<PyObject> = withContext(Dispatchers.IO) {
         try {
-            if (!isInitialized || kiwoomClient == null) {
+            val client = kiwoomClientRef.get()
+            if (!initializedFlag.get() || client == null) {
                 return@withContext Result.failure(
                     PyError.NotInitialized("PyClient not initialized")
                 )
@@ -168,7 +182,7 @@ class PyClient @Inject constructor(
                 val py = Python.getInstance()
                 val pyModule = py.getModule(module)
 
-                val allArgs = mutableListOf<Any>(kiwoomClient!!)
+                val allArgs = mutableListOf<Any>(client)
                 allArgs.addAll(args)
 
                 val result = pyModule.callAttr(func, *allArgs.toTypedArray())
@@ -181,7 +195,44 @@ class PyClient @Inject constructor(
         }
     }
 
-    fun isReady(): Boolean = isInitialized && kiwoomClient != null
+    fun isReady(): Boolean = initializedFlag.get() && kiwoomClientRef.get() != null
+
+    /**
+     * Test API key connection without modifying global state.
+     * Use this for testing API keys in settings.
+     * Thread-safe: uses separate test client instance.
+     */
+    suspend fun testConnection(
+        appKey: String,
+        secretKey: String,
+        baseUrl: String = "https://api.kiwoom.com"
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!Python.isStarted()) {
+                Python.start(AndroidPlatform(ctx))
+            }
+
+            val py = Python.getInstance()
+            val kiwoomModule = py.getModule("stock_analyzer.client.kiwoom")
+
+            // Create a temporary test client (not stored globally)
+            val testClient = kiwoomModule.callAttr(
+                "KiwoomClient",
+                appKey,
+                secretKey,
+                baseUrl
+            )
+
+            // Verify connection by getting token (implicit in KiwoomClient constructor)
+            if (testClient != null) {
+                Result.success(Unit)
+            } else {
+                Result.failure(PyError.InitError("Failed to create test client"))
+            }
+        } catch (e: Exception) {
+            Result.failure(PyError.InitError(e.message ?: "Connection test failed"))
+        }
+    }
 
     companion object {
         private const val TAG = "PyClient"

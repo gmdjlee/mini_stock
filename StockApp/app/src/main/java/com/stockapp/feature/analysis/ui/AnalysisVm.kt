@@ -111,10 +111,19 @@ class AnalysisVm @Inject constructor(
     }
 
     private fun extractErrorCode(e: Throwable): String {
-        return when {
-            e.message?.contains("[") == true -> {
-                e.message?.substringAfter("[")?.substringBefore("]") ?: "UNKNOWN"
-            }
+        val message = e.message ?: return "UNKNOWN"
+
+        // Try to extract error code from bracket format: [ERROR_CODE]
+        val bracketRegex = """\[([A-Z_]+)]""".toRegex()
+        bracketRegex.find(message)?.groupValues?.getOrNull(1)?.let {
+            return it
+        }
+
+        // Map known exception types to error codes
+        return when (e) {
+            is java.net.SocketTimeoutException -> "TIMEOUT"
+            is java.net.UnknownHostException -> "NETWORK_ERROR"
+            is kotlinx.coroutines.TimeoutCancellationException -> "TIMEOUT"
             else -> "UNKNOWN"
         }
     }

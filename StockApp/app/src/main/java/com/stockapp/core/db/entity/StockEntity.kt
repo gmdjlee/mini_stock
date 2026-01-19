@@ -1,12 +1,20 @@
 package com.stockapp.core.db.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
  * Stock cache entity for autocomplete and quick lookup.
+ * Indexes on name and market for faster search queries.
  */
-@Entity(tableName = "stocks")
+@Entity(
+    tableName = "stocks",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["market"])
+    ]
+)
 data class StockEntity(
     @PrimaryKey
     val ticker: String,

@@ -91,13 +91,32 @@ class MarketRepoImpl @Inject constructor(
 
     private fun parseCacheData(data: String): MarketIndicators {
         val parts = data.split("|")
-        return MarketIndicators(
-            dates = parts[0].split(","),
-            deposit = parts[1].split(",").map { it.toLong() },
-            creditLoan = parts[2].split(",").map { it.toLong() },
-            creditBalance = parts[3].split(",").map { it.toLong() },
-            creditRatio = parts[4].split(",").map { it.toDouble() }
-        )
+
+        // Validate cache format - must have exactly 5 parts
+        if (parts.size < CACHE_PARTS_COUNT) {
+            throw IllegalArgumentException(
+                "Invalid cache format: expected $CACHE_PARTS_COUNT parts, got ${parts.size}"
+            )
+        }
+
+        // Validate each part is not empty
+        parts.forEachIndexed { index, part ->
+            if (part.isBlank()) {
+                throw IllegalArgumentException("Invalid cache format: part $index is empty")
+            }
+        }
+
+        return try {
+            MarketIndicators(
+                dates = parts[0].split(",").filter { it.isNotBlank() },
+                deposit = parts[1].split(",").filter { it.isNotBlank() }.map { it.toLong() },
+                creditLoan = parts[2].split(",").filter { it.isNotBlank() }.map { it.toLong() },
+                creditBalance = parts[3].split(",").filter { it.isNotBlank() }.map { it.toLong() },
+                creditRatio = parts[4].split(",").filter { it.isNotBlank() }.map { it.toDouble() }
+            )
+        } catch (e: NumberFormatException) {
+            throw IllegalArgumentException("Invalid cache format: number parsing failed", e)
+        }
     }
 
     private fun isCacheExpired(cachedAt: Long): Boolean {
@@ -106,5 +125,6 @@ class MarketRepoImpl @Inject constructor(
 
     companion object {
         private const val CACHE_KEY = "market_indicators"
+        private const val CACHE_PARTS_COUNT = 5
     }
 }
