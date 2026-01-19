@@ -16,8 +16,27 @@ class StockData:
     name: str
     dates: List[str]
     mcap: List[int]      # Market cap
-    for_5d: List[int]    # Foreign 5-day net buy
-    ins_5d: List[int]    # Institution 5-day net buy
+    for_5d: List[int]    # Foreign 5-day net buy (rolling sum)
+    ins_5d: List[int]    # Institution 5-day net buy (rolling sum)
+
+
+def _rolling_sum(values: List[int], window: int) -> List[int]:
+    """
+    Calculate rolling sum with min_periods=1 (matching pandas rolling behavior).
+
+    Args:
+        values: List of values
+        window: Rolling window size
+
+    Returns:
+        List of rolling sums
+    """
+    result = []
+    for i in range(len(values)):
+        # Use available data up to window size (min_periods=1)
+        start = max(0, i - window + 1)
+        result.append(sum(values[start:i + 1]))
+    return result
 
 
 def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
@@ -81,11 +100,11 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             "error": {"code": "NO_DATA", "msg": "수급 데이터가 없습니다"},
         }
 
-    # 3. Parse data
+    # 3. Parse data - collect raw daily values first
     dates = []
     mcaps = []
-    for_5d = []
-    ins_5d = []
+    for_daily = []  # Daily foreign net buy (not 5-day sum yet)
+    ins_daily = []  # Daily institution net buy (not 5-day sum yet)
 
     for item in trend_data[:days]:
         dt = item.get("dt", "")
@@ -100,9 +119,16 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             mcaps.append(mrkt_tot_amt * 1_000_000)
         else:
             mcaps.append(mcap)  # fallback to basic info mcap (already converted)
+
         # API field names per official docs: frgnr_invsr (외국인투자자), orgn (기관계)
-        for_5d.append(safe_int(item.get("frgnr_invsr", 0)))
-        ins_5d.append(safe_int(item.get("orgn", 0)))
+        # These are daily values in 백만원 (million won)
+        for_daily.append(safe_int(item.get("frgnr_invsr", 0)))
+        ins_daily.append(safe_int(item.get("orgn", 0)))
+
+    # 4. Calculate 5-day rolling sum (matching EtfMonitor reference)
+    # This smooths the data and matches the reference oscillator calculation
+    for_5d = _rolling_sum(for_daily, 5)
+    ins_5d = _rolling_sum(ins_daily, 5)
 
     log_info("stock.analysis", "analyze complete", {"ticker": ticker, "days": len(dates)})
 
