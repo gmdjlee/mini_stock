@@ -352,14 +352,14 @@ button: RoundedCornerShape(100.dp)    // 완전 원형
 ## 9. 구현 체크리스트
 
 ### Phase 1: 기반 시스템 (권장)
-- [ ] `Spacing.kt` 생성 및 LocalSpacing 구현
-- [ ] `ExtendedColors.kt` 생성
-- [ ] Theme.kt에 확장 테마 통합
+- [x] `Spacing.kt` 생성 및 LocalSpacing 구현
+- [x] `ExtendedColors.kt` 생성
+- [x] Theme.kt에 확장 테마 통합
 
 ### Phase 2: 컴포넌트 개선 (권장)
-- [ ] LoadingCard에 호흡 애니메이션 추가
-- [ ] ErrorCard에 닫기 버튼 옵션 추가
-- [ ] IdleCard 컴포넌트 생성
+- [x] LoadingCard에 호흡 애니메이션 추가
+- [x] ErrorCard에 닫기 버튼 옵션 추가
+- [x] IdleCard 컴포넌트 생성
 
 ### Phase 3: 전체 적용 (선택적)
 - [ ] 기존 하드코딩 dp → Spacing 시스템으로 마이그레이션
