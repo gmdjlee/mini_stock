@@ -2,6 +2,7 @@ package com.stockapp.nav
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -31,8 +32,13 @@ fun NavGraph(
             SearchScreen(
                 onStockClick = { ticker ->
                     // Navigate to Analysis tab after selecting stock
+                    // Use same navigation pattern as bottom nav to maintain consistent state
                     navController.navigate(Screen.Analysis.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 }
             )
@@ -58,8 +64,13 @@ fun NavGraph(
             ConditionScreen(
                 onStockClick = { ticker ->
                     // Navigate to Analysis tab after selecting stock
+                    // Use same navigation pattern as bottom nav to maintain consistent state
                     navController.navigate(Screen.Analysis.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
                         launchSingleTop = true
+                        restoreState = true
                     }
                 }
             )
