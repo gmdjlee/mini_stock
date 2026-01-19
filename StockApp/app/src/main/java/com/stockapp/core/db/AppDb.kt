@@ -25,7 +25,7 @@ import com.stockapp.core.db.entity.StockEntity
         ConditionCacheEntity::class
     ],
     version = 3,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
     abstract fun stockDao(): StockDao
