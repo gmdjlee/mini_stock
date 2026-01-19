@@ -244,8 +244,8 @@ private fun AnalysisContent(
             ) {
                 SupplyDemandBarChart(
                     dates = dates.takeLast(60),
-                    foreignValues = for5dHistory.takeLast(60).map { it * 10 },  // Convert to 억
-                    institutionValues = ins5dHistory.takeLast(60).map { it * 10 }  // Convert to 억
+                    foreignValues = for5dHistory.takeLast(60),  // Already in 억원
+                    institutionValues = ins5dHistory.takeLast(60)  // Already in 억원
                 )
             }
         }
@@ -459,9 +459,9 @@ private val percentFormat = DecimalFormat("#,##0.000")
 
 private fun formatTrillion(value: Double): String = trillionFormat.format(value)
 private fun formatBillion(value: Double): String {
-    val inBillion = value * 10 // Convert from billion to 억
-    return if (inBillion >= 0) "+${billionFormat.format(inBillion)}"
-    else billionFormat.format(inBillion)
+    // value is already in 억원
+    return if (value >= 0) "+${billionFormat.format(value)}"
+    else billionFormat.format(value)
 }
 private fun formatPercent(value: Double): String {
     return if (value >= 0) "+${percentFormat.format(value)}"
