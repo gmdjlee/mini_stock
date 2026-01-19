@@ -165,14 +165,24 @@ private fun AnalysisContent(
     val for5dHistory = summary.for5dHistory.take(displayCount).reversed()
     val ins5dHistory = summary.ins5dHistory.take(displayCount).reversed()
 
-    // Calculate oscillator values (data is now in chronological order)
-    val oscillatorValues = mcapHistory.mapIndexed { index, mcap ->
+    // Calculate MACD-style oscillator values (matching Python reference)
+    // 1. Calculate Supply Ratio = (foreign + institution) / mcap
+    //    for5dHistory is in 억원, mcapHistory is in 조원
+    //    supply_ratio = (for5d + ins5d) * 1e8 / (mcap * 1e12) = (for5d + ins5d) / (mcap * 10000)
+    val supplyRatioList = mcapHistory.mapIndexed { index, mcap ->
         if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
-            (for5dHistory[index] + ins5dHistory[index]) / (mcap * 10000)  // Scaled
+            (for5dHistory[index] + ins5dHistory[index]) / (mcap * 10000)
         } else {
             0.0
         }
     }
+
+    // 2. Calculate EMA12, EMA26, MACD, Signal, and Oscillator (Histogram)
+    val ema12 = calcEma(supplyRatioList, 12)
+    val ema26 = calcEma(supplyRatioList, 26)
+    val macdLine = ema12.zip(ema26) { e12, e26 -> e12 - e26 }
+    val signalLine = calcEma(macdLine, 9)
+    val oscillatorValues = macdLine.zip(signalLine) { m, s -> m - s }
 
     Column(
         modifier = modifier
@@ -466,4 +476,18 @@ private fun formatBillion(value: Double): String {
 private fun formatPercent(value: Double): String {
     return if (value >= 0) "+${percentFormat.format(value)}"
     else percentFormat.format(value)
+}
+
+/**
+ * Calculate Exponential Moving Average (EMA).
+ * Matches Python oscillator.py implementation.
+ */
+private fun calcEma(values: List<Double>, period: Int): List<Double> {
+    if (values.isEmpty()) return emptyList()
+    val alpha = 2.0 / (period + 1)
+    val ema = mutableListOf(values.first())
+    for (i in 1 until values.size) {
+        ema.add(alpha * values[i] + (1 - alpha) * ema[i - 1])
+    }
+    return ema
 }
