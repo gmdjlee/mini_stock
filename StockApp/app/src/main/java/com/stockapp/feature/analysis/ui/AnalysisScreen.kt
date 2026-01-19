@@ -47,6 +47,20 @@ import com.stockapp.feature.analysis.domain.model.AnalysisSummary
 import com.stockapp.feature.analysis.domain.model.SupplySignal
 import java.text.DecimalFormat
 
+/**
+ * Chart display constants.
+ */
+private object ChartConfig {
+    /** Maximum days to display in oscillator chart (full history view) */
+    const val OSCILLATOR_CHART_MAX_DAYS = 120
+
+    /** Days to display in supply demand bar chart (recent data) */
+    const val SUPPLY_DEMAND_CHART_DAYS = 60
+
+    /** Conversion factor from 조원 to 억원 */
+    const val TRILLION_TO_BILLION = 10000.0
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalysisScreen(
@@ -159,7 +173,7 @@ private fun AnalysisContent(
 ) {
     // Python returns data in reverse chronological order (newest first)
     // take(N) gets newest N days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(120, summary.dates.size)
+    val displayCount = minOf(ChartConfig.OSCILLATOR_CHART_MAX_DAYS, summary.dates.size)
     val dates = summary.dates.take(displayCount).reversed()
     val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
     val for5dHistory = summary.for5dHistory.take(displayCount).reversed()
@@ -168,10 +182,10 @@ private fun AnalysisContent(
     // Calculate MACD-style oscillator values (matching Python reference)
     // 1. Calculate Supply Ratio = (foreign + institution) / mcap
     //    for5dHistory is in 억원, mcapHistory is in 조원
-    //    supply_ratio = (for5d + ins5d) * 1e8 / (mcap * 1e12) = (for5d + ins5d) / (mcap * 10000)
+    //    supply_ratio = (for5d + ins5d) * 1e8 / (mcap * 1e12) = (for5d + ins5d) / (mcap * TRILLION_TO_BILLION)
     val supplyRatioList = mcapHistory.mapIndexed { index, mcap ->
         if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
-            (for5dHistory[index] + ins5dHistory[index]) / (mcap * 10000)
+            (for5dHistory[index] + ins5dHistory[index]) / (mcap * ChartConfig.TRILLION_TO_BILLION)
         } else {
             0.0
         }
@@ -240,7 +254,7 @@ private fun AnalysisContent(
             ) {
                 MarketCapOscillatorChart(
                     dates = dates,
-                    mcapValues = mcapHistory.map { it * 10000 },  // Convert to 억
+                    mcapValues = mcapHistory.map { it * ChartConfig.TRILLION_TO_BILLION },  // Convert to 억
                     oscillatorValues = oscillatorValues
                 )
             }
@@ -253,9 +267,9 @@ private fun AnalysisContent(
                 subtitle = "외국인(빨강), 기관(파랑)"
             ) {
                 SupplyDemandBarChart(
-                    dates = dates.takeLast(60),
-                    foreignValues = for5dHistory.takeLast(60),  // Already in 억원
-                    institutionValues = ins5dHistory.takeLast(60)  // Already in 억원
+                    dates = dates.takeLast(ChartConfig.SUPPLY_DEMAND_CHART_DAYS),
+                    foreignValues = for5dHistory.takeLast(ChartConfig.SUPPLY_DEMAND_CHART_DAYS),  // Already in 억원
+                    institutionValues = ins5dHistory.takeLast(ChartConfig.SUPPLY_DEMAND_CHART_DAYS)  // Already in 억원
                 )
             }
         }

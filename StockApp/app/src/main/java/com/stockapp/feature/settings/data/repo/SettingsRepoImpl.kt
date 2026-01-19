@@ -68,14 +68,23 @@ class SettingsRepoImpl @Inject constructor(
                 InvestmentMode.PRODUCTION -> PROD_URL
             }
 
-            // Try to initialize PyClient with the provided keys
-            pyClient.initialize(
+            // Test connection without modifying global PyClient state
+            // This prevents race conditions with concurrent API calls
+            pyClient.testConnection(
                 appKey = config.appKey,
                 secretKey = config.secretKey,
                 baseUrl = baseUrl
             ).fold(
                 onSuccess = {
-                    Result.success(true)
+                    // Test passed, now initialize the actual client
+                    pyClient.initialize(
+                        appKey = config.appKey,
+                        secretKey = config.secretKey,
+                        baseUrl = baseUrl
+                    ).fold(
+                        onSuccess = { Result.success(true) },
+                        onFailure = { e -> Result.failure(e) }
+                    )
                 },
                 onFailure = { e ->
                     Result.failure(e)

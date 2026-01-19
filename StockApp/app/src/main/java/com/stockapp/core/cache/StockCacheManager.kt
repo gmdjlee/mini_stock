@@ -1,6 +1,7 @@
 package com.stockapp.core.cache
 
 import android.util.Log
+import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.StockEntity
 import com.stockapp.core.py.PyClient
@@ -15,7 +16,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "StockCacheManager"
-private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L // 24 hours
+private const val MAX_CACHE_SIZE = 10_000 // Maximum number of stocks to cache
 
 /**
  * Stock cache state.
@@ -61,7 +62,7 @@ class StockCacheManager @Inject constructor(
         Log.d(TAG, "initializeIfNeeded() cache count=$count, age=${cacheAge / 1000 / 60}min")
 
         // If cache is valid, return immediately
-        if (count > 0 && cacheAge < CACHE_TTL_MS) {
+        if (count > 0 && cacheAge < AppDb.STOCK_CACHE_TTL) {
             Log.d(TAG, "initializeIfNeeded() cache is valid, skipping refresh")
             _state.value = CacheState.Ready(count)
             return Result.success(count)
@@ -92,9 +93,17 @@ class StockCacheManager @Inject constructor(
                 onSuccess = { stocks ->
                     Log.d(TAG, "refreshCache() fetched ${stocks.size} stocks")
 
+                    // Apply size limit to prevent excessive memory usage
+                    val limitedStocks = if (stocks.size > MAX_CACHE_SIZE) {
+                        Log.w(TAG, "refreshCache() truncating ${stocks.size} stocks to $MAX_CACHE_SIZE")
+                        stocks.take(MAX_CACHE_SIZE)
+                    } else {
+                        stocks
+                    }
+
                     // Clear old cache and insert new data
                     stockDao.deleteAll()
-                    stockDao.insertAll(stocks)
+                    stockDao.insertAll(limitedStocks)
 
                     val count = stockDao.count()
                     Log.d(TAG, "refreshCache() cache updated with $count stocks")
@@ -132,7 +141,7 @@ class StockCacheManager @Inject constructor(
         return CacheStats(
             count = count,
             lastUpdatedMs = lastUpdated,
-            isExpired = System.currentTimeMillis() - lastUpdated > CACHE_TTL_MS
+            isExpired = System.currentTimeMillis() - lastUpdated > AppDb.STOCK_CACHE_TTL
         )
     }
 

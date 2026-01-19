@@ -116,13 +116,21 @@ class ConditionRepoImpl @Inject constructor(
 
     private fun parseCacheList(data: String): List<Condition> {
         if (data.isBlank()) return emptyList()
-        return data.split(";").map { item ->
-            val parts = item.split(":")
-            Condition(
-                idx = parts[0],
-                name = if (parts.size > 1) parts[1] else ""
-            )
-        }
+
+        return data.split(";")
+            .filter { it.isNotBlank() }
+            .mapNotNull { item ->
+                val parts = item.split(":")
+                // Skip invalid entries that don't have at least an index
+                if (parts.isEmpty() || parts[0].isBlank()) {
+                    null
+                } else {
+                    Condition(
+                        idx = parts[0],
+                        name = parts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: ""
+                    )
+                }
+            }
     }
 
     private fun isCacheExpired(cachedAt: Long): Boolean {
