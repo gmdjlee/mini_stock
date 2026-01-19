@@ -458,7 +458,7 @@ class KiwoomClient:
         Returns:
             ApiResponse with condition list
         """
-        return self._call("ka10171", "/api/dostk/cond", {})
+        return self._call("ka10171", "/api/dostk/websocket", {})
 
     def search_condition(self, cond_idx: str, cond_name: str) -> ApiResponse:
         """
@@ -473,7 +473,7 @@ class KiwoomClient:
         """
         return self._call(
             "ka10172",
-            "/api/dostk/cond",
+            "/api/dostk/websocket",
             {"cond_idx": cond_idx, "cond_nm": cond_name},
         )
 
@@ -491,8 +491,8 @@ class KiwoomClient:
         """
         return self._call(
             "kt00001",
-            "/api/dostk/mrktdata",
-            {"inq_cnt": str(days)},
+            "/api/dostk/acnt",
+            {"qry_tp": "3", "inq_cnt": str(days)},
         )
 
     def get_credit_trend(self, days: int = 30) -> ApiResponse:
