@@ -9,6 +9,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +84,9 @@ fun StockAppTheme(
         else -> LightColorScheme
     }
 
+    // Select extended colors based on theme
+    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -92,9 +97,42 @@ fun StockAppTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    // Provide Spacing and ExtendedColors via CompositionLocal
+    CompositionLocalProvider(
+        LocalSpacing provides Spacing(),
+        LocalExtendedColors provides extendedColors
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
+
+/**
+ * Extension property to access Spacing from MaterialTheme.
+ *
+ * Usage:
+ * ```
+ * .padding(MaterialTheme.spacing.md)
+ * ```
+ */
+val MaterialTheme.spacing: Spacing
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalSpacing.current
+
+/**
+ * Extension property to access ExtendedColors from MaterialTheme.
+ *
+ * Usage:
+ * ```
+ * MaterialTheme.extendedColors.statusUp
+ * MaterialTheme.extendedColors.success
+ * ```
+ */
+val MaterialTheme.extendedColors: ExtendedColors
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalExtendedColors.current
