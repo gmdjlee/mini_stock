@@ -458,7 +458,7 @@ class KiwoomClient:
         Returns:
             ApiResponse with condition list
         """
-        return self._call("ka10171", "/api/dostk/cond", {})
+        return self._call("ka10171", "/api/dostk/websocket", {})
 
     def search_condition(self, cond_idx: str, cond_name: str) -> ApiResponse:
         """
@@ -473,7 +473,7 @@ class KiwoomClient:
         """
         return self._call(
             "ka10172",
-            "/api/dostk/cond",
+            "/api/dostk/websocket",
             {"cond_idx": cond_idx, "cond_nm": cond_name},
         )
 

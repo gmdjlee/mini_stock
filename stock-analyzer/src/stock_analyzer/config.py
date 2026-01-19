@@ -54,7 +54,7 @@ ENDPOINTS = {
     "foreign_trend": "/api/dostk/frgnistt",
     "chart": "/api/dostk/chart",
     "etf": "/api/dostk/etf",
-    "condition": "/api/dostk/cond",
+    "condition": "/api/dostk/websocket",
 }
 
 # Timeouts (seconds)
