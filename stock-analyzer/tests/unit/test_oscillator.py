@@ -186,7 +186,7 @@ class TestOscillatorCalc:
         client.get_stock_info.return_value = ApiResponse(
             ok=True,
             # ka10001 API returns market cap in 억원 (100 million won)
-            data={"stk_nm": "삼성전자", "mac": 3_800_000},  # 380조원 in 억원
+            data={"stk_nm": "삼성전자", "mac": 3_800_000, "flo_stk": 6900000},  # 380조원 in 억원
         )
         client.get_investor_trend.return_value = ApiResponse(
             ok=True,
@@ -195,6 +195,16 @@ class TestOscillatorCalc:
                     # ka10059 API returns market cap in 백만원 (million won)
                     {"dt": f"202501{25-i:02d}", "mrkt_tot_amt": 380_000_000, "frgnr_invsr": 0, "orgn": 0}
                     for i in range(25)  # 25 days is less than required 30
+                ]
+            },
+        )
+        # Mock daily chart for OHLCV data (analysis.py now fetches this)
+        client.get_daily_chart.return_value = ApiResponse(
+            ok=True,
+            data={
+                "stk_dt_pole_chart_qry": [
+                    {"dt": f"202501{25-i:02d}", "cur_prc": 55000 + i * 100, "open_pric": 54500, "high_pric": 55500, "low_pric": 54000, "trde_qty": 10000000}
+                    for i in range(25)
                 ]
             },
         )

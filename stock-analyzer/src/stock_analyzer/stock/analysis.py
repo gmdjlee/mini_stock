@@ -6,6 +6,7 @@ from typing import Dict, List
 from ..client.kiwoom import KiwoomClient
 from ..core import safe_float, safe_int
 from ..core.log import log_err, log_info
+from . import ohlcv
 
 
 @dataclass
@@ -66,7 +67,11 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
     name = info_resp.data.get("stk_nm", ticker)
     # API field name per official docs: mac (시가총액)
     # ka10001 API returns market cap in 억원 (100 million won), convert to raw won
-    mcap = safe_int(info_resp.data.get("mac", 0)) * 100_000_000
+    base_mcap = safe_int(info_resp.data.get("mac", 0)) * 100_000_000
+
+    # Get floating shares for daily market cap calculation (in 천주 units)
+    flo_stk = safe_int(info_resp.data.get("flo_stk", 0))
+    shares = flo_stk * 1000 if flo_stk > 0 else 0
 
     # 2. Get investor trend
     trend_resp = client.get_investor_trend(ticker)
@@ -81,7 +86,20 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             "error": {"code": "NO_DATA", "msg": "수급 데이터가 없습니다"},
         }
 
-    # 3. Parse data
+    # 3. Get OHLCV data for daily market cap calculation
+    # This ensures market cap varies daily based on actual closing prices
+    date_to_close = {}
+    ohlcv_result = ohlcv.get_daily(client, ticker, days=days)
+    if ohlcv_result["ok"]:
+        ohlcv_data = ohlcv_result["data"]
+        for i, dt in enumerate(ohlcv_data["dates"]):
+            # Convert YYYYMMDD to YYYY-MM-DD if needed
+            dt_key = dt
+            if len(dt) == 8:
+                dt_key = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
+            date_to_close[dt_key] = ohlcv_data["close"][i]
+
+    # 4. Parse data
     dates = []
     mcaps = []
     for_5d = []
@@ -94,12 +112,19 @@ def analyze(client: KiwoomClient, ticker: str, days: int = 180) -> Dict:
             dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
         dates.append(dt)
 
-        # mrkt_tot_amt is in 백만원 (million won), convert to raw won
-        mrkt_tot_amt = safe_int(item.get("mrkt_tot_amt", 0))
-        if mrkt_tot_amt > 0:
-            mcaps.append(mrkt_tot_amt * 1_000_000)
+        # Calculate daily market cap from close price * shares (like oscillator.py)
+        # This ensures market cap varies daily, not flat line
+        if shares > 0 and dt in date_to_close:
+            # Use close price * shares for accurate daily market cap
+            mcaps.append(shares * date_to_close[dt])
         else:
-            mcaps.append(mcap)  # fallback to basic info mcap (already converted)
+            # Fallback: try mrkt_tot_amt from API, then base_mcap
+            mrkt_tot_amt = safe_int(item.get("mrkt_tot_amt", 0))
+            if mrkt_tot_amt > 0:
+                mcaps.append(mrkt_tot_amt * 1_000_000)
+            else:
+                mcaps.append(base_mcap)
+
         # API field names per official docs: frgnr_invsr (외국인투자자), orgn (기관계)
         for_5d.append(safe_int(item.get("frgnr_invsr", 0)))
         ins_5d.append(safe_int(item.get("orgn", 0)))
