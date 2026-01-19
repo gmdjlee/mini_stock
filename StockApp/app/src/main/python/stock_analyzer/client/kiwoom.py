@@ -491,8 +491,8 @@ class KiwoomClient:
         """
         return self._call(
             "kt00001",
-            "/api/dostk/mrktdata",
-            {"inq_cnt": str(days)},
+            "/api/dostk/acnt",
+            {"qry_tp": "3", "inq_cnt": str(days)},
         )
 
     def get_credit_trend(self, days: int = 30) -> ApiResponse:
