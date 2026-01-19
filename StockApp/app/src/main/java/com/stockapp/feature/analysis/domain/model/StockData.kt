@@ -8,41 +8,46 @@ import kotlinx.serialization.Serializable
 data class StockData(
     val ticker: String,
     val name: String,
-    val dates: List<String>,
-    val mcap: List<Long>,      // Market cap
-    val for5d: List<Long>,     // Foreign 5-day net buying
-    val ins5d: List<Long>      // Institution 5-day net buying
+    val dates: List<String>,      // Reverse chronological order (newest first)
+    val mcap: List<Long>,         // Market cap
+    val for5d: List<Long>,        // Foreign 5-day net buying
+    val ins5d: List<Long>         // Institution 5-day net buying
 ) {
     /**
-     * Get latest market cap in trillion KRW.
+     * Get latest (current) market cap in trillion KRW.
+     * Data is in reverse chronological order (newest first), so use firstOrNull().
      */
     val latestMcapTrillion: Double
-        get() = mcap.lastOrNull()?.let { it / 1_000_000_000_000.0 } ?: 0.0
+        get() = mcap.firstOrNull()?.let { it / 1_000_000_000_000.0 } ?: 0.0
 
     /**
-     * Get latest foreign net buying in billion KRW.
+     * Get latest (current) foreign net buying in billion KRW.
+     * Data is in reverse chronological order (newest first), so use firstOrNull().
      */
     val latestFor5dBillion: Double
-        get() = for5d.lastOrNull()?.let { it / 1_000_000_000.0 } ?: 0.0
+        get() = for5d.firstOrNull()?.let { it / 1_000_000_000.0 } ?: 0.0
 
     /**
-     * Get latest institution net buying in billion KRW.
+     * Get latest (current) institution net buying in billion KRW.
+     * Data is in reverse chronological order (newest first), so use firstOrNull().
      */
     val latestIns5dBillion: Double
-        get() = ins5d.lastOrNull()?.let { it / 1_000_000_000.0 } ?: 0.0
+        get() = ins5d.firstOrNull()?.let { it / 1_000_000_000.0 } ?: 0.0
 
     /**
      * Get total supply (foreign + institution) for latest date.
+     * Data is in reverse chronological order (newest first), so use firstOrNull().
      */
     val latestTotalSupply: Long
-        get() = (for5d.lastOrNull() ?: 0L) + (ins5d.lastOrNull() ?: 0L)
+        get() = (for5d.firstOrNull() ?: 0L) + (ins5d.firstOrNull() ?: 0L)
 
     /**
      * Get supply ratio for latest date.
+     * Data is in reverse chronological order (newest first), so use firstOrNull().
      */
     val latestSupplyRatio: Double
         get() {
-            val m = mcap.lastOrNull() ?: return 0.0
+            val m = mcap.firstOrNull() ?: return 0.0
             if (m == 0L) return 0.0
             return latestTotalSupply.toDouble() / m
         }

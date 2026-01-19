@@ -157,12 +157,15 @@ private fun AnalysisContent(
     summary: AnalysisSummary,
     modifier: Modifier = Modifier
 ) {
-    val dates = summary.dates.takeLast(120)
-    val mcapHistory = summary.mcapHistory.takeLast(120)
-    val for5dHistory = summary.for5dHistory.takeLast(120)
-    val ins5dHistory = summary.ins5dHistory.takeLast(120)
+    // Python returns data in reverse chronological order (newest first)
+    // take(N) gets newest N days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(120, summary.dates.size)
+    val dates = summary.dates.take(displayCount).reversed()
+    val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
+    val for5dHistory = summary.for5dHistory.take(displayCount).reversed()
+    val ins5dHistory = summary.ins5dHistory.take(displayCount).reversed()
 
-    // Calculate oscillator values
+    // Calculate oscillator values (data is now in chronological order)
     val oscillatorValues = mcapHistory.mapIndexed { index, mcap ->
         if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
             (for5dHistory[index] + ins5dHistory[index]) / (mcap * 10000)  // Scaled
@@ -247,10 +250,10 @@ private fun AnalysisContent(
             }
         }
 
-        // Data info
-        if (summary.dates.isNotEmpty()) {
+        // Data info (dates is in chronological order: oldest first, newest last)
+        if (dates.isNotEmpty()) {
             Text(
-                text = "기간: ${summary.dates.first()} ~ ${summary.dates.last()} (${summary.dates.size}일)",
+                text = "기간: ${dates.first()} ~ ${dates.last()} (${dates.size}일)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

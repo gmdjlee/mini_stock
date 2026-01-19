@@ -270,10 +270,13 @@ private fun TimeframeSelector(
 
 @Composable
 private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
-    val dates = summary.dates.takeLast(60)
-    val priceHistory = summary.priceHistory.takeLast(60)
-    val fearGreedHistory = summary.fearGreedHistory.takeLast(60)
-    val cmfHistory = summary.cmfHistory.takeLast(60)
+    // Python returns data in reverse chronological order (newest first)
+    // take(60) gets newest 60 days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(60, summary.dates.size)
+    val dates = summary.dates.take(displayCount).reversed()
+    val priceHistory = summary.priceHistory.take(displayCount).reversed()
+    val fearGreedHistory = summary.fearGreedHistory.take(displayCount).reversed()
+    val cmfHistory = summary.cmfHistory.take(displayCount).reversed()
 
     // Title with current status
     Text(
@@ -350,13 +353,16 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
 
 @Composable
 private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
-    val dates = summary.dates.takeLast(60)
-    val mcapHistory = summary.mcapHistory.takeLast(60)
-    val ema13History = summary.ema13History.takeLast(60)
-    val impulseStates = summary.impulseStates.takeLast(60)
-    val macdLineHistory = summary.macdLineHistory.takeLast(60)
-    val signalLineHistory = summary.signalLineHistory.takeLast(60)
-    val macdHistHistory = summary.macdHistHistory.takeLast(60)
+    // Python returns data in reverse chronological order (newest first)
+    // take(60) gets newest 60 days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(60, summary.dates.size)
+    val dates = summary.dates.take(displayCount).reversed()
+    val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
+    val ema13History = summary.ema13History.take(displayCount).reversed()
+    val impulseStates = summary.impulseStates.take(displayCount).reversed()
+    val macdLineHistory = summary.macdLineHistory.take(displayCount).reversed()
+    val signalLineHistory = summary.signalLineHistory.take(displayCount).reversed()
+    val macdHistHistory = summary.macdHistHistory.take(displayCount).reversed()
 
     // Title with current status
     Text(
@@ -428,10 +434,13 @@ private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
 
 @Composable
 private fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
-    val dates = summary.dates.takeLast(60)
-    val sellSetupHistory = summary.sellSetupHistory.takeLast(60)
-    val buySetupHistory = summary.buySetupHistory.takeLast(60)
-    val mcapHistory = summary.mcapHistory.takeLast(60)
+    // Python returns data in reverse chronological order (newest first)
+    // take(60) gets newest 60 days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(60, summary.dates.size)
+    val dates = summary.dates.take(displayCount).reversed()
+    val sellSetupHistory = summary.sellSetupHistory.take(displayCount).reversed()
+    val buySetupHistory = summary.buySetupHistory.take(displayCount).reversed()
+    val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
 
     // Title
     Text(
