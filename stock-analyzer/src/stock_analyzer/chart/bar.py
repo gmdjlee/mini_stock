@@ -423,11 +423,11 @@ def plot_demark(
     save_path: Optional[str] = None,
 ) -> Dict:
     """
-    Create DeMark TD Setup chart (Custom version).
+    Create DeMark TD Setup chart (EtfMonitor reference).
 
     Shows independent Sell Setup and Buy Setup counts as line charts.
     - Sell Setup: Red line (4일 전 비교, 상승 피로)
-    - Buy Setup: Blue line (2일 전 비교, 하락 피로)
+    - Buy Setup: Blue line (4일 전 비교, 하락 피로)
 
     Args:
         demark_data: DeMark data from indicator.demark.calc()
@@ -474,7 +474,7 @@ def plot_demark(
             buy_setup,
             color="blue",
             linewidth=1.5,
-            label="TD Buy Setup (2일 기준)",
+            label="TD Buy Setup (4일 기준)",
         )
 
         # Dynamic y-axis limit

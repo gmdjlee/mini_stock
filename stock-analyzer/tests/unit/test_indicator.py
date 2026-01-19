@@ -296,7 +296,7 @@ class TestElderCalcFromOhlcv:
 
 
 class TestDemarkCalc:
-    """Tests for demark.calc function (Custom TD Setup)."""
+    """Tests for demark.calc function (EtfMonitor reference TD Setup)."""
 
     def test_empty_ticker(self, mock_kiwoom_client_extended):
         """Test with empty ticker."""
@@ -313,10 +313,10 @@ class TestDemarkCalc:
         assert data["ticker"] == "005930"
         assert "dates" in data
         assert "sell_setup" in data  # Sell: 4일 전 비교
-        assert "buy_setup" in data   # Buy: 2일 전 비교
+        assert "buy_setup" in data   # Buy: 4일 전 비교 (EtfMonitor reference)
 
     def test_setup_count_non_negative(self, mock_kiwoom_client_extended):
-        """Test setup count values are non-negative (no upper limit in custom version)."""
+        """Test setup count values are non-negative (no upper limit)."""
         result = demark.calc(mock_kiwoom_client_extended, "005930", days=30)
         assert result["ok"] is True
 
@@ -347,7 +347,7 @@ class TestDemarkCalc:
 
 
 class TestDemarkCalcFromOhlcv:
-    """Tests for demark.calc_from_ohlcv function (Custom TD Setup)."""
+    """Tests for demark.calc_from_ohlcv function (EtfMonitor reference TD Setup)."""
 
     def test_insufficient_data(self):
         """Test with insufficient data."""
@@ -372,7 +372,7 @@ class TestDemarkCalcFromOhlcv:
 
 
 class TestDemarkGetActiveSetups:
-    """Tests for demark.get_active_setups function (Custom TD Setup)."""
+    """Tests for demark.get_active_setups function (EtfMonitor reference TD Setup)."""
 
     def test_empty_data(self):
         """Test with empty data."""
