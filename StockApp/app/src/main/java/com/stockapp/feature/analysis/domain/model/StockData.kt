@@ -21,18 +21,20 @@ data class StockData(
         get() = mcap.firstOrNull()?.let { it / 1_000_000_000_000.0 } ?: 0.0
 
     /**
-     * Get latest (current) foreign net buying in billion KRW.
+     * Get latest (current) foreign net buying in 억원 (100 million KRW).
      * Data is in reverse chronological order (newest first), so use firstOrNull().
+     * Note: API returns for_5d in 백만원 (million KRW), so divide by 100 to get 억원.
      */
     val latestFor5dBillion: Double
-        get() = for5d.firstOrNull()?.let { it / 1_000_000_000.0 } ?: 0.0
+        get() = for5d.firstOrNull()?.let { it / 100.0 } ?: 0.0
 
     /**
-     * Get latest (current) institution net buying in billion KRW.
+     * Get latest (current) institution net buying in 억원 (100 million KRW).
      * Data is in reverse chronological order (newest first), so use firstOrNull().
+     * Note: API returns ins_5d in 백만원 (million KRW), so divide by 100 to get 억원.
      */
     val latestIns5dBillion: Double
-        get() = ins5d.firstOrNull()?.let { it / 1_000_000_000.0 } ?: 0.0
+        get() = ins5d.firstOrNull()?.let { it / 100.0 } ?: 0.0
 
     /**
      * Get total supply (foreign + institution) for latest date.
@@ -44,12 +46,14 @@ data class StockData(
     /**
      * Get supply ratio for latest date.
      * Data is in reverse chronological order (newest first), so use firstOrNull().
+     * Note: for_5d/ins_5d are in 백만원, mcap is in 원, so multiply by 1,000,000 to normalize.
      */
     val latestSupplyRatio: Double
         get() {
             val m = mcap.firstOrNull() ?: return 0.0
             if (m == 0L) return 0.0
-            return latestTotalSupply.toDouble() / m
+            // Convert 백만원 to 원 for proper ratio calculation
+            return (latestTotalSupply.toDouble() * 1_000_000) / m
         }
 }
 
@@ -95,14 +99,14 @@ data class AnalysisSummary(
     val ticker: String,
     val name: String,
     val mcapTrillion: Double,
-    val for5dBillion: Double,
-    val ins5dBillion: Double,
+    val for5dBillion: Double,           // In 억원 (100 million KRW)
+    val ins5dBillion: Double,           // In 억원 (100 million KRW)
     val supplyRatio: Double,
     val supplySignal: SupplySignal,
     val dates: List<String>,
-    val mcapHistory: List<Double>,      // In trillion
-    val for5dHistory: List<Double>,     // In billion
-    val ins5dHistory: List<Double>      // In billion
+    val mcapHistory: List<Double>,      // In trillion (조원)
+    val for5dHistory: List<Double>,     // In 억원 (100 million KRW)
+    val ins5dHistory: List<Double>      // In 억원 (100 million KRW)
 )
 
 enum class SupplySignal {
@@ -125,6 +129,7 @@ enum class SupplySignal {
 
 /**
  * Convert StockData to AnalysisSummary for UI.
+ * Note: API returns for_5d/ins_5d in 백만원 (million KRW), convert to 억원 by dividing by 100.
  */
 fun StockData.toSummary(): AnalysisSummary {
     return AnalysisSummary(
@@ -137,7 +142,7 @@ fun StockData.toSummary(): AnalysisSummary {
         supplySignal = SupplySignal.fromRatio(latestSupplyRatio),
         dates = dates,
         mcapHistory = mcap.map { it / 1_000_000_000_000.0 },
-        for5dHistory = for5d.map { it / 1_000_000_000.0 },
-        ins5dHistory = ins5d.map { it / 1_000_000_000.0 }
+        for5dHistory = for5d.map { it / 100.0 },  // 백만원 → 억원
+        ins5dHistory = ins5d.map { it / 100.0 }   // 백만원 → 억원
     )
 }
