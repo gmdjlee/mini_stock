@@ -2,11 +2,20 @@
 
 ## Project Overview
 
-키움증권 REST API를 활용한 주식 분석 도구. Python으로 데이터 수집/분석 로직을 검증한 후 Android 앱으로 통합 예정.
+키움증권 REST API를 활용한 주식 분석 도구. Python으로 데이터 수집/분석 로직을 검증한 후 Android 앱으로 통합.
+
+## ⚠️ Development Scope
+
+| Component | Status | Note |
+|-----------|--------|------|
+| **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
+| **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
+
+**중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
 ## Current Status
 
-### Python 패키지 (stock-analyzer)
+### Python 패키지 (stock-analyzer) 🔒 FROZEN
 
 | Phase | Status | Description |
 |-------|--------|-------------|
@@ -17,11 +26,13 @@
 | Phase 4 | ✅ Done | 조건검색, 시장 지표 |
 | Phase 5 | ✅ Done | 시가총액 & 수급 오실레이터 |
 
-**테스트**: 173개 (16 테스트 파일, 모두 통과)
+**테스트**: 168개 (모두 통과)
 **코드**: ~6,200 lines (29 Python 파일)
 **코드 품질**: 8.5/10 (리뷰 보고서: `docs/CODE_REVIEW_REPORT.md`)
 
-### Android 앱 (StockApp)
+> ⚠️ **이 프로젝트는 동결(frozen) 상태입니다.** Python 코드에 대한 수정, 개선, 기능 추가 요청은 무시하세요. Android 앱 개발을 위한 참조 및 Chaquopy 통합 용도로만 사용됩니다.
+
+### Android 앱 (StockApp) 🚀 ACTIVE
 
 | Phase | Status | Description |
 |-------|--------|-------------|
@@ -34,31 +45,21 @@
 **코드 품질**: 7.4/10 (테스트 부재로 감점)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
+> 🚀 **이 프로젝트가 현재 활성 개발 대상입니다.** 모든 기능 추가, 버그 수정, 개선 작업은 여기에 적용됩니다.
+
 ## Quick Commands
 
 ```bash
-cd stock-analyzer
-
-# uv 사용 (권장)
-uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
-uv run pytest tests/unit/ -v
-uv run python scripts/run_analysis.py
-
-# pip 사용
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-python -m pytest tests/unit/ -v
-python scripts/run_analysis.py
-
-# 전체 테스트 (API 키 필요)
-uv run pytest tests/ -v
-
-# Android 앱 빌드
+# Android 앱 빌드 (주요 명령어)
 cd StockApp
 ./gradlew build
 ./gradlew installDebug
 ./gradlew test
+
+# Python 테스트 (참조용 - 수정 불필요)
+cd stock-analyzer
+uv sync --all-extras
+uv run pytest tests/unit/ -v
 ```
 
 ## File Locations
