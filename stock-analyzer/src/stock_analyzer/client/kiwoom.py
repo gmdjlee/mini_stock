@@ -1,5 +1,6 @@
 """Kiwoom REST API client."""
 
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -53,20 +54,22 @@ class KiwoomClient:
         self.base_url = base_url
         self.auth = AuthClient(app_key, secret_key, base_url)
 
-        # Rate limiting
+        # Rate limiting (thread-safe)
         self._min_interval = min_interval
         self._max_retries = max_retries
         self._retry_base_delay = retry_base_delay
         self._last_call_time: float = 0
+        self._rate_limit_lock = threading.Lock()
 
     def _wait_for_rate_limit(self) -> None:
-        """Wait if needed to respect rate limit."""
-        now = time.time()
-        elapsed = now - self._last_call_time
-        if elapsed < self._min_interval:
-            sleep_time = self._min_interval - elapsed
-            time.sleep(sleep_time)
-        self._last_call_time = time.time()
+        """Wait if needed to respect rate limit (thread-safe)."""
+        with self._rate_limit_lock:
+            now = time.time()
+            elapsed = now - self._last_call_time
+            if elapsed < self._min_interval:
+                sleep_time = self._min_interval - elapsed
+                time.sleep(sleep_time)
+            self._last_call_time = time.time()
 
     def _call(
         self,

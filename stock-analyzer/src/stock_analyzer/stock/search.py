@@ -1,7 +1,7 @@
 """Stock search functionality."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..client.kiwoom import KiwoomClient
 from ..core.log import log_err, log_info
@@ -18,6 +18,11 @@ class StockInfo:
 
 # Default markets to include (KOSPI and KOSDAQ only)
 DEFAULT_MARKETS = ["KOSPI", "KOSDAQ"]
+
+# Pagination limits
+MAX_SEARCH_RESULTS = 50  # Maximum results returned from search
+MAX_SEARCH_PAGES = 50  # Safety limit for search pagination
+MAX_GET_ALL_PAGES = 100  # Safety limit for get_all pagination
 
 
 def search(
@@ -65,11 +70,10 @@ def search(
     # Get stock list with pagination
     cont_yn = ""
     next_key = ""
-    max_pages = 50  # Safety limit
 
-    log_info("stock.search", "starting pagination loop", {"query": query, "max_pages": max_pages})
+    log_info("stock.search", "starting pagination loop", {"query": query, "max_pages": MAX_SEARCH_PAGES})
 
-    for page_num in range(max_pages):
+    for page_num in range(MAX_SEARCH_PAGES):
         log_info("stock.search", f"fetching page {page_num + 1}", {
             "cont_yn": cont_yn,
             "next_key": next_key[:20] if next_key else ""
@@ -118,7 +122,7 @@ def search(
                 })
 
                 # Early exit if we have enough results
-                if len(results) >= 50:
+                if len(results) >= MAX_SEARCH_RESULTS:
                     break
 
         log_info("stock.search", f"page {page_num + 1} processed", {
@@ -127,7 +131,7 @@ def search(
         })
 
         # Stop if we have enough results or no more pages
-        if len(results) >= 50 or not resp.has_next:
+        if len(results) >= MAX_SEARCH_RESULTS or not resp.has_next:
             break
 
         # Prepare for next page
@@ -136,7 +140,7 @@ def search(
 
     log_info("stock.search", "search complete", {"query": query, "count": len(results)})
 
-    return {"ok": True, "data": results[:50]}  # Max 50 results
+    return {"ok": True, "data": results[:MAX_SEARCH_RESULTS]}
 
 
 def get_all(
@@ -163,7 +167,6 @@ def get_all(
         markets = DEFAULT_MARKETS
 
     results = []
-    max_pages = 100  # Safety limit
 
     log_info("stock.search", "get_all fetching all stocks", {"markets": markets})
 
@@ -176,7 +179,7 @@ def get_all(
 
     log_info("stock.search", "Fetching all stocks with mrkt_tp=0", {})
 
-    for page_num in range(max_pages):
+    for page_num in range(MAX_GET_ALL_PAGES):
         resp = client.get_stock_list("0", cont_yn=cont_yn, next_key=next_key)
         if not resp.ok:
             log_err("stock.search", "get_all API error", {"error": resp.error})
@@ -298,16 +301,30 @@ def get_info(client: KiwoomClient, ticker: str) -> Dict:
     }
 
 
-def _to_int(value) -> int:
-    """Convert value to int safely."""
+def _to_int(value: Any) -> int:
+    """Convert value to int safely.
+
+    Args:
+        value: Any value that can be converted to int
+
+    Returns:
+        Integer value, or 0 if conversion fails
+    """
     try:
         return int(value)
     except (ValueError, TypeError):
         return 0
 
 
-def _to_float(value) -> float:
-    """Convert value to float safely."""
+def _to_float(value: Any) -> float:
+    """Convert value to float safely.
+
+    Args:
+        value: Any value that can be converted to float
+
+    Returns:
+        Float value, or 0.0 if conversion fails
+    """
     try:
         return float(value)
     except (ValueError, TypeError):

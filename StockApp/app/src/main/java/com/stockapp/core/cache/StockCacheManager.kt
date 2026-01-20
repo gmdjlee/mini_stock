@@ -108,9 +108,19 @@ class StockCacheManager @Inject constructor(
                     Log.d(TAG, "refreshCache() market breakdown - KOSPI: $kospiCount, KOSDAQ: $kosdaqCount, OTHER: $otherCount")
 
                     // Apply size limit to prevent excessive memory usage
+                    // Sort by market (KOSPI first) then by name to preserve most relevant stocks
                     val limitedStocks = if (stocks.size > MAX_CACHE_SIZE) {
                         Log.w(TAG, "refreshCache() truncating ${stocks.size} stocks to $MAX_CACHE_SIZE")
-                        stocks.take(MAX_CACHE_SIZE)
+                        stocks.sortedWith(
+                            compareBy<StockEntity> {
+                                // KOSPI stocks first, then KOSDAQ
+                                when (it.market) {
+                                    "KOSPI" -> 0
+                                    "KOSDAQ" -> 1
+                                    else -> 2
+                                }
+                            }.thenBy { it.name }
+                        ).take(MAX_CACHE_SIZE)
                     } else {
                         stocks
                     }

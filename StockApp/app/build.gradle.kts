@@ -101,6 +101,9 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // Security Crypto (for encrypted API key storage)
+    implementation(libs.security.crypto)
+
     // Serialization
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)

@@ -113,7 +113,8 @@ class PyClient @Inject constructor(
                 val jsonStr = jsonModule.callAttr("dumps", result).toString()
 
                 if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "call() response length: ${jsonStr.length}")
+                    // Only log response length, not content (may contain sensitive data)
+                    Log.d(TAG, "call() response received: ${jsonStr.length} chars")
                 }
 
                 // Parse response
