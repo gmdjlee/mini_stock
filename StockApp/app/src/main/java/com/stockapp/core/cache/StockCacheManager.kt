@@ -101,6 +101,12 @@ class StockCacheManager @Inject constructor(
                 onSuccess = { stocks ->
                     Log.d(TAG, "refreshCache() fetched ${stocks.size} stocks")
 
+                    // Log market breakdown for debugging
+                    val kospiCount = stocks.count { it.market == "KOSPI" }
+                    val kosdaqCount = stocks.count { it.market == "KOSDAQ" }
+                    val otherCount = stocks.size - kospiCount - kosdaqCount
+                    Log.d(TAG, "refreshCache() market breakdown - KOSPI: $kospiCount, KOSDAQ: $kosdaqCount, OTHER: $otherCount")
+
                     // Apply size limit to prevent excessive memory usage
                     val limitedStocks = if (stocks.size > MAX_CACHE_SIZE) {
                         Log.w(TAG, "refreshCache() truncating ${stocks.size} stocks to $MAX_CACHE_SIZE")
