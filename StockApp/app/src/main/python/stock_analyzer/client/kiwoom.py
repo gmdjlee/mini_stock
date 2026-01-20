@@ -481,7 +481,7 @@ class KiwoomClient:
 
     def get_deposit_trend(self, days: int = 30) -> ApiResponse:
         """
-        Get customer deposit trend (kt00001).
+        Get daily estimated deposit asset trend (kt00002).
 
         Args:
             days: Number of days to retrieve
@@ -489,24 +489,35 @@ class KiwoomClient:
         Returns:
             ApiResponse with deposit trend data
         """
+        from ..core.date import days_ago, today_str
+
+        end_dt = today_str()
+        start_dt = days_ago(days)
         return self._call(
-            "kt00001",
+            "kt00002",
             "/api/dostk/acnt",
-            {"qry_tp": "3", "inq_cnt": str(days)},
+            {"start_dt": start_dt, "end_dt": end_dt},
         )
 
     def get_credit_trend(self, days: int = 30) -> ApiResponse:
         """
-        Get credit trading trend (ka10013).
+        Get credit trend from daily estimated deposit asset (kt00002).
+
+        Note: ka10013 requires stock code, so we use kt00002 which includes
+        crd_loan (신용융자금) data at the account level.
 
         Args:
             days: Number of days to retrieve
 
         Returns:
-            ApiResponse with credit balance trend data
+            ApiResponse with credit trend data
         """
+        from ..core.date import days_ago, today_str
+
+        end_dt = today_str()
+        start_dt = days_ago(days)
         return self._call(
-            "ka10013",
-            "/api/dostk/stkinfo",
-            {"inq_cnt": str(days)},
+            "kt00002",
+            "/api/dostk/acnt",
+            {"start_dt": start_dt, "end_dt": end_dt},
         )

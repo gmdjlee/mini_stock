@@ -59,7 +59,12 @@ def get_deposit(client: KiwoomClient, days: int = 30) -> Dict:
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    trend_data = resp.data.get("deposit_list", []) or resp.data.get("list", [])
+    # kt00002 response: try multiple possible keys for the list
+    trend_data = (
+        resp.data.get("list", [])
+        or resp.data.get("deposit_list", [])
+        or resp.data.get("output", [])
+    )
     if not trend_data:
         return {
             "ok": False,
@@ -75,8 +80,9 @@ def get_deposit(client: KiwoomClient, days: int = 30) -> Dict:
         if len(dt) == 8:
             dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
         dates.append(dt)
-        deposit.append(safe_int(item.get("cust_deposit", 0)))
-        credit_loan.append(safe_int(item.get("credit_loan", 0)))
+        # kt00002 uses 'entr' for 예수금, 'crd_loan' for 신용융자금
+        deposit.append(safe_int(item.get("entr", 0) or item.get("cust_deposit", 0)))
+        credit_loan.append(safe_int(item.get("crd_loan", 0) or item.get("credit_loan", 0)))
 
     log_info("market.deposit", "get_deposit complete", {"days": len(dates)})
 
@@ -123,7 +129,12 @@ def get_credit(client: KiwoomClient, days: int = 30) -> Dict:
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    trend_data = resp.data.get("credit_list", []) or resp.data.get("list", [])
+    # kt00002 response: try multiple possible keys for the list
+    trend_data = (
+        resp.data.get("list", [])
+        or resp.data.get("credit_list", [])
+        or resp.data.get("output", [])
+    )
     if not trend_data:
         return {
             "ok": False,
@@ -139,7 +150,8 @@ def get_credit(client: KiwoomClient, days: int = 30) -> Dict:
         if len(dt) == 8:
             dt = f"{dt[:4]}-{dt[4:6]}-{dt[6:8]}"
         dates.append(dt)
-        credit_balance.append(safe_int(item.get("credit_bal", 0)))
+        # kt00002 uses 'crd_loan' for 신용융자금 (used as credit_balance proxy)
+        credit_balance.append(safe_int(item.get("crd_loan", 0) or item.get("credit_bal", 0)))
         credit_ratio.append(safe_float(item.get("credit_rt", 0)))
 
     log_info("market.deposit", "get_credit complete", {"days": len(dates)})
