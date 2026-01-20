@@ -206,11 +206,16 @@ def get_all(
             })
 
             for item in stk_list:
-                # Use marketName from API to determine actual market
-                api_market = _get_market_name(item.get("marketName", ""))
+                # Determine market from marketCode field (1=KOSPI, 2=KOSDAQ)
+                # Note: marketName field contains sector/industry name, not market
+                market_code = item.get("marketCode", "")
+                api_market = _get_market_from_code(market_code)
+
+                # Fallback to marketName if marketCode is not available
+                if api_market == "기타":
+                    api_market = _get_market_name(item.get("marketName", ""))
 
                 # Only include if the API-reported market matches expected markets
-                # This filters out stocks with unexpected marketName values
                 if api_market not in markets:
                     continue
 
@@ -314,6 +319,20 @@ def _to_float(value) -> float:
         return float(value)
     except (ValueError, TypeError):
         return 0.0
+
+
+def _get_market_from_code(market_code: str) -> str:
+    """Convert marketCode to market name.
+
+    API marketCode values:
+    - "1" = KOSPI (유가증권시장)
+    - "2" = KOSDAQ (코스닥시장)
+    """
+    if market_code == "1":
+        return "KOSPI"
+    if market_code == "2":
+        return "KOSDAQ"
+    return "기타"
 
 
 def _get_market_name(market_name: str) -> str:
