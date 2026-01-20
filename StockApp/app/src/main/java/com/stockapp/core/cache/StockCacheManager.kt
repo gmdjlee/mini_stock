@@ -77,6 +77,14 @@ class StockCacheManager @Inject constructor(
      */
     suspend fun refreshCache(): Result<Int> {
         Log.d(TAG, "refreshCache() started")
+
+        // Check if PyClient is ready
+        if (!pyClient.isReady()) {
+            Log.w(TAG, "refreshCache() PyClient not ready, cannot refresh")
+            _state.value = CacheState.Error("API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.")
+            return Result.failure(Exception("PyClient not initialized"))
+        }
+
         _state.value = CacheState.Loading
 
         return try {

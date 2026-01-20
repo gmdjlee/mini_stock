@@ -47,28 +47,35 @@ class App : Application() {
                 val settingsRepo = entryPoint.settingsRepo()
                 val initResult = settingsRepo.initializeWithSavedKeys()
 
-                if (initResult.isSuccess) {
-                    Log.d(TAG, "PyClient initialized successfully")
+                initResult.fold(
+                    onSuccess = { initialized ->
+                        if (initialized) {
+                            Log.d(TAG, "PyClient initialized successfully")
 
-                    // 2. Initialize stock cache after PyClient is ready
-                    // Small delay to ensure PyClient is fully ready
-                    delay(500)
+                            // 2. Initialize stock cache after PyClient is ready
+                            // Small delay to ensure PyClient is fully ready
+                            delay(500)
 
-                    Log.d(TAG, "Initializing stock cache...")
-                    val cacheManager = entryPoint.stockCacheManager()
-                    val cacheResult = cacheManager.initializeIfNeeded()
+                            Log.d(TAG, "Initializing stock cache...")
+                            val cacheManager = entryPoint.stockCacheManager()
+                            val cacheResult = cacheManager.initializeIfNeeded()
 
-                    cacheResult.fold(
-                        onSuccess = { count ->
-                            Log.d(TAG, "Stock cache initialized with $count stocks")
-                        },
-                        onFailure = { e ->
-                            Log.w(TAG, "Stock cache initialization failed: ${e.message}")
+                            cacheResult.fold(
+                                onSuccess = { count ->
+                                    Log.d(TAG, "Stock cache initialized with $count stocks")
+                                },
+                                onFailure = { e ->
+                                    Log.w(TAG, "Stock cache initialization failed: ${e.message}")
+                                }
+                            )
+                        } else {
+                            Log.w(TAG, "No API keys configured, skipping cache init")
                         }
-                    )
-                } else {
-                    Log.w(TAG, "PyClient initialization failed, skipping cache init")
-                }
+                    },
+                    onFailure = { e ->
+                        Log.w(TAG, "PyClient initialization failed: ${e.message}")
+                    }
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "App initialization error: ${e.message}", e)
                 // Silently fail - user will need to configure API keys in settings
