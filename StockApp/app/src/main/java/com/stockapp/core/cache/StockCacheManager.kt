@@ -121,13 +121,15 @@ class StockCacheManager @Inject constructor(
                 },
                 onFailure = { e ->
                     Log.e(TAG, "refreshCache() failed: ${e.message}", e)
-                    _state.value = CacheState.Error(e.message ?: "Failed to refresh cache")
+                    val userMessage = mapErrorToUserMessage(e.message)
+                    _state.value = CacheState.Error(userMessage)
                     Result.failure(e)
                 }
             )
         } catch (e: Exception) {
             Log.e(TAG, "refreshCache() exception: ${e.message}", e)
-            _state.value = CacheState.Error(e.message ?: "Unknown error")
+            val userMessage = mapErrorToUserMessage(e.message)
+            _state.value = CacheState.Error(userMessage)
             Result.failure(e)
         }
     }
@@ -170,6 +172,41 @@ class StockCacheManager @Inject constructor(
             }
         } else {
             throw Exception(response.error?.msg ?: "Failed to parse stock list")
+        }
+    }
+
+    /**
+     * Map technical error messages to user-friendly messages.
+     */
+    private fun mapErrorToUserMessage(errorMessage: String?): String {
+        if (errorMessage == null) return "알 수 없는 오류가 발생했습니다."
+
+        return when {
+            // Authentication errors
+            errorMessage.contains("AuthError") ||
+            errorMessage.contains("인증에 실패") ||
+            errorMessage.contains("App Key") ||
+            errorMessage.contains("Secret Key") -> {
+                "API 키 인증에 실패했습니다. 설정에서 올바른 API 키를 입력해주세요."
+            }
+            // Network errors
+            errorMessage.contains("Network error") ||
+            errorMessage.contains("네트워크") ||
+            errorMessage.contains("timeout", ignoreCase = true) -> {
+                "네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요."
+            }
+            // Not initialized
+            errorMessage.contains("not initialized") ||
+            errorMessage.contains("NotInitialized") -> {
+                "API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요."
+            }
+            // Rate limit
+            errorMessage.contains("Rate limit") ||
+            errorMessage.contains("429") -> {
+                "API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+            }
+            // Default
+            else -> errorMessage
         }
     }
 }
