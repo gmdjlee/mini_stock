@@ -53,6 +53,10 @@ class SearchRepoImpl @Inject constructor(
 
         result.onSuccess { stocks ->
             Log.d(TAG, "search() API returned ${stocks.size} stocks")
+            // Log market breakdown for debugging
+            val kospiCount = stocks.count { it.market.name == "KOSPI" }
+            val kosdaqCount = stocks.count { it.market.name == "KOSDAQ" }
+            Log.d(TAG, "search() market breakdown - KOSPI: $kospiCount, KOSDAQ: $kosdaqCount")
         }.onFailure { e ->
             Log.e(TAG, "search() API failed: ${e.message}", e)
         }
