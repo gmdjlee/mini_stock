@@ -48,6 +48,7 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
+import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.feature.market.domain.model.ChangeDirection
 import com.stockapp.feature.market.domain.model.MarketSummary
 
@@ -74,6 +75,7 @@ fun MarketScreen(
                             contentDescription = "새로고침"
                         )
                     }
+                    ThemeToggleButton()
                 }
             )
         }

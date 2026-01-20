@@ -52,6 +52,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +65,8 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("설정") }
+                title = { Text("설정") },
+                actions = { ThemeToggleButton() }
             )
         }
     ) { paddingValues ->

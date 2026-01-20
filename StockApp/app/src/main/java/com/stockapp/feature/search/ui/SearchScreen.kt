@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.cache.CacheState
+import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.core.ui.component.ErrorCard
 import com.stockapp.core.ui.component.stockinput.StockInputField
 
@@ -50,7 +51,8 @@ fun SearchScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("종목 검색") }
+                title = { Text("종목 검색") },
+                actions = { ThemeToggleButton() }
             )
         }
     ) { paddingValues ->

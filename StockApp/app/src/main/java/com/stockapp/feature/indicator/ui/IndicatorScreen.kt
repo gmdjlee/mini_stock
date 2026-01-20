@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.core.ui.component.chart.ChartCard
 import com.stockapp.core.ui.component.chart.DemarkTDChart
 import com.stockapp.core.ui.component.chart.ElderImpulseChart
@@ -91,6 +92,7 @@ fun IndicatorScreen(
                             )
                         }
                     }
+                    ThemeToggleButton()
                 }
             )
         }
