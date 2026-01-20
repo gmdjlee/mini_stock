@@ -17,8 +17,9 @@
 | Phase 4 | ✅ Done | 조건검색, 시장 지표 |
 | Phase 5 | ✅ Done | 시가총액 & 수급 오실레이터 |
 
-**테스트**: 160개 (11 테스트 파일, 모두 통과)
-**코드**: ~5,437 lines (28 Python 파일)
+**테스트**: 173개 (16 테스트 파일, 모두 통과)
+**코드**: ~6,200 lines (29 Python 파일)
+**코드 품질**: 8.5/10 (리뷰 보고서: `docs/CODE_REVIEW_REPORT.md`)
 
 ### Android 앱 (StockApp)
 
@@ -29,7 +30,8 @@
 | App Phase 2 | ✅ Done | 기술적 지표 화면 (Vico Charts) |
 | App Phase 3 | ✅ Done | 시장 지표, 조건검색 화면 |
 
-**코드**: ~105 files, ~4,200 lines (Kotlin + resources)
+**코드**: ~101 files, ~11,100 lines (Kotlin)
+**코드 품질**: 7.4/10 (테스트 부재로 감점)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 ## Quick Commands
