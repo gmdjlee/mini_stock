@@ -163,77 +163,73 @@ def get_all(
         markets = DEFAULT_MARKETS
 
     results = []
-    max_pages = 100  # Safety limit per market
+    max_pages = 100  # Safety limit
 
     log_info("stock.search", "get_all fetching all stocks", {"markets": markets})
 
-    # Map market names to API mrkt_tp values
-    # mrkt_tp: 1=KOSPI, 2=KOSDAQ (0=all doesn't work reliably)
-    market_to_mrkt_tp = {
-        "KOSPI": "1",
-        "KOSDAQ": "2",
-    }
+    # Use mrkt_tp=0 to get all stocks, then filter by marketName
+    # Note: mrkt_tp=1 (KOSPI) and mrkt_tp=2 (KOSDAQ) don't work reliably
+    # The API returns stocks with different categorizations, so we fetch all
+    # and filter by the marketName field which contains the actual market type
+    cont_yn = ""
+    next_key = ""
 
-    # Fetch each market separately to ensure we get all stocks
-    for market in markets:
-        mrkt_tp = market_to_mrkt_tp.get(market)
-        if not mrkt_tp:
-            log_info("stock.search", f"Skipping unknown market: {market}", {})
-            continue
+    log_info("stock.search", "Fetching all stocks with mrkt_tp=0", {})
 
-        cont_yn = ""
-        next_key = ""
-        market_count = 0
+    for page_num in range(max_pages):
+        resp = client.get_stock_list("0", cont_yn=cont_yn, next_key=next_key)
+        if not resp.ok:
+            log_err("stock.search", "get_all API error", {"error": resp.error})
+            return {"ok": False, "error": resp.error}
 
-        log_info("stock.search", f"Fetching {market} stocks", {"mrkt_tp": mrkt_tp})
+        # Debug: Log response structure
+        log_info("stock.search", f"get_all page {page_num + 1} response", {
+            "keys": list(resp.data.keys()) if resp.data else [],
+            "data_sample": str(resp.data)[:500] if resp.data else "None",
+            "has_next": resp.has_next,
+        })
 
-        for page_num in range(max_pages):
-            resp = client.get_stock_list(mrkt_tp, cont_yn=cont_yn, next_key=next_key)
-            if not resp.ok:
-                log_err("stock.search", f"get_all API error for {market}", {"error": resp.error})
-                return {"ok": False, "error": resp.error}
+        # API returns 'stk_list' with stock data (or 'list' for backward compatibility)
+        # Note: API may return None for list, so use `or []` to handle that case
+        stk_list = resp.data.get("stk_list") or resp.data.get("list") or []
 
-            # Debug: Log response structure
-            log_info("stock.search", f"get_all {market} page {page_num + 1} response", {
-                "keys": list(resp.data.keys()) if resp.data else [],
-                "data_sample": str(resp.data)[:500] if resp.data else "None",
-                "has_next": resp.has_next,
+        log_info("stock.search", f"get_all page {page_num + 1} items", {
+            "list_length": len(stk_list) if stk_list else 0,
+            "first_items": stk_list[:3] if stk_list else [],
+        })
+
+        page_count = 0
+        for item in stk_list:
+            ticker = item.get("code", "")
+            name = item.get("name", "")
+            # Get the actual market from marketName field and normalize it
+            market_name = item.get("marketName", "")
+            market = _get_market_name(market_name)
+
+            # Only include stocks from requested markets (KOSPI/KOSDAQ)
+            if market not in markets:
+                continue
+
+            results.append({
+                "ticker": ticker,
+                "name": name,
+                "market": market,
             })
+            page_count += 1
 
-            # API returns 'stk_list' with stock data (or 'list' for backward compatibility)
-            # Note: API may return None for list, so use `or []` to handle that case
-            stk_list = resp.data.get("stk_list") or resp.data.get("list") or []
+        log_info("stock.search", f"get_all page {page_num + 1} processed", {
+            "page_count": page_count,
+            "total_count": len(results),
+            "has_next": resp.has_next,
+        })
 
-            log_info("stock.search", f"get_all {market} page {page_num + 1} items", {
-                "list_length": len(stk_list) if stk_list else 0,
-                "first_items": stk_list[:3] if stk_list else [],
-            })
+        # Stop if no more pages
+        if not resp.has_next:
+            break
 
-            for item in stk_list:
-                ticker = item.get("code", "")
-                name = item.get("name", "")
-
-                results.append({
-                    "ticker": ticker,
-                    "name": name,
-                    "market": market,
-                })
-                market_count += 1
-
-            log_info("stock.search", f"get_all {market} page {page_num + 1} processed", {
-                "market_count": market_count,
-                "has_next": resp.has_next,
-            })
-
-            # Stop if no more pages
-            if not resp.has_next:
-                break
-
-            # Prepare for next page
-            cont_yn = "Y"
-            next_key = resp.next_key or ""
-
-        log_info("stock.search", f"get_all {market} complete", {"count": market_count})
+        # Prepare for next page
+        cont_yn = "Y"
+        next_key = resp.next_key or ""
 
     log_info("stock.search", "get_all complete", {"markets": markets, "count": len(results)})
 

@@ -122,49 +122,34 @@ class TestGetAll:
         for stock in result["data"]:
             assert stock["market"] == "KOSPI"
 
-    def test_get_all_fetches_each_market_separately(self, mock_kiwoom_client):
-        """Test that get_all fetches KOSPI and KOSDAQ separately.
+    def test_get_all_filters_by_market_name(self, mock_kiwoom_client):
+        """Test that get_all fetches all stocks with mrkt_tp=0 and filters by marketName.
 
-        The API is called with mrkt_tp=1 for KOSPI and mrkt_tp=2 for KOSDAQ,
-        ensuring we get all stocks from both markets.
+        The API is called once with mrkt_tp=0 to get all stocks,
+        then filtered by the marketName field to separate KOSPI and KOSDAQ.
         """
         from stock_analyzer.client.kiwoom import ApiResponse
 
-        # Mock returns different data based on market parameter
-        # mrkt_tp=1: KOSPI, mrkt_tp=2: KOSDAQ
-        def custom_side_effect(market="0", cont_yn="", next_key=""):
-            if market == "1":  # KOSPI
-                return ApiResponse(
-                    ok=True,
-                    data={
-                        "list": [
-                            {"code": "005930", "name": "삼성전자"},
-                            {"code": "000660", "name": "SK하이닉스"},
-                        ],
-                        "return_code": 0,
-                        "return_msg": "정상적으로 처리되었습니다",
-                    },
-                )
-            elif market == "2":  # KOSDAQ
-                return ApiResponse(
-                    ok=True,
-                    data={
-                        "list": [
-                            {"code": "035720", "name": "카카오"},
-                            {"code": "373220", "name": "LG에너지솔루션"},
-                        ],
-                        "return_code": 0,
-                        "return_msg": "정상적으로 처리되었습니다",
-                    },
-                )
-            else:
-                return ApiResponse(ok=True, data={"list": []})
-
-        mock_kiwoom_client.get_stock_list.side_effect = custom_side_effect
+        # Reset side_effect and set return_value for custom test data
+        mock_kiwoom_client.get_stock_list.side_effect = None
+        mock_kiwoom_client.get_stock_list.return_value = ApiResponse(
+            ok=True,
+            data={
+                "list": [
+                    {"code": "005930", "name": "삼성전자", "marketName": "거래소"},
+                    {"code": "000660", "name": "SK하이닉스", "marketName": "거래소"},
+                    {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+                    {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스닥"},
+                    {"code": "088980", "name": "맥쿼리인프라", "marketName": "인프라투자금융"},
+                ],
+                "return_code": 0,
+                "return_msg": "정상적으로 처리되었습니다",
+            },
+        )
 
         result = get_all(mock_kiwoom_client)
         assert result["ok"] is True
-        # Should have 4 stocks: 2 from KOSPI + 2 from KOSDAQ
+        # Should have 4 stocks: 2 from KOSPI + 2 from KOSDAQ (인프라투자금융 excluded)
         assert len(result["data"]) == 4
 
         # Verify market assignment
@@ -183,11 +168,10 @@ class TestGetAll:
         assert "035720" in kosdaq_tickers  # 카카오 (KOSDAQ)
         assert "373220" in kosdaq_tickers  # LG에너지솔루션 (KOSDAQ)
 
-        # Verify the API was called for both markets
+        # Verify the API was called with mrkt_tp=0
         calls = mock_kiwoom_client.get_stock_list.call_args_list
-        market_args = [call.args[0] if call.args else call.kwargs.get("market") for call in calls]
-        assert "1" in market_args  # KOSPI
-        assert "2" in market_args  # KOSDAQ
+        assert len(calls) == 1
+        assert calls[0].args[0] == "0"  # mrkt_tp=0 for all markets
 
 
 class TestGetInfo:
