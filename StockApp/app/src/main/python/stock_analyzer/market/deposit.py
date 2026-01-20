@@ -59,7 +59,7 @@ def get_deposit(client: KiwoomClient, days: int = 30) -> Dict:
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    trend_data = resp.data.get("deposit_list", [])
+    trend_data = resp.data.get("deposit_list", []) or resp.data.get("list", [])
     if not trend_data:
         return {
             "ok": False,
@@ -123,7 +123,7 @@ def get_credit(client: KiwoomClient, days: int = 30) -> Dict:
     if not resp.ok:
         return {"ok": False, "error": resp.error}
 
-    trend_data = resp.data.get("credit_list", [])
+    trend_data = resp.data.get("credit_list", []) or resp.data.get("list", [])
     if not trend_data:
         return {
             "ok": False,
