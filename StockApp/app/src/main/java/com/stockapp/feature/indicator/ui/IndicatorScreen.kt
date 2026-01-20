@@ -60,6 +60,14 @@ import com.stockapp.feature.indicator.domain.model.ElderSummary
 import com.stockapp.feature.indicator.domain.model.IndicatorType
 import com.stockapp.feature.indicator.domain.model.TrendSummary
 
+/**
+ * Chart display constants - aligned with AnalysisScreen for consistency.
+ */
+private object ChartConfig {
+    /** Maximum days to display in charts (aligned with AnalysisScreen.OSCILLATOR_CHART_MAX_DAYS) */
+    const val CHART_MAX_DAYS = 120
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IndicatorScreen(
@@ -273,8 +281,8 @@ private fun TimeframeSelector(
 @Composable
 private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
     // Python returns data in reverse chronological order (newest first)
-    // take(60) gets newest 60 days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(60, summary.dates.size)
+    // take(N) gets newest N days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(ChartConfig.CHART_MAX_DAYS, summary.dates.size)
     val dates = summary.dates.take(displayCount).reversed()
     val priceHistory = summary.priceHistory.take(displayCount).reversed()
     val fearGreedHistory = summary.fearGreedHistory.take(displayCount).reversed()
@@ -356,8 +364,8 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
 @Composable
 private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
     // Python returns data in reverse chronological order (newest first)
-    // take(60) gets newest 60 days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(60, summary.dates.size)
+    // take(N) gets newest N days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(ChartConfig.CHART_MAX_DAYS, summary.dates.size)
     val dates = summary.dates.take(displayCount).reversed()
     val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
     val ema13History = summary.ema13History.take(displayCount).reversed()
@@ -437,8 +445,8 @@ private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
 @Composable
 private fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
     // Python returns data in reverse chronological order (newest first)
-    // take(60) gets newest 60 days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(60, summary.dates.size)
+    // take(N) gets newest N days, reversed() converts to chronological order for chart display
+    val displayCount = minOf(ChartConfig.CHART_MAX_DAYS, summary.dates.size)
     val dates = summary.dates.take(displayCount).reversed()
     val sellSetupHistory = summary.sellSetupHistory.take(displayCount).reversed()
     val buySetupHistory = summary.buySetupHistory.take(displayCount).reversed()
