@@ -64,10 +64,10 @@ def search(
     max_pages = 50  # Safety limit per market
 
     # Map market names to API mrkt_tp values
-    # mrkt_tp: 1=KOSPI, 2=KOSDAQ (0=all doesn't work reliably)
+    # ka10099 API: 0=코스피(KOSPI), 10=코스닥(KOSDAQ)
     market_to_mrkt_tp = {
-        "KOSPI": "1",
-        "KOSDAQ": "2",
+        "KOSPI": "0",
+        "KOSDAQ": "10",
     }
 
     log_info("stock.search", "starting search loop", {"query": query, "markets": markets})
@@ -176,10 +176,10 @@ def get_all(
     log_info("stock.search", "get_all fetching all stocks", {"markets": markets})
 
     # Map market names to API mrkt_tp values
-    # mrkt_tp: 1=KOSPI, 2=KOSDAQ (0=all doesn't work reliably)
+    # ka10099 API: 0=코스피(KOSPI), 10=코스닥(KOSDAQ)
     market_to_mrkt_tp = {
-        "KOSPI": "1",
-        "KOSDAQ": "2",
+        "KOSPI": "0",
+        "KOSDAQ": "10",
     }
 
     # Fetch each market separately to ensure we get all stocks
