@@ -206,18 +206,26 @@ def get_all(
             })
 
             for item in stk_list:
-                # Use marketName from API to determine actual market
-                api_market = _get_market_name(item.get("marketName", ""))
+                # Determine the market using marketCode (reliable) or marketName (fallback)
+                # Note: The API's marketName field often contains sector names (e.g., '인프라투자금융'),
+                # not exchange names, so we prefer marketCode which is '1' for KOSPI, '2' for KOSDAQ.
+                item_market_code = item.get("marketCode", "")
+                if item_market_code == "1":
+                    item_market = "KOSPI"
+                elif item_market_code == "2":
+                    item_market = "KOSDAQ"
+                else:
+                    # Fall back to marketName if marketCode is missing
+                    item_market = _get_market_name(item.get("marketName", ""))
 
-                # Only include if the API-reported market matches expected markets
-                # This filters out stocks with unexpected marketName values
-                if api_market not in markets:
+                # Only include if the market matches expected markets
+                if item_market not in markets:
                     continue
 
                 results.append({
                     "ticker": item.get("code", ""),
                     "name": item.get("name", ""),
-                    "market": api_market,
+                    "market": item_market,
                 })
 
             # Stop if no more pages
