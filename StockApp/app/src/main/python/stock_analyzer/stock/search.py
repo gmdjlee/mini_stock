@@ -206,26 +206,15 @@ def get_all(
             })
 
             for item in stk_list:
-                # Determine the market using marketCode (reliable) or marketName (fallback)
-                # Note: The API's marketName field often contains sector names (e.g., '인프라투자금융'),
-                # not exchange names, so we prefer marketCode which is '1' for KOSPI, '2' for KOSDAQ.
-                item_market_code = item.get("marketCode", "")
-                if item_market_code == "1":
-                    item_market = "KOSPI"
-                elif item_market_code == "2":
-                    item_market = "KOSDAQ"
-                else:
-                    # Fall back to marketName if marketCode is missing
-                    item_market = _get_market_name(item.get("marketName", ""))
-
-                # Only include if the market matches expected markets
-                if item_market not in markets:
-                    continue
-
+                # When fetching with mrkt_tp parameter, trust the API call's market type.
+                # The mrkt_tp parameter already filters by market, so all returned stocks
+                # belong to the requested market. Using the market_name from our loop
+                # is more reliable than parsing marketCode/marketName which may contain
+                # sector names instead of exchange names.
                 results.append({
                     "ticker": item.get("code", ""),
                     "name": item.get("name", ""),
-                    "market": item_market,
+                    "market": market_name,  # Use the market from API call parameter
                 })
 
             # Stop if no more pages
