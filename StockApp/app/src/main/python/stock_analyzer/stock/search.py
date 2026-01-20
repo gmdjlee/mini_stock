@@ -167,14 +167,29 @@ def get_all(
     next_key = ""
     max_pages = 100  # Safety limit
 
-    for _ in range(max_pages):
+    for page_num in range(max_pages):
         # Fetch all markets from API, filter locally
         resp = client.get_stock_list("0", cont_yn=cont_yn, next_key=next_key)
         if not resp.ok:
+            log_err("stock.search", "get_all API error", {"error": resp.error})
             return {"ok": False, "error": resp.error}
 
-        # API returns 'list' with 'code', 'name', 'marketName' fields
-        for item in resp.data.get("list", []):
+        # Debug: Log response structure
+        log_info("stock.search", f"get_all page {page_num + 1} response", {
+            "keys": list(resp.data.keys()) if resp.data else [],
+            "data_sample": str(resp.data)[:500] if resp.data else "None",
+            "has_next": resp.has_next,
+        })
+
+        # API returns 'stk_list' with stock data (or 'list' for backward compatibility)
+        stk_list = resp.data.get("stk_list") or resp.data.get("list", [])
+
+        log_info("stock.search", f"get_all page {page_num + 1} items", {
+            "list_length": len(stk_list) if stk_list else 0,
+            "first_items": stk_list[:3] if stk_list else [],
+        })
+
+        for item in stk_list:
             market = _get_market_name(item.get("marketName", ""))
 
             # Filter by market (KOSPI/KOSDAQ only by default)
@@ -283,7 +298,8 @@ def _get_market_name(market_name: str) -> str:
     if not market_name:
         return "기타"
     name_upper = market_name.upper()
-    if "코스피" in market_name or "KOSPI" in name_upper:
+    # '거래소' = KOSPI (유가증권시장)
+    if "거래소" in market_name or "코스피" in market_name or "KOSPI" in name_upper:
         return "KOSPI"
     if "코스닥" in market_name or "KOSDAQ" in name_upper:
         return "KOSDAQ"
