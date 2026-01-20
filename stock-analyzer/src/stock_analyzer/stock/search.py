@@ -16,13 +16,22 @@ class StockInfo:
     market: str  # KOSPI/KOSDAQ
 
 
-def search(client: KiwoomClient, query: str) -> Dict:
+# Default markets to include (KOSPI and KOSDAQ only)
+DEFAULT_MARKETS = ["KOSPI", "KOSDAQ"]
+
+
+def search(
+    client: KiwoomClient,
+    query: str,
+    markets: Optional[List[str]] = None,
+) -> Dict:
     """
     Search stocks by name or code.
 
     Args:
         client: Kiwoom API client
         query: Search query (name or code)
+        markets: List of markets to include (default: ["KOSPI", "KOSDAQ"])
 
     Returns:
         {
@@ -37,7 +46,10 @@ def search(client: KiwoomClient, query: str) -> Dict:
         - INVALID_ARG: Invalid argument
         - API_ERROR: API call failed
     """
-    log_info("stock.search", "search started", {"query": query})
+    if markets is None:
+        markets = DEFAULT_MARKETS
+
+    log_info("stock.search", "search started", {"query": query, "markets": markets})
 
     if not query or not query.strip():
         log_err("stock.search", "empty query", {"query": query})
@@ -92,12 +104,17 @@ def search(client: KiwoomClient, query: str) -> Dict:
         for item in stk_list:
             ticker = item.get("code", "")
             name = item.get("name", "")
+            market = _get_market_name(item.get("marketName", ""))
+
+            # Filter by market (KOSPI/KOSDAQ only by default)
+            if market not in markets:
+                continue
 
             if query in ticker or query in name.upper():
                 results.append({
                     "ticker": ticker,
                     "name": name,
-                    "market": _get_market_name(item.get("marketName", "")),
+                    "market": market,
                 })
 
                 # Early exit if we have enough results
@@ -122,13 +139,16 @@ def search(client: KiwoomClient, query: str) -> Dict:
     return {"ok": True, "data": results[:50]}  # Max 50 results
 
 
-def get_all(client: KiwoomClient, market: str = "0") -> Dict:
+def get_all(
+    client: KiwoomClient,
+    markets: Optional[List[str]] = None,
+) -> Dict:
     """
     Get all stocks.
 
     Args:
         client: Kiwoom API client
-        market: Market type (0: All, 1: KOSPI, 2: KOSDAQ)
+        markets: List of markets to include (default: ["KOSPI", "KOSDAQ"])
 
     Returns:
         {
@@ -139,22 +159,32 @@ def get_all(client: KiwoomClient, market: str = "0") -> Dict:
             ]
         }
     """
+    if markets is None:
+        markets = DEFAULT_MARKETS
+
     results = []
     cont_yn = ""
     next_key = ""
     max_pages = 100  # Safety limit
 
     for _ in range(max_pages):
-        resp = client.get_stock_list(market, cont_yn=cont_yn, next_key=next_key)
+        # Fetch all markets from API, filter locally
+        resp = client.get_stock_list("0", cont_yn=cont_yn, next_key=next_key)
         if not resp.ok:
             return {"ok": False, "error": resp.error}
 
         # API returns 'list' with 'code', 'name', 'marketName' fields
         for item in resp.data.get("list", []):
+            market = _get_market_name(item.get("marketName", ""))
+
+            # Filter by market (KOSPI/KOSDAQ only by default)
+            if market not in markets:
+                continue
+
             results.append({
                 "ticker": item.get("code", ""),
                 "name": item.get("name", ""),
-                "market": _get_market_name(item.get("marketName", "")),
+                "market": market,
             })
 
         # Stop if no more pages
@@ -165,7 +195,7 @@ def get_all(client: KiwoomClient, market: str = "0") -> Dict:
         cont_yn = "Y"
         next_key = resp.next_key or ""
 
-    log_info("stock.search", "get_all complete", {"market": market, "count": len(results)})
+    log_info("stock.search", "get_all complete", {"markets": markets, "count": len(results)})
 
     return {"ok": True, "data": results}
 

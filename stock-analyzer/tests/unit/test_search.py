@@ -46,21 +46,109 @@ class TestSearch:
         assert result["ok"] is True
         assert len(result["data"]) == 0
 
+    def test_search_filters_kospi_kosdaq_only(self, mock_kiwoom_client):
+        """Test search filters KOSPI/KOSDAQ stocks only by default."""
+        from stock_analyzer.client.kiwoom import ApiResponse
+
+        # Mock response with mixed markets
+        mock_kiwoom_client.get_stock_list.return_value = ApiResponse(
+            ok=True,
+            data={
+                "list": [
+                    {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
+                    {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+                    {"code": "900110", "name": "이스트아시아홀딩스", "marketName": "코넥스"},
+                ],
+                "return_code": 0,
+                "return_msg": "정상적으로 처리되었습니다",
+            },
+        )
+
+        # Search should only return KOSPI/KOSDAQ stocks
+        result = search(mock_kiwoom_client, "")  # Will fail with INVALID_ARG
+        assert result["ok"] is False
+
+        # Search with valid query
+        result = search(mock_kiwoom_client, "삼성")
+        assert result["ok"] is True
+        assert len(result["data"]) == 1
+        assert result["data"][0]["market"] == "KOSPI"
+
+    def test_search_with_custom_markets(self, mock_kiwoom_client):
+        """Test search with custom markets filter."""
+        from stock_analyzer.client.kiwoom import ApiResponse
+
+        # Mock response with mixed markets
+        mock_kiwoom_client.get_stock_list.return_value = ApiResponse(
+            ok=True,
+            data={
+                "list": [
+                    {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
+                    {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+                    {"code": "900110", "name": "이스트아시아홀딩스", "marketName": "코넥스"},
+                ],
+                "return_code": 0,
+                "return_msg": "정상적으로 처리되었습니다",
+            },
+        )
+
+        # Search with all markets including KONEX
+        result = search(mock_kiwoom_client, "이스트", markets=["KOSPI", "KOSDAQ", "코넥스"])
+        assert result["ok"] is True
+        assert len(result["data"]) == 1
+        assert result["data"][0]["ticker"] == "900110"
+
 
 class TestGetAll:
     """Tests for get_all function."""
 
     def test_get_all_success(self, mock_kiwoom_client):
-        """Test get all stocks."""
+        """Test get all stocks (default: KOSPI/KOSDAQ only)."""
         result = get_all(mock_kiwoom_client)
         assert result["ok"] is True
+        # All mock data is KOSPI, so all 6 stocks should be returned
         assert len(result["data"]) == 6
+        # Verify all returned stocks are KOSPI or KOSDAQ
+        for stock in result["data"]:
+            assert stock["market"] in ["KOSPI", "KOSDAQ"]
 
-    def test_get_all_with_market(self, mock_kiwoom_client):
-        """Test get all stocks with market filter."""
-        result = get_all(mock_kiwoom_client, market="1")
+    def test_get_all_with_markets_filter(self, mock_kiwoom_client):
+        """Test get all stocks with custom markets filter."""
+        result = get_all(mock_kiwoom_client, markets=["KOSPI"])
         assert result["ok"] is True
-        mock_kiwoom_client.get_stock_list.assert_called_with("1", cont_yn="", next_key="")
+        # All mock data is KOSPI
+        assert len(result["data"]) == 6
+        for stock in result["data"]:
+            assert stock["market"] == "KOSPI"
+
+    def test_get_all_filters_out_other_markets(self, mock_kiwoom_client):
+        """Test that non-KOSPI/KOSDAQ stocks are filtered out."""
+        from stock_analyzer.client.kiwoom import ApiResponse
+
+        # Mock response with mixed markets (KOSPI, KOSDAQ, and others)
+        mock_kiwoom_client.get_stock_list.return_value = ApiResponse(
+            ok=True,
+            data={
+                "list": [
+                    {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
+                    {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+                    {"code": "900110", "name": "이스트아시아홀딩스", "marketName": "코넥스"},
+                    {"code": "950130", "name": "외국주식ETN", "marketName": "ETN"},
+                ],
+                "return_code": 0,
+                "return_msg": "정상적으로 처리되었습니다",
+            },
+        )
+
+        result = get_all(mock_kiwoom_client)
+        assert result["ok"] is True
+        # Only KOSPI and KOSDAQ stocks should be returned
+        assert len(result["data"]) == 2
+        tickers = [stock["ticker"] for stock in result["data"]]
+        assert "005930" in tickers  # KOSPI
+        assert "035720" in tickers  # KOSDAQ
+        assert "900110" not in tickers  # KONEX filtered out
+        assert "950130" not in tickers  # ETN filtered out
 
 
 class TestGetInfo:
