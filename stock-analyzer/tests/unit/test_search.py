@@ -78,7 +78,8 @@ class TestSearch:
         """Test search with custom markets filter."""
         from stock_analyzer.client.kiwoom import ApiResponse
 
-        # Mock response with mixed markets
+        # Mock response with mixed markets - override side_effect
+        mock_kiwoom_client.get_stock_list.side_effect = None
         mock_kiwoom_client.get_stock_list.return_value = ApiResponse(
             ok=True,
             data={
@@ -116,8 +117,8 @@ class TestGetAll:
         """Test get all stocks with custom markets filter."""
         result = get_all(mock_kiwoom_client, markets=["KOSPI"])
         assert result["ok"] is True
-        # All mock data is KOSPI
-        assert len(result["data"]) == 6
+        # KOSPI mock has 3 stocks
+        assert len(result["data"]) == 3
         for stock in result["data"]:
             assert stock["market"] == "KOSPI"
 
@@ -126,27 +127,45 @@ class TestGetAll:
         from stock_analyzer.client.kiwoom import ApiResponse
 
         # Mock response with mixed markets (KOSPI, KOSDAQ, and others)
-        mock_kiwoom_client.get_stock_list.return_value = ApiResponse(
-            ok=True,
-            data={
-                "list": [
-                    {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
-                    {"code": "035720", "name": "카카오", "marketName": "코스닥"},
-                    {"code": "900110", "name": "이스트아시아홀딩스", "marketName": "코넥스"},
-                    {"code": "950130", "name": "외국주식ETN", "marketName": "ETN"},
-                ],
-                "return_code": 0,
-                "return_msg": "정상적으로 처리되었습니다",
-            },
-        )
+        # Override side_effect to provide custom mock for this test
+        def custom_side_effect(market="0", cont_yn="", next_key=""):
+            if market == "1":  # KOSPI
+                return ApiResponse(
+                    ok=True,
+                    data={
+                        "list": [
+                            {"code": "005930", "name": "삼성전자", "marketName": "거래소"},
+                            {"code": "900110", "name": "이스트아시아홀딩스", "marketName": "코넥스"},
+                        ],
+                        "return_code": 0,
+                        "return_msg": "정상적으로 처리되었습니다",
+                    },
+                )
+            elif market == "2":  # KOSDAQ
+                return ApiResponse(
+                    ok=True,
+                    data={
+                        "list": [
+                            {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+                            {"code": "950130", "name": "외국주식ETN", "marketName": "ETN"},
+                        ],
+                        "return_code": 0,
+                        "return_msg": "정상적으로 처리되었습니다",
+                    },
+                )
+            return ApiResponse(ok=True, data={"list": []})
+
+        mock_kiwoom_client.get_stock_list.side_effect = custom_side_effect
 
         result = get_all(mock_kiwoom_client)
         assert result["ok"] is True
-        # Only KOSPI and KOSDAQ stocks should be returned
+        # KOSPI API returns: 1 valid (거래소→KOSPI), 1 filtered out (코넥스)
+        # KOSDAQ API returns: 1 valid (코스닥→KOSDAQ), 1 filtered out (ETN)
+        # Only 2 stocks should be returned (one KOSPI, one KOSDAQ)
         assert len(result["data"]) == 2
         tickers = [stock["ticker"] for stock in result["data"]]
-        assert "005930" in tickers  # KOSPI
-        assert "035720" in tickers  # KOSDAQ
+        assert "005930" in tickers  # KOSPI (거래소)
+        assert "035720" in tickers  # KOSDAQ (코스닥)
         assert "900110" not in tickers  # KONEX filtered out
         assert "950130" not in tickers  # ETN filtered out
 
