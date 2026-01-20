@@ -122,43 +122,52 @@ class TestGetAll:
         for stock in result["data"]:
             assert stock["market"] == "KOSPI"
 
-    def test_get_all_filters_by_market_name(self, mock_kiwoom_client):
-        """Test that get_all filters stocks by marketName field.
+    def test_get_all_fetches_each_market_separately(self, mock_kiwoom_client):
+        """Test that get_all fetches KOSPI and KOSDAQ separately.
 
-        When fetching with mrkt_tp=0 (all markets), stocks are filtered by their
-        marketName field. Only stocks with marketName containing '코스피', '거래소',
-        or '코스닥' are included (by default).
+        The API is called with mrkt_tp=1 for KOSPI and mrkt_tp=2 for KOSDAQ,
+        ensuring we get all stocks from both markets.
         """
         from stock_analyzer.client.kiwoom import ApiResponse
 
-        # Mock response with mixed market names (including sector names)
-        # This simulates real API behavior where some stocks have sector names
+        # Mock returns different data based on market parameter
+        # mrkt_tp=1: KOSPI, mrkt_tp=2: KOSDAQ
         def custom_side_effect(market="0", cont_yn="", next_key=""):
-            return ApiResponse(
-                ok=True,
-                data={
-                    "list": [
-                        {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
-                        {"code": "000660", "name": "SK하이닉스", "marketName": "거래소"},
-                        {"code": "035720", "name": "카카오", "marketName": "코스닥"},
-                        {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스닥"},
-                        {"code": "088980", "name": "맥쿼리인프라", "marketName": "인프라투자금융"},
-                        {"code": "415640", "name": "KB발해인프라", "marketName": "인프라투자금융"},
-                    ],
-                    "return_code": 0,
-                    "return_msg": "정상적으로 처리되었습니다",
-                },
-            )
+            if market == "1":  # KOSPI
+                return ApiResponse(
+                    ok=True,
+                    data={
+                        "list": [
+                            {"code": "005930", "name": "삼성전자"},
+                            {"code": "000660", "name": "SK하이닉스"},
+                        ],
+                        "return_code": 0,
+                        "return_msg": "정상적으로 처리되었습니다",
+                    },
+                )
+            elif market == "2":  # KOSDAQ
+                return ApiResponse(
+                    ok=True,
+                    data={
+                        "list": [
+                            {"code": "035720", "name": "카카오"},
+                            {"code": "373220", "name": "LG에너지솔루션"},
+                        ],
+                        "return_code": 0,
+                        "return_msg": "정상적으로 처리되었습니다",
+                    },
+                )
+            else:
+                return ApiResponse(ok=True, data={"list": []})
 
         mock_kiwoom_client.get_stock_list.side_effect = custom_side_effect
 
         result = get_all(mock_kiwoom_client)
         assert result["ok"] is True
-        # Only 4 stocks with KOSPI/KOSDAQ market names should be returned
-        # (인프라투자금융 stocks are filtered out)
+        # Should have 4 stocks: 2 from KOSPI + 2 from KOSDAQ
         assert len(result["data"]) == 4
 
-        # Verify market assignment based on marketName field
+        # Verify market assignment
         kospi_stocks = [s for s in result["data"] if s["market"] == "KOSPI"]
         kosdaq_stocks = [s for s in result["data"] if s["market"] == "KOSDAQ"]
 
@@ -169,15 +178,16 @@ class TestGetAll:
         kospi_tickers = [s["ticker"] for s in kospi_stocks]
         kosdaq_tickers = [s["ticker"] for s in kosdaq_stocks]
 
-        assert "005930" in kospi_tickers  # 삼성전자 (코스피)
-        assert "000660" in kospi_tickers  # SK하이닉스 (거래소)
-        assert "035720" in kosdaq_tickers  # 카카오 (코스닥)
-        assert "373220" in kosdaq_tickers  # LG에너지솔루션 (코스닥)
+        assert "005930" in kospi_tickers  # 삼성전자 (KOSPI)
+        assert "000660" in kospi_tickers  # SK하이닉스 (KOSPI)
+        assert "035720" in kosdaq_tickers  # 카카오 (KOSDAQ)
+        assert "373220" in kosdaq_tickers  # LG에너지솔루션 (KOSDAQ)
 
-        # Verify 인프라투자금융 stocks are not included
-        all_tickers = [s["ticker"] for s in result["data"]]
-        assert "088980" not in all_tickers
-        assert "415640" not in all_tickers
+        # Verify the API was called for both markets
+        calls = mock_kiwoom_client.get_stock_list.call_args_list
+        market_args = [call.args[0] if call.args else call.kwargs.get("market") for call in calls]
+        assert "1" in market_args  # KOSPI
+        assert "2" in market_args  # KOSDAQ
 
 
 class TestGetInfo:
