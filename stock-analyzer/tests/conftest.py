@@ -20,6 +20,7 @@ def mock_token_response():
 @pytest.fixture
 def mock_stock_list_response():
     """Mock stock list response data (matches ka10099 API response)."""
+    # Default response for backward compatibility (used in search tests)
     return {
         "list": [
             {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
@@ -28,6 +29,34 @@ def mock_stock_list_response():
             {"code": "035420", "name": "NAVER", "marketName": "코스피"},
             {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스피"},
             {"code": "267250", "name": "HD현대", "marketName": "코스피"},
+        ],
+        "return_code": 0,
+        "return_msg": "정상적으로 처리되었습니다",
+    }
+
+
+@pytest.fixture
+def mock_stock_list_kospi_response():
+    """Mock KOSPI stock list response (mrkt_tp="1")."""
+    return {
+        "list": [
+            {"code": "005930", "name": "삼성전자", "marketName": "거래소"},
+            {"code": "000660", "name": "SK하이닉스", "marketName": "거래소"},
+            {"code": "035420", "name": "NAVER", "marketName": "거래소"},
+        ],
+        "return_code": 0,
+        "return_msg": "정상적으로 처리되었습니다",
+    }
+
+
+@pytest.fixture
+def mock_stock_list_kosdaq_response():
+    """Mock KOSDAQ stock list response (mrkt_tp="2")."""
+    return {
+        "list": [
+            {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+            {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스닥"},
+            {"code": "267250", "name": "HD현대", "marketName": "코스닥"},
         ],
         "return_code": 0,
         "return_msg": "정상적으로 처리되었습니다",
@@ -172,6 +201,8 @@ def mock_condition_search_response():
 def mock_kiwoom_client(
     mock_token_response,
     mock_stock_list_response,
+    mock_stock_list_kospi_response,
+    mock_stock_list_kosdaq_response,
     mock_stock_info_response,
     mock_investor_trend_response,
     mock_chart_response,
@@ -185,11 +216,16 @@ def mock_kiwoom_client(
 
     client = Mock(spec=KiwoomClient)
 
-    # Mock get_stock_list
-    client.get_stock_list.return_value = ApiResponse(
-        ok=True,
-        data=mock_stock_list_response,
-    )
+    # Mock get_stock_list - return different data based on market code
+    def get_stock_list_side_effect(market="0", cont_yn="", next_key=""):
+        if market == "1":  # KOSPI
+            return ApiResponse(ok=True, data=mock_stock_list_kospi_response)
+        elif market == "2":  # KOSDAQ
+            return ApiResponse(ok=True, data=mock_stock_list_kosdaq_response)
+        else:  # "0" or default - return all (used in search function)
+            return ApiResponse(ok=True, data=mock_stock_list_response)
+
+    client.get_stock_list.side_effect = get_stock_list_side_effect
 
     # Mock get_stock_info
     client.get_stock_info.return_value = ApiResponse(
