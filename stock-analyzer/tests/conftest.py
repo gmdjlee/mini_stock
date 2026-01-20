@@ -19,16 +19,19 @@ def mock_token_response():
 
 @pytest.fixture
 def mock_stock_list_response():
-    """Mock stock list response data (matches ka10099 API response)."""
-    # Default response for backward compatibility (used in search tests)
+    """Mock stock list response data (matches ka10099 API response).
+
+    Used for mrkt_tp=0 (all markets) - includes KOSPI and KOSDAQ stocks
+    with proper marketName values for filtering.
+    """
     return {
         "list": [
             {"code": "005930", "name": "삼성전자", "marketName": "코스피"},
-            {"code": "000660", "name": "SK하이닉스", "marketName": "코스피"},
-            {"code": "035720", "name": "카카오", "marketName": "코스피"},
+            {"code": "000660", "name": "SK하이닉스", "marketName": "거래소"},
             {"code": "035420", "name": "NAVER", "marketName": "코스피"},
-            {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스피"},
-            {"code": "267250", "name": "HD현대", "marketName": "코스피"},
+            {"code": "035720", "name": "카카오", "marketName": "코스닥"},
+            {"code": "373220", "name": "LG에너지솔루션", "marketName": "코스닥"},
+            {"code": "267250", "name": "HD현대", "marketName": "코스닥"},
         ],
         "return_code": 0,
         "return_msg": "정상적으로 처리되었습니다",
