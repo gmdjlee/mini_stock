@@ -201,6 +201,9 @@ class PyClient @Inject constructor(
      * Test API key connection without modifying global state.
      * Use this for testing API keys in settings.
      * Thread-safe: uses separate test client instance.
+     *
+     * This method actually verifies credentials by calling auth.get_token()
+     * which triggers a real API call to the Kiwoom OAuth endpoint.
      */
     suspend fun testConnection(
         appKey: String,
@@ -223,14 +226,33 @@ class PyClient @Inject constructor(
                 baseUrl
             )
 
-            // Verify connection by getting token (implicit in KiwoomClient constructor)
-            if (testClient != null) {
-                Result.success(Unit)
-            } else {
-                Result.failure(PyError.InitError("Failed to create test client"))
+            if (testClient == null) {
+                return@withContext Result.failure(PyError.InitError("Failed to create test client"))
             }
+
+            // Actually verify credentials by calling auth.get_token()
+            // This triggers a real API call to Kiwoom OAuth endpoint
+            // If credentials are invalid, AuthError will be thrown
+            val authClient = testClient.get("auth")
+            authClient?.callAttr("get_token")
+                ?: return@withContext Result.failure(PyError.InitError("Failed to get auth client"))
+
+            Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(PyError.InitError(e.message ?: "Connection test failed"))
+            // Extract meaningful error message from Python exception
+            val errorMsg = e.message?.let { msg ->
+                when {
+                    msg.contains("AuthError") -> {
+                        // Extract the Korean message from AuthError
+                        val match = Regex("AuthError: (.+)").find(msg)
+                        match?.groupValues?.get(1) ?: msg
+                    }
+                    msg.contains("Network error") -> "네트워크 연결 오류"
+                    else -> msg
+                }
+            } ?: "Connection test failed"
+
+            Result.failure(PyError.InitError(errorMsg))
         }
     }
 
