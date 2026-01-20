@@ -197,7 +197,8 @@ def get_all(
             })
 
             # API returns 'stk_list' with stock data (or 'list' for backward compatibility)
-            stk_list = resp.data.get("stk_list") or resp.data.get("list", [])
+            # Note: API may return None for list, so use `or []` to handle that case
+            stk_list = resp.data.get("stk_list") or resp.data.get("list") or []
 
             log_info("stock.search", f"get_all {market_name} page {page_num + 1} items", {
                 "list_length": len(stk_list) if stk_list else 0,
