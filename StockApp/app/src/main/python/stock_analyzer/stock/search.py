@@ -298,7 +298,8 @@ def _get_market_name(market_name: str) -> str:
     if not market_name:
         return "기타"
     name_upper = market_name.upper()
-    if "코스피" in market_name or "KOSPI" in name_upper:
+    # '거래소' = KOSPI (유가증권시장)
+    if "거래소" in market_name or "코스피" in market_name or "KOSPI" in name_upper:
         return "KOSPI"
     if "코스닥" in market_name or "KOSDAQ" in name_upper:
         return "KOSDAQ"
