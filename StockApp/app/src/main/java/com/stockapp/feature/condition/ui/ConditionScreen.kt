@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.feature.condition.domain.model.Condition
 import com.stockapp.feature.condition.domain.model.ConditionResult
 import com.stockapp.feature.condition.domain.model.ConditionStock
@@ -89,6 +90,7 @@ fun ConditionScreen(
                             contentDescription = "새로고침"
                         )
                     }
+                    ThemeToggleButton()
                 }
             )
         }
