@@ -237,6 +237,24 @@ def plot(
             },
         }
 
+    except ValueError as e:
+        plt.close("all")
+        return {
+            "ok": False,
+            "error": {"code": "CHART_ERROR", "msg": f"데이터 처리 오류: {str(e)}"},
+        }
+    except (TypeError, KeyError) as e:
+        plt.close("all")
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_ARG", "msg": f"잘못된 데이터 형식: {str(e)}"},
+        }
+    except IOError as e:
+        plt.close("all")
+        return {
+            "ok": False,
+            "error": {"code": "CHART_ERROR", "msg": f"파일 저장 실패: {str(e)}"},
+        }
     except Exception as e:
         plt.close("all")
         return {
@@ -466,6 +484,24 @@ def plot_with_signal(
             },
         }
 
+    except ValueError as e:
+        plt.close("all")
+        return {
+            "ok": False,
+            "error": {"code": "CHART_ERROR", "msg": f"데이터 처리 오류: {str(e)}"},
+        }
+    except (TypeError, KeyError) as e:
+        plt.close("all")
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_ARG", "msg": f"잘못된 데이터 형식: {str(e)}"},
+        }
+    except IOError as e:
+        plt.close("all")
+        return {
+            "ok": False,
+            "error": {"code": "CHART_ERROR", "msg": f"파일 저장 실패: {str(e)}"},
+        }
     except Exception as e:
         plt.close("all")
         return {

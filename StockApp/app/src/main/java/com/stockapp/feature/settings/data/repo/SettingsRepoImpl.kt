@@ -1,20 +1,25 @@
 package com.stockapp.feature.settings.data.repo
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.stockapp.core.py.PyClient
 import com.stockapp.feature.settings.domain.model.ApiKeyConfig
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,30 +34,62 @@ class SettingsRepoImpl @Inject constructor(
 ) : SettingsRepo {
 
     private object Keys {
-        val APP_KEY = stringPreferencesKey("api_app_key")
-        val SECRET_KEY = stringPreferencesKey("api_secret_key")
+        // Non-sensitive settings in DataStore
         val IS_PRODUCTION = booleanPreferencesKey("is_production")
+
+        // Sensitive API keys stored in EncryptedSharedPreferences
+        const val APP_KEY = "api_app_key"
+        const val SECRET_KEY = "api_secret_key"
+        const val ENCRYPTED_PREFS_NAME = "secure_api_prefs"
     }
 
-    override fun getApiKeyConfig(): Flow<ApiKeyConfig> {
-        return context.dataStore.data.map { prefs ->
-            ApiKeyConfig(
-                appKey = prefs[Keys.APP_KEY] ?: "",
-                secretKey = prefs[Keys.SECRET_KEY] ?: "",
-                investmentMode = if (prefs[Keys.IS_PRODUCTION] == true) {
-                    InvestmentMode.PRODUCTION
-                } else {
-                    InvestmentMode.MOCK
-                }
-            )
-        }
+    // Lazy initialization of encrypted shared preferences
+    private val encryptedPrefs: SharedPreferences by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        EncryptedSharedPreferences.create(
+            context,
+            Keys.ENCRYPTED_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
+
+    override fun getApiKeyConfig(): Flow<ApiKeyConfig> = flow {
+        // Read sensitive keys from encrypted storage
+        val appKey = encryptedPrefs.getString(Keys.APP_KEY, "") ?: ""
+        val secretKey = encryptedPrefs.getString(Keys.SECRET_KEY, "") ?: ""
+
+        // Read non-sensitive settings from DataStore
+        val prefs = context.dataStore.data.first()
+        val investmentMode = if (prefs[Keys.IS_PRODUCTION] == true) {
+            InvestmentMode.PRODUCTION
+        } else {
+            InvestmentMode.MOCK
+        }
+
+        emit(ApiKeyConfig(
+            appKey = appKey,
+            secretKey = secretKey,
+            investmentMode = investmentMode
+        ))
+    }.flowOn(Dispatchers.IO)
 
     override suspend fun saveApiKeyConfig(config: ApiKeyConfig) {
-        context.dataStore.edit { prefs ->
-            prefs[Keys.APP_KEY] = config.appKey
-            prefs[Keys.SECRET_KEY] = config.secretKey
-            prefs[Keys.IS_PRODUCTION] = config.investmentMode == InvestmentMode.PRODUCTION
+        withContext(Dispatchers.IO) {
+            // Save sensitive API keys to encrypted storage
+            encryptedPrefs.edit()
+                .putString(Keys.APP_KEY, config.appKey)
+                .putString(Keys.SECRET_KEY, config.secretKey)
+                .apply()
+
+            // Save non-sensitive settings to DataStore
+            context.dataStore.edit { prefs ->
+                prefs[Keys.IS_PRODUCTION] = config.investmentMode == InvestmentMode.PRODUCTION
+            }
         }
     }
 
@@ -109,8 +146,17 @@ class SettingsRepoImpl @Inject constructor(
     }
 
     override suspend fun clearAll() {
-        context.dataStore.edit { prefs ->
-            prefs.clear()
+        withContext(Dispatchers.IO) {
+            // Clear encrypted API keys
+            encryptedPrefs.edit()
+                .remove(Keys.APP_KEY)
+                .remove(Keys.SECRET_KEY)
+                .apply()
+
+            // Clear non-sensitive settings
+            context.dataStore.edit { prefs ->
+                prefs.clear()
+            }
         }
     }
 

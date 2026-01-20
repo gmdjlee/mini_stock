@@ -13,6 +13,31 @@ from ..core.log import log_info
 from ..stock import ohlcv
 
 
+# Fear/Greed calculation constants
+FG_MOMENTUM_SMOOTHING_PERIOD = 7  # Rolling window for momentum smoothing
+FG_MOMENTUM_DIVISOR = 10  # Divisor for momentum normalization
+FG_VOLUME_SMOOTHING_PERIOD = 10  # Rolling window for volume smoothing
+FG_POSITION_SMOOTHING_PERIOD = 7  # Rolling window for position smoothing
+FG_MOMENTUM_LOOKBACK = 5  # Lookback period for momentum calculation
+FG_POSITION_LOOKBACK = 52  # Lookback period for 52-week position
+FG_VOLUME_LOOKBACK = 20  # Lookback period for volume comparison
+FG_MIN_CALC_PERIOD = 10  # Minimum periods before calculating FG
+
+# Fear/Greed component weights
+FG_WEIGHT_MOMENTUM = 0.45
+FG_WEIGHT_POSITION = 0.45
+FG_WEIGHT_VOLUME_SURGE = 0.05
+FG_WEIGHT_VOLUME_SPIKE = 0.05
+
+# Fear/Greed clipping bounds
+FG_MOMENTUM_MIN = -1.0
+FG_MOMENTUM_MAX = 1.5
+FG_POSITION_MIN = -1.0
+FG_POSITION_MAX = 1.5
+FG_VOLUME_MIN = -0.5
+FG_VOLUME_MAX = 1.2
+
+
 def calc(
     client: KiwoomClient,
     ticker: str,
@@ -487,36 +512,43 @@ def _calc_fear_greed(
         elif i >= 5:
             vol_spike[i] = 1.0
 
-    # Calculate FG with smoothing
+    # Calculate FG with smoothing (using module-level constants)
     fg_chrono = [0.0] * n
+    momentum_window_offset = FG_MOMENTUM_SMOOTHING_PERIOD - 1
+    volume_window_offset = FG_VOLUME_SMOOTHING_PERIOD - 1
 
     for i in range(n):
-        if i < 10:
+        if i < FG_MIN_CALC_PERIOD:
             fg_chrono[i] = 0.0
             continue
 
         # Smoothed momentum (7-period mean, then /10)
-        m_window = momentum5[max(0, i - 6) : i + 1]
-        m = (sum(m_window) / len(m_window) / 10) if m_window else 0
-        m = max(-1, min(1.5, m))
+        m_window = momentum5[max(0, i - momentum_window_offset) : i + 1]
+        m = (sum(m_window) / len(m_window) / FG_MOMENTUM_DIVISOR) if m_window else 0
+        m = max(FG_MOMENTUM_MIN, min(FG_MOMENTUM_MAX, m))
 
         # Smoothed position (7-period mean, then *2 - 1)
-        p_window = pos52[max(0, i - 6) : i + 1]
+        p_window = pos52[max(0, i - momentum_window_offset) : i + 1]
         p = (2 * sum(p_window) / len(p_window) - 1) if p_window else 0
-        p = max(-1, min(1.5, p))
+        p = max(FG_POSITION_MIN, min(FG_POSITION_MAX, p))
 
         # Smoothed volume surge (10-period mean, then -1)
-        v_window = vol_surge[max(0, i - 9) : i + 1]
+        v_window = vol_surge[max(0, i - volume_window_offset) : i + 1]
         v = (sum(v_window) / len(v_window) - 1) if v_window else 0
-        v = max(-0.5, min(1.2, v))
+        v = max(FG_VOLUME_MIN, min(FG_VOLUME_MAX, v))
 
         # Smoothed volatility spike (10-period mean, then -1, negative)
-        vs_window = vol_spike[max(0, i - 9) : i + 1]
+        vs_window = vol_spike[max(0, i - volume_window_offset) : i + 1]
         vs = -((sum(vs_window) / len(vs_window) - 1)) if vs_window else 0
-        vs = max(-0.5, min(1.2, vs))
+        vs = max(FG_VOLUME_MIN, min(FG_VOLUME_MAX, vs))
 
-        # Final FG
-        fg_chrono[i] = 0.45 * m + 0.45 * p + 0.05 * v + 0.05 * vs
+        # Final FG = weighted sum of components
+        fg_chrono[i] = (
+            FG_WEIGHT_MOMENTUM * m
+            + FG_WEIGHT_POSITION * p
+            + FG_WEIGHT_VOLUME_SURGE * v
+            + FG_WEIGHT_VOLUME_SPIKE * vs
+        )
 
     # Reverse back to newest-first order
     result = list(reversed(fg_chrono))
@@ -618,36 +650,43 @@ def _calc_fear_greed_weekly(
         elif i >= 5:
             vol_spike[i] = 1.0
 
-    # Calculate FG with smoothing (matching reference exactly)
+    # Calculate FG with smoothing (using module-level constants)
     fg_chrono = [0.0] * n
+    momentum_window_offset = FG_MOMENTUM_SMOOTHING_PERIOD - 1
+    volume_window_offset = FG_VOLUME_SMOOTHING_PERIOD - 1
 
     for i in range(n):
-        if i < 10:
+        if i < FG_MIN_CALC_PERIOD:
             fg_chrono[i] = 0.0
             continue
 
         # m = (Momentum5.rolling(7).mean() / 10).clip(-1, 1.5)
-        m_window = momentum5[max(0, i - 6) : i + 1]
-        m = (sum(m_window) / len(m_window) / 10) if m_window else 0
-        m = max(-1, min(1.5, m))
+        m_window = momentum5[max(0, i - momentum_window_offset) : i + 1]
+        m = (sum(m_window) / len(m_window) / FG_MOMENTUM_DIVISOR) if m_window else 0
+        m = max(FG_MOMENTUM_MIN, min(FG_MOMENTUM_MAX, m))
 
         # p = (2 * Pos52W.rolling(7).mean() - 1).clip(-1, 1.5)
-        p_window = pos52[max(0, i - 6) : i + 1]
+        p_window = pos52[max(0, i - momentum_window_offset) : i + 1]
         p = (2 * sum(p_window) / len(p_window) - 1) if p_window else 0
-        p = max(-1, min(1.5, p))
+        p = max(FG_POSITION_MIN, min(FG_POSITION_MAX, p))
 
         # v = (VolSurge.rolling(10).mean() - 1).clip(-0.5, 1.2)
-        v_window = vol_surge[max(0, i - 9) : i + 1]
+        v_window = vol_surge[max(0, i - volume_window_offset) : i + 1]
         v = (sum(v_window) / len(v_window) - 1) if v_window else 0
-        v = max(-0.5, min(1.2, v))
+        v = max(FG_VOLUME_MIN, min(FG_VOLUME_MAX, v))
 
         # vs = -(VolSpike.rolling(10).mean() - 1).clip(-0.5, 1.2)
-        vs_window = vol_spike[max(0, i - 9) : i + 1]
+        vs_window = vol_spike[max(0, i - volume_window_offset) : i + 1]
         vs = -((sum(vs_window) / len(vs_window) - 1)) if vs_window else 0
-        vs = max(-0.5, min(1.2, vs))
+        vs = max(FG_VOLUME_MIN, min(FG_VOLUME_MAX, vs))
 
-        # FG = 0.45*m + 0.45*p + 0.05*v + 0.05*vs
-        fg_chrono[i] = 0.45 * m + 0.45 * p + 0.05 * v + 0.05 * vs
+        # FG = weighted sum of components
+        fg_chrono[i] = (
+            FG_WEIGHT_MOMENTUM * m
+            + FG_WEIGHT_POSITION * p
+            + FG_WEIGHT_VOLUME_SURGE * v
+            + FG_WEIGHT_VOLUME_SPIKE * vs
+        )
 
     # Reverse back to newest-first order
     result = list(reversed(fg_chrono))

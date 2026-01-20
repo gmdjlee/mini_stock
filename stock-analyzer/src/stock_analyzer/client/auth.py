@@ -1,12 +1,16 @@
 """Kiwoom OAuth token management."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
 
 from ..core.log import log_err, log_info
+
+
+# Token expiration buffer (refresh 1 minute before actual expiry)
+TOKEN_EXPIRY_BUFFER_SECONDS = 60
 
 
 @dataclass
@@ -19,8 +23,9 @@ class TokenInfo:
 
     @property
     def is_expired(self) -> bool:
-        """Check if token is expired."""
-        return datetime.now() >= self.expires_dt
+        """Check if token is expired (with buffer for safety)."""
+        buffer = timedelta(seconds=TOKEN_EXPIRY_BUFFER_SECONDS)
+        return datetime.now() >= (self.expires_dt - buffer)
 
     @property
     def bearer(self) -> str:

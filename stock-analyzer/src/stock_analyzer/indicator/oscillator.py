@@ -282,8 +282,9 @@ def analyze_signal(osc_result: Dict) -> Dict:
     macd = data["macd"]
     signal = data["signal"]
 
+    # Validate data lengths to prevent index out of bounds
     n = len(osc)
-    if n < 3:
+    if n < 3 or len(macd) < 3 or len(signal) < 3:
         return {
             "ok": False,
             "error": {"code": "INSUFFICIENT_DATA", "msg": "최소 3일 데이터 필요"},

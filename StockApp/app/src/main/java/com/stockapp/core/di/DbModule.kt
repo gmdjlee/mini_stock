@@ -69,8 +69,10 @@ object DbModule {
             AppDb.DB_NAME
         )
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-            // Fallback for any future unexpected migrations (cache data can be rebuilt)
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            // Note: Removed destructive fallback to prevent silent data loss.
+            // All future schema changes should have explicit migrations.
+            // If migration fails, the app will crash with a clear error message,
+            // prompting developers to add the required migration.
             .build()
     }
 
