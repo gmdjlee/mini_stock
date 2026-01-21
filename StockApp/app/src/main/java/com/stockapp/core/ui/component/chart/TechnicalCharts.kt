@@ -42,6 +42,8 @@ import com.stockapp.core.ui.theme.FearGreedGreen
 import com.stockapp.core.ui.theme.FearGreedRed
 import com.stockapp.core.ui.theme.PrimaryBuy
 import com.stockapp.core.ui.theme.PrimarySell
+import com.stockapp.core.ui.theme.OscillatorBlue
+import com.stockapp.core.ui.theme.OscillatorOrange
 import com.stockapp.core.ui.theme.TabBlue
 import com.stockapp.core.ui.theme.TabGray
 import com.stockapp.core.ui.theme.TabOrange
@@ -961,12 +963,12 @@ fun SimpleLineChart(
 }
 
 /**
- * MarketCapOscillatorChart - Dual axis chart for market cap and oscillator
- * Python reference style with market cap on left axis and oscillator on right axis
+ * MarketCapOscillatorChart - Market Cap & Supply Oscillator Chart
+ * Python reference style dual-axis chart with market cap and oscillator lines
  *
  * @param dates List of date strings
- * @param mcapValues Market cap values (in 억원)
- * @param oscillatorValues Oscillator values (percentage)
+ * @param mcapValues Market cap values (in 억)
+ * @param oscillatorValues Oscillator values (as percentage, e.g., 0.001 = 0.1%)
  */
 @Composable
 fun MarketCapOscillatorChart(
@@ -980,11 +982,6 @@ fun MarketCapOscillatorChart(
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     val textColor = if (isDark) Color.WHITE else Color.BLACK
 
-    // Python style colors
-    val mcapColor = TabBlue.toArgb()  // tab:blue for market cap
-    val oscPositiveColor = com.stockapp.core.ui.theme.HistogramTeal.toArgb()  // Teal for positive
-    val oscNegativeColor = com.stockapp.core.ui.theme.HistogramRed.toArgb()   // Red for negative
-
     AndroidView(
         factory = { ctx ->
             CombinedChart(ctx).apply {
@@ -995,12 +992,9 @@ fun MarketCapOscillatorChart(
                 setPinchZoom(true)
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
-                setDrawOrder(arrayOf(
-                    CombinedChart.DrawOrder.BAR,
-                    CombinedChart.DrawOrder.LINE
-                ))
+                setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
-                // X Axis
+                // X Axis - Python style
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -1018,11 +1012,11 @@ fun MarketCapOscillatorChart(
                     }
                 }
 
-                // Left Y Axis (Market Cap in 조원)
+                // Left Y Axis (Market Cap) - Python style: blue text
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
-                    this.textColor = textColor
+                    this.textColor = OscillatorBlue.toArgb()  // Blue like Python
                     enableGridDashedLine(10f, 10f, 0f)
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
@@ -1031,14 +1025,14 @@ fun MarketCapOscillatorChart(
                     }
                 }
 
-                // Right Y Axis (Oscillator percentage)
+                // Right Y Axis (Oscillator percentage) - Python style: orange text
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = TabOrange.toArgb()
+                    this.textColor = OscillatorOrange.toArgb()  // Orange like Python
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
-                            return String.format("%.2f%%", value * 100)
+                            return String.format("%.2f%%", value)
                         }
                     }
                 }
@@ -1049,39 +1043,45 @@ fun MarketCapOscillatorChart(
                 }
 
                 // Marker
-                marker = OscillatorMarkerView(ctx, dates, mcapValues, oscillatorValues)
+                marker = MarketCapMarkerView(ctx, dates) { dataSetIndex ->
+                    dataSetIndex == 1  // Second dataset is oscillator
+                }
             }
         },
         update = { chart ->
             val combinedData = CombinedData()
 
-            // Market cap line (left axis)
+            // Market Cap line (left axis) - Python style: blue (#1976D2)
             val mcapEntries = mcapValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val mcapDataSet = LineDataSet(mcapEntries, "시가총액").apply {
-                color = mcapColor
+            val mcapDataSet = LineDataSet(mcapEntries, "Market Cap").apply {
+                color = OscillatorBlue.toArgb()  // Blue like Python
                 lineWidth = 2f
                 setDrawCircles(false)
                 setDrawValues(false)
                 mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.LEFT
+                setDrawFilled(true)
+                fillColor = OscillatorBlue.toArgb()
+                fillAlpha = 50  // 20% alpha like Python
             }
 
-            combinedData.setData(LineData(mcapDataSet))
-
-            // Oscillator bars (right axis)
-            val barEntries = oscillatorValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
+            // Oscillator line (right axis) - Python style: orange (#FF5722)
+            // Convert oscillator values to percentage for display
+            val oscillatorEntries = oscillatorValues.mapIndexed { index, value ->
+                Entry(index.toFloat(), (value * 100).toFloat())  // Convert to percentage
             }
-            val barDataSet = BarDataSet(barEntries, "오실레이터").apply {
-                colors = oscillatorValues.map { value ->
-                    if (value >= 0) oscPositiveColor else oscNegativeColor
-                }
+            val oscillatorDataSet = LineDataSet(oscillatorEntries, "Oscillator (%)").apply {
+                color = OscillatorOrange.toArgb()  // Orange like Python
+                lineWidth = 2f
+                setDrawCircles(false)
                 setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
                 axisDependency = YAxis.AxisDependency.RIGHT
             }
-            combinedData.setData(BarData(barDataSet).apply { barWidth = 0.7f })
+
+            combinedData.setData(LineData(mcapDataSet, oscillatorDataSet))
 
             chart.data = combinedData
             chart.invalidate()
