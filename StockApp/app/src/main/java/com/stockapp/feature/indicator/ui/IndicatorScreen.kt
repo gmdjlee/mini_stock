@@ -381,7 +381,7 @@ private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
         fontWeight = FontWeight.Bold
     )
 
-    // Elder Impulse Chart (EtfMonitor style with market cap and impulse markers)
+    // Elder Impulse Chart (EtfMonitor style with market cap on left axis, impulse circles on close/EMA13)
     if (mcapHistory.isNotEmpty() && ema13History.isNotEmpty() && impulseStates.isNotEmpty()) {
         ChartCard(
             title = "Elder Impulse (${timeframe.label})",
@@ -389,9 +389,10 @@ private fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
         ) {
             ElderImpulseChart(
                 dates = dates,
-                priceValues = mcapHistory,
+                priceValues = ema13History,  // EMA13 for impulse circles (proxy for close prices)
                 ema13Values = ema13History,
-                impulseStates = impulseStates
+                impulseStates = impulseStates,
+                mcapValues = mcapHistory  // Market cap for left Y-axis
             )
         }
     }
