@@ -6,9 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.AnalysisCacheDao
-import com.stockapp.core.db.dao.ConditionCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
-import com.stockapp.core.db.dao.MarketCacheDao
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
 import dagger.Module
@@ -60,6 +58,18 @@ object DbModule {
         }
     }
 
+    /**
+     * Migration from version 3 to 4: Removed market and condition cache tables
+     */
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Drop market_cache table
+            db.execSQL("DROP TABLE IF EXISTS market_cache")
+            // Drop condition_cache table
+            db.execSQL("DROP TABLE IF EXISTS condition_cache")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDb(@ApplicationContext context: Context): AppDb {
@@ -68,7 +78,7 @@ object DbModule {
             AppDb::class.java,
             AppDb.DB_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             // Note: Removed destructive fallback to prevent silent data loss.
             // All future schema changes should have explicit migrations.
             // If migration fails, the app will crash with a clear error message,
@@ -87,10 +97,4 @@ object DbModule {
 
     @Provides
     fun provideIndicatorCacheDao(db: AppDb): IndicatorCacheDao = db.indicatorCacheDao()
-
-    @Provides
-    fun provideMarketCacheDao(db: AppDb): MarketCacheDao = db.marketCacheDao()
-
-    @Provides
-    fun provideConditionCacheDao(db: AppDb): ConditionCacheDao = db.conditionCacheDao()
 }
