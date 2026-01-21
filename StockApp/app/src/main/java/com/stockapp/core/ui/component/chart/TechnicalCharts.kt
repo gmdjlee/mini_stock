@@ -1103,8 +1103,8 @@ fun MarketCapOscillatorChart(
 @Composable
 fun SupplyDemandBarChart(
     dates: List<String>,
-    foreignValues: List<Long>,
-    institutionValues: List<Long>,
+    foreignValues: List<Double>,
+    institutionValues: List<Double>,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current

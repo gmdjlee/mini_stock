@@ -266,8 +266,8 @@ class OscillatorMarkerView(
 class SupplyDemandMarkerView(
     context: Context,
     private val dates: List<String>,
-    private val foreignValues: List<Long>,
-    private val institutionValues: List<Long>
+    private val foreignValues: List<Double>,
+    private val institutionValues: List<Double>
 ) : MarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
@@ -278,11 +278,11 @@ class SupplyDemandMarkerView(
             val date = if (index >= 0 && index < dates.size) dates[index] else ""
 
             val foreign = if (index >= 0 && index < foreignValues.size) {
-                String.format("%,d억", foreignValues[index])
+                String.format("%,.0f억", foreignValues[index])
             } else "N/A"
 
             val institution = if (index >= 0 && index < institutionValues.size) {
-                String.format("%,d억", institutionValues[index])
+                String.format("%,.0f억", institutionValues[index])
             } else "N/A"
 
             tvContent?.text = "$date\n외국인: $foreign\n기관: $institution"
