@@ -868,3 +868,349 @@ fun MacdHistogramChart(
             .height(ChartHeights.MACD)
     )
 }
+
+/**
+ * SimpleLineChart - A simple single-series line chart
+ * For displaying CMF, Fear/Greed, and other simple metrics
+ *
+ * @param dates List of date strings
+ * @param values Data values to plot
+ * @param lineColor Color for the line
+ * @param label Legend label for the series
+ */
+@Composable
+fun SimpleLineChart(
+    dates: List<String>,
+    values: List<Double>,
+    lineColor: androidx.compose.ui.graphics.Color,
+    label: String = "",
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
+    val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
+    val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+    AndroidView(
+        factory = { ctx ->
+            CombinedChart(ctx).apply {
+                description.isEnabled = false
+                setTouchEnabled(true)
+                isDragEnabled = true
+                setScaleEnabled(true)
+                setPinchZoom(true)
+                setDrawGridBackground(false)
+                setExtraBottomOffset(10f)
+
+                // X Axis
+                xAxis.apply {
+                    position = XAxis.XAxisPosition.BOTTOM
+                    setDrawGridLines(true)
+                    this.gridColor = gridColor
+                    this.textColor = textColor
+                    enableGridDashedLine(10f, 10f, 0f)
+                    setLabelCount(ChartLabelCalculator.calculateOptimalLabelCount(dates.size), false)
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            val index = value.toInt()
+                            return if (index >= 0 && index < dates.size) {
+                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                            } else ""
+                        }
+                    }
+                }
+
+                // Left Y Axis
+                axisLeft.apply {
+                    setDrawGridLines(true)
+                    this.gridColor = gridColor
+                    this.textColor = textColor
+                    enableGridDashedLine(10f, 10f, 0f)
+                }
+
+                // Right Y Axis (disabled)
+                axisRight.isEnabled = false
+
+                legend.apply {
+                    isEnabled = label.isNotEmpty()
+                    this.textColor = textColor
+                }
+            }
+        },
+        update = { chart ->
+            val entries = values.mapIndexed { index, value ->
+                Entry(index.toFloat(), value.toFloat())
+            }
+            val dataSet = LineDataSet(entries, label).apply {
+                color = lineColor.toArgb()
+                lineWidth = 2f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+            }
+
+            chart.data = CombinedData().apply {
+                setData(LineData(dataSet))
+            }
+            chart.invalidate()
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(ChartHeights.DEFAULT)
+    )
+}
+
+/**
+ * MarketCapOscillatorChart - Dual axis chart for market cap and oscillator
+ * Python reference style with market cap on left axis and oscillator on right axis
+ *
+ * @param dates List of date strings
+ * @param mcapValues Market cap values (in 억원)
+ * @param oscillatorValues Oscillator values (percentage)
+ */
+@Composable
+fun MarketCapOscillatorChart(
+    dates: List<String>,
+    mcapValues: List<Double>,
+    oscillatorValues: List<Double>,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
+    val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
+    val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+    // Python style colors
+    val mcapColor = TabBlue.toArgb()  // tab:blue for market cap
+    val oscPositiveColor = com.stockapp.core.ui.theme.HistogramTeal.toArgb()  // Teal for positive
+    val oscNegativeColor = com.stockapp.core.ui.theme.HistogramRed.toArgb()   // Red for negative
+
+    AndroidView(
+        factory = { ctx ->
+            CombinedChart(ctx).apply {
+                description.isEnabled = false
+                setTouchEnabled(true)
+                isDragEnabled = true
+                setScaleEnabled(true)
+                setPinchZoom(true)
+                setDrawGridBackground(false)
+                setExtraBottomOffset(10f)
+                setDrawOrder(arrayOf(
+                    CombinedChart.DrawOrder.BAR,
+                    CombinedChart.DrawOrder.LINE
+                ))
+
+                // X Axis
+                xAxis.apply {
+                    position = XAxis.XAxisPosition.BOTTOM
+                    setDrawGridLines(true)
+                    this.gridColor = gridColor
+                    this.textColor = textColor
+                    enableGridDashedLine(10f, 10f, 0f)
+                    setLabelCount(ChartLabelCalculator.calculateOptimalLabelCount(dates.size), false)
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            val index = value.toInt()
+                            return if (index >= 0 && index < dates.size) {
+                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                            } else ""
+                        }
+                    }
+                }
+
+                // Left Y Axis (Market Cap in 조원)
+                axisLeft.apply {
+                    setDrawGridLines(true)
+                    this.gridColor = gridColor
+                    this.textColor = textColor
+                    enableGridDashedLine(10f, 10f, 0f)
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            return formatMarketCapForChart(value.toDouble())
+                        }
+                    }
+                }
+
+                // Right Y Axis (Oscillator percentage)
+                axisRight.apply {
+                    isEnabled = true
+                    setDrawGridLines(false)
+                    this.textColor = TabOrange.toArgb()
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            return String.format("%.2f%%", value * 100)
+                        }
+                    }
+                }
+
+                legend.apply {
+                    isEnabled = true
+                    this.textColor = textColor
+                }
+
+                // Marker
+                marker = OscillatorMarkerView(ctx, dates, mcapValues, oscillatorValues)
+            }
+        },
+        update = { chart ->
+            val combinedData = CombinedData()
+
+            // Market cap line (left axis)
+            val mcapEntries = mcapValues.mapIndexed { index, value ->
+                Entry(index.toFloat(), value.toFloat())
+            }
+            val mcapDataSet = LineDataSet(mcapEntries, "시가총액").apply {
+                color = mcapColor
+                lineWidth = 2f
+                setDrawCircles(false)
+                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = YAxis.AxisDependency.LEFT
+            }
+
+            combinedData.setData(LineData(mcapDataSet))
+
+            // Oscillator bars (right axis)
+            val barEntries = oscillatorValues.mapIndexed { index, value ->
+                BarEntry(index.toFloat(), value.toFloat())
+            }
+            val barDataSet = BarDataSet(barEntries, "오실레이터").apply {
+                colors = oscillatorValues.map { value ->
+                    if (value >= 0) oscPositiveColor else oscNegativeColor
+                }
+                setDrawValues(false)
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+            combinedData.setData(BarData(barDataSet).apply { barWidth = 0.7f })
+
+            chart.data = combinedData
+            chart.invalidate()
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(ChartHeights.MARKET_CAP_OSCILLATOR)
+    )
+}
+
+/**
+ * SupplyDemandBarChart - Grouped bar chart for foreign/institution net buying
+ * Python reference style with foreign (red) and institution (blue) bars
+ *
+ * @param dates List of date strings
+ * @param foreignValues Foreign net buying values (in 억원)
+ * @param institutionValues Institution net buying values (in 억원)
+ */
+@Composable
+fun SupplyDemandBarChart(
+    dates: List<String>,
+    foreignValues: List<Double>,
+    institutionValues: List<Double>,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val isDark = isSystemInDarkTheme()
+    val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
+    val textColor = if (isDark) Color.WHITE else Color.BLACK
+
+    // Python style colors
+    val foreignColor = ChartRed.toArgb()   // Red for foreign
+    val institutionColor = TabBlue.toArgb() // Blue for institution
+
+    AndroidView(
+        factory = { ctx ->
+            CombinedChart(ctx).apply {
+                description.isEnabled = false
+                setTouchEnabled(true)
+                isDragEnabled = true
+                setScaleEnabled(true)
+                setPinchZoom(true)
+                setDrawGridBackground(false)
+                setExtraBottomOffset(10f)
+
+                // X Axis
+                xAxis.apply {
+                    position = XAxis.XAxisPosition.BOTTOM
+                    setDrawGridLines(true)
+                    this.gridColor = gridColor
+                    this.textColor = textColor
+                    enableGridDashedLine(10f, 10f, 0f)
+                    setLabelCount(ChartLabelCalculator.calculateOptimalLabelCount(dates.size), false)
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            val index = value.toInt()
+                            return if (index >= 0 && index < dates.size) {
+                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                            } else ""
+                        }
+                    }
+                    axisMinimum = -0.5f
+                    axisMaximum = dates.size.toFloat() - 0.5f
+                }
+
+                // Left Y Axis (Net buying in 억원)
+                axisLeft.apply {
+                    setDrawGridLines(true)
+                    this.gridColor = gridColor
+                    this.textColor = textColor
+                    enableGridDashedLine(10f, 10f, 0f)
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            return when {
+                                kotlin.math.abs(value) >= 10000 -> String.format("%.0f만", value / 10000)
+                                kotlin.math.abs(value) >= 1000 -> String.format("%.1f천", value / 1000)
+                                else -> String.format("%.0f억", value)
+                            }
+                        }
+                    }
+                }
+
+                // Right Y Axis (disabled)
+                axisRight.isEnabled = false
+
+                legend.apply {
+                    isEnabled = true
+                    this.textColor = textColor
+                }
+
+                // Marker
+                marker = SupplyDemandMarkerView(ctx, dates, foreignValues, institutionValues)
+            }
+        },
+        update = { chart ->
+            val groupSpace = 0.1f
+            val barSpace = 0.05f
+            val barWidth = 0.4f
+
+            // Foreign bars
+            val foreignEntries = foreignValues.mapIndexed { index, value ->
+                BarEntry(index.toFloat(), value.toFloat())
+            }
+            val foreignDataSet = BarDataSet(foreignEntries, "외국인").apply {
+                color = foreignColor
+                setDrawValues(false)
+            }
+
+            // Institution bars
+            val institutionEntries = institutionValues.mapIndexed { index, value ->
+                BarEntry(index.toFloat(), value.toFloat())
+            }
+            val institutionDataSet = BarDataSet(institutionEntries, "기관").apply {
+                color = institutionColor
+                setDrawValues(false)
+            }
+
+            val barData = BarData(foreignDataSet, institutionDataSet).apply {
+                this.barWidth = barWidth
+            }
+
+            chart.data = CombinedData().apply {
+                setData(barData)
+            }
+            chart.barData.groupBars(-0.5f, groupSpace, barSpace)
+            chart.invalidate()
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(ChartHeights.DEFAULT)
+    )
+}

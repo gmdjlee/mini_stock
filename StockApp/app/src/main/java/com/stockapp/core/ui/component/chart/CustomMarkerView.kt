@@ -220,3 +220,77 @@ class DemarkTDMarkerView(
         return MPPointF(-(width / 2f), -height.toFloat())
     }
 }
+
+/**
+ * OscillatorMarkerView - Market cap oscillator chart marker
+ * Shows market cap and oscillator value
+ */
+@SuppressLint("ViewConstructor")
+class OscillatorMarkerView(
+    context: Context,
+    private val dates: List<String>,
+    private val mcapValues: List<Double>,
+    private val oscillatorValues: List<Double>
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView? = findViewById(R.id.tvContent)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        e?.let { entry ->
+            val index = entry.x.toInt()
+            val date = if (index >= 0 && index < dates.size) dates[index] else ""
+
+            val mcap = if (index >= 0 && index < mcapValues.size) {
+                formatMarketCapForChart(mcapValues[index])
+            } else "N/A"
+
+            val osc = if (index >= 0 && index < oscillatorValues.size) {
+                String.format("%.4f%%", oscillatorValues[index] * 100)
+            } else "N/A"
+
+            tvContent?.text = "$date\n시가총액: $mcap\n오실레이터: $osc"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+}
+
+/**
+ * SupplyDemandMarkerView - Supply demand bar chart marker
+ * Shows foreign and institution net buying values
+ */
+@SuppressLint("ViewConstructor")
+class SupplyDemandMarkerView(
+    context: Context,
+    private val dates: List<String>,
+    private val foreignValues: List<Double>,
+    private val institutionValues: List<Double>
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView? = findViewById(R.id.tvContent)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        e?.let { entry ->
+            val index = entry.x.toInt()
+            val date = if (index >= 0 && index < dates.size) dates[index] else ""
+
+            val foreign = if (index >= 0 && index < foreignValues.size) {
+                String.format("%,.0f억", foreignValues[index])
+            } else "N/A"
+
+            val institution = if (index >= 0 && index < institutionValues.size) {
+                String.format("%,.0f억", institutionValues[index])
+            } else "N/A"
+
+            tvContent?.text = "$date\n외국인: $foreign\n기관: $institution"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+}
