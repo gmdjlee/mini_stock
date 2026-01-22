@@ -358,7 +358,7 @@ fun TrendSignalChart(
             // Threshold lines for Fear/Greed (±0.5) - Dashed reference lines
             // +0.5 threshold (Greed zone - red dashed)
             val threshold05Entries = dates.indices.map { Entry(it.toFloat(), 0.5f) }
-            val threshold05DataSet = LineDataSet(threshold05Entries, "").apply {
+            val threshold05DataSet = LineDataSet(threshold05Entries, "탐욕(0.5)").apply {
                 color = FearGreedRed.toArgb()
                 lineWidth = 1f
                 setDrawCircles(false)
@@ -371,7 +371,7 @@ fun TrendSignalChart(
 
             // -0.5 threshold (Fear zone - green dashed)
             val thresholdNeg05Entries = dates.indices.map { Entry(it.toFloat(), -0.5f) }
-            val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "").apply {
+            val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "공포(-0.5)").apply {
                 color = FearGreedGreen.toArgb()
                 lineWidth = 1f
                 setDrawCircles(false)
