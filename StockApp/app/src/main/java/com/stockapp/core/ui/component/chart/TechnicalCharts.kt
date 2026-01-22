@@ -33,6 +33,7 @@ import com.stockapp.core.ui.theme.ChartGreen
 import com.stockapp.core.ui.theme.ChartGridDark
 import com.stockapp.core.ui.theme.ChartGridLight
 import com.stockapp.core.ui.theme.ChartOrange
+import com.stockapp.core.ui.theme.ChartPurple
 import com.stockapp.core.ui.theme.ChartRed
 import com.stockapp.core.ui.theme.DemarkBlue
 import com.stockapp.core.ui.theme.DemarkRed
