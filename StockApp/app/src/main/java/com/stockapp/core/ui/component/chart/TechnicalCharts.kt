@@ -106,7 +106,8 @@ fun MacdChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -243,7 +244,8 @@ fun TrendSignalChart(
                     CombinedChart.DrawOrder.SCATTER
                 ))
 
-                // X Axis - Python reference style with YYYY-MM-DD format
+                // X Axis - Python reference style with YYYY-MM format for long periods
+                // Use formatForChartByDateRange to handle weekly/monthly data correctly
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -255,7 +257,8 @@ fun TrendSignalChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -530,7 +533,8 @@ fun ElderImpulseChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -705,7 +709,7 @@ fun DemarkTDChart(
                     CombinedChart.DrawOrder.LINE
                 ))
 
-                // X Axis - Python style
+                // X Axis - Python style with date range based formatting
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -717,7 +721,8 @@ fun DemarkTDChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -839,7 +844,7 @@ fun MacdHistogramChart(
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
 
-                // X Axis - Python style
+                // X Axis - Python style with date range based formatting
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -850,7 +855,8 @@ fun MacdHistogramChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -926,7 +932,7 @@ fun SimpleLineChart(
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
 
-                // X Axis
+                // X Axis - date range based formatting for weekly/monthly charts
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -938,7 +944,8 @@ fun SimpleLineChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }

@@ -118,6 +118,61 @@ object DateFormatter {
             date.takeLast(5)
         }
     }
+
+    /**
+     * Format date based on actual date range (for weekly/monthly charts).
+     * Calculates the actual period in days from first to last date.
+     *
+     * @param date Current date to format
+     * @param dates Full list of dates to calculate actual period
+     */
+    fun formatForChartByDateRange(date: String, dates: List<String>): String {
+        return try {
+            val normalizedDate = date.replace("-", "")
+            val year = normalizedDate.substring(0, 4)
+            val month = normalizedDate.substring(4, 6)
+            val day = normalizedDate.substring(6, 8)
+
+            // Calculate actual period in days from first to last date
+            val actualDays = calculateDaysBetween(dates.firstOrNull(), dates.lastOrNull())
+
+            when {
+                actualDays <= 30 -> "$month/$day"          // 1 month or less
+                actualDays <= 90 -> "$month/$day"          // Up to 3 months
+                else -> "$year-$month"                     // Python style: YYYY-MM for longer periods
+            }
+        } catch (e: Exception) {
+            date.takeLast(5)
+        }
+    }
+
+    /**
+     * Calculate approximate days between two date strings.
+     */
+    private fun calculateDaysBetween(firstDate: String?, lastDate: String?): Int {
+        if (firstDate == null || lastDate == null) return 0
+        return try {
+            val first = firstDate.replace("-", "")
+            val last = lastDate.replace("-", "")
+
+            val firstYear = first.substring(0, 4).toInt()
+            val firstMonth = first.substring(4, 6).toInt()
+            val firstDay = first.substring(6, 8).toInt()
+
+            val lastYear = last.substring(0, 4).toInt()
+            val lastMonth = last.substring(4, 6).toInt()
+            val lastDay = last.substring(6, 8).toInt()
+
+            // Approximate days calculation
+            val yearDiff = lastYear - firstYear
+            val monthDiff = lastMonth - firstMonth
+            val dayDiff = lastDay - firstDay
+
+            (yearDiff * 365) + (monthDiff * 30) + dayDiff
+        } catch (e: Exception) {
+            0
+        }
+    }
 }
 
 /**
