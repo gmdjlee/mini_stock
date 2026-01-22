@@ -72,8 +72,12 @@ data class TrendSummary(
     val ma5History: List<Int?>,
     val ma10History: List<Int?>,
     val ma20History: List<Int?>,
-    // Price history for chart
-    val priceHistory: List<Double> = emptyList()
+    // Price history for chart (using MA10 as close proxy for weekly data)
+    val priceHistory: List<Double> = emptyList(),
+    // MA Signal history for signal generation
+    val maSignalHistory: List<Int> = emptyList(),
+    // Trend history for signal generation
+    val trendHistory: List<String> = emptyList()
 ) {
     val trendLabel: String
         get() = when (currentTrend) {
@@ -95,6 +99,54 @@ data class TrendSummary(
             currentFearGreed < -0.5 -> "공포 (침체)"
             else -> "중립"
         }
+
+    /**
+     * Calculate primary buy signal indices.
+     * Primary Buy: trend == "bullish" AND maSignal == 1
+     */
+    fun getPrimaryBuySignals(): List<Int> {
+        return trendHistory.indices.filter { i ->
+            i < maSignalHistory.size &&
+            trendHistory[i] == "bullish" &&
+            maSignalHistory[i] == 1
+        }
+    }
+
+    /**
+     * Calculate additional buy signal indices.
+     * Additional Buy: maSignal == 1 AND trend != "bullish"
+     */
+    fun getAdditionalBuySignals(): List<Int> {
+        return maSignalHistory.indices.filter { i ->
+            i < trendHistory.size &&
+            maSignalHistory[i] == 1 &&
+            trendHistory[i] != "bullish"
+        }
+    }
+
+    /**
+     * Calculate primary sell signal indices.
+     * Primary Sell: trend == "bearish" AND maSignal == -1
+     */
+    fun getPrimarySellSignals(): List<Int> {
+        return trendHistory.indices.filter { i ->
+            i < maSignalHistory.size &&
+            trendHistory[i] == "bearish" &&
+            maSignalHistory[i] == -1
+        }
+    }
+
+    /**
+     * Calculate additional sell signal indices.
+     * Additional Sell: maSignal == -1 AND trend != "bearish"
+     */
+    fun getAdditionalSellSignals(): List<Int> {
+        return maSignalHistory.indices.filter { i ->
+            i < trendHistory.size &&
+            maSignalHistory[i] == -1 &&
+            trendHistory[i] != "bearish"
+        }
+    }
 }
 
 fun TrendSignal.toSummary(): TrendSummary = TrendSummary(
@@ -110,10 +162,13 @@ fun TrendSignal.toSummary(): TrendSummary = TrendSummary(
     ma5History = ma5,
     ma10History = ma10,
     ma20History = ma20,
-    // Use MA20 as price reference (or MA10 if MA20 is empty)
-    priceHistory = ma20.mapNotNull { it?.toDouble() }.ifEmpty {
-        ma10.mapNotNull { it?.toDouble() }
-    }
+    // Use MA10 as close price proxy for weekly data (more responsive than MA20)
+    priceHistory = ma10.mapNotNull { it?.toDouble() }.ifEmpty {
+        ma20.mapNotNull { it?.toDouble() }
+    },
+    // Include signal data for buy/sell marker generation
+    maSignalHistory = maSignal,
+    trendHistory = trend
 )
 
 // ========== Elder Impulse ==========
