@@ -293,31 +293,51 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
         .mapNotNull { it?.toDouble() }
         .reversed()
 
+    // MA20 for MA overlay line - use ma20 to avoid overlap with priceHistory (which uses ma10)
+    val ma20History = summary.ma20History.take(displayCount)
+        .mapNotNull { it?.toDouble() }
+        .reversed()
+
     // Calculate signal indices for the displayed data range
     // Signals are calculated on reversed data (chronological order)
     val maSignalHistory = summary.maSignalHistory.take(displayCount).reversed()
-    val trendHistory = summary.trendHistory.take(displayCount).reversed()
 
-    // Generate signal indices based on trend and maSignal
+    // Generate signal indices based on TREND_SIGNAL_CHART.md spec:
+    // - Primary Buy: maSignal == 1 (3 conditions: High>Prev_High, Close>MA, CMF>0)
+    // - Additional Buy: maSignal == 0 but CMF > 0 AND Close > MA (2 conditions met with MA)
+    // - Primary Sell: maSignal == -1 (3 conditions: Low<Prev_Low, Close<MA, CMF<0)
+    // - Additional Sell: maSignal == 0 but CMF < 0 AND Close < MA (2 conditions met with MA)
     val primaryBuySignals = mutableListOf<Int>()
     val additionalBuySignals = mutableListOf<Int>()
     val primarySellSignals = mutableListOf<Int>()
     val additionalSellSignals = mutableListOf<Int>()
 
     for (i in maSignalHistory.indices) {
-        if (i < trendHistory.size) {
-            val signal = maSignalHistory[i]
-            val trend = trendHistory[i]
+        val signal = maSignalHistory[i]
 
-            when {
-                // Primary Buy: bullish trend AND positive signal
-                signal == 1 && trend == "bullish" -> primaryBuySignals.add(i)
-                // Additional Buy: positive signal but not bullish trend
-                signal == 1 && trend != "bullish" -> additionalBuySignals.add(i)
-                // Primary Sell: bearish trend AND negative signal
-                signal == -1 && trend == "bearish" -> primarySellSignals.add(i)
-                // Additional Sell: negative signal but not bearish trend
-                signal == -1 && trend != "bearish" -> additionalSellSignals.add(i)
+        when (signal) {
+            // Primary signals: all 3 conditions met (from Python ma_signal)
+            1 -> primaryBuySignals.add(i)
+            -1 -> primarySellSignals.add(i)
+            // Additional signals: check CMF and Close vs MA conditions
+            0 -> {
+                // Need CMF and price data for additional signal calculation
+                if (i < cmfHistory.size && i < priceHistory.size && i < ma20History.size) {
+                    val cmf = cmfHistory[i]
+                    val close = priceHistory[i]
+                    val ma = ma20History.getOrNull(i)
+
+                    if (ma != null) {
+                        // Additional Buy: CMF > 0 AND Close > MA
+                        if (cmf > 0 && close > ma) {
+                            additionalBuySignals.add(i)
+                        }
+                        // Additional Sell: CMF < 0 AND Close < MA
+                        else if (cmf < 0 && close < ma) {
+                            additionalSellSignals.add(i)
+                        }
+                    }
+                }
             }
         }
     }
@@ -352,7 +372,7 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
                 dates = dates,
                 priceValues = priceHistory,
                 fearGreedValues = fearGreedHistory,
-                ma10Values = ma10History,
+                ma10Values = ma20History,  // Use MA20 to avoid overlap with priceHistory (which uses MA10)
                 primaryBuySignals = primaryBuySignals,
                 additionalBuySignals = additionalBuySignals,
                 primarySellSignals = primarySellSignals,

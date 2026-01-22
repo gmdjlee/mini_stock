@@ -48,6 +48,9 @@ import com.stockapp.core.ui.theme.OscillatorOrange
 import com.stockapp.core.ui.theme.TabBlue
 import com.stockapp.core.ui.theme.TabGray
 import com.stockapp.core.ui.theme.TabOrange
+import com.stockapp.core.ui.theme.TrendSignalFearGreedColor
+import com.stockapp.core.ui.theme.TrendSignalMaColor
+import com.stockapp.core.ui.theme.TrendSignalPriceColor
 import com.github.mikephil.charting.charts.ScatterChart
 
 /**
@@ -103,7 +106,8 @@ fun MacdChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -240,7 +244,8 @@ fun TrendSignalChart(
                     CombinedChart.DrawOrder.SCATTER
                 ))
 
-                // X Axis - Python reference style with YYYY-MM-DD format
+                // X Axis - Python reference style with YYYY-MM format for long periods
+                // Use formatForChartByDateRange to handle weekly/monthly data correctly
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -252,7 +257,8 @@ fun TrendSignalChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -267,20 +273,21 @@ fun TrendSignalChart(
                 }
 
                 // Right Y Axis (Fear/Greed with text labels: 탐욕, 중립, 공포)
+                // Per TREND_SIGNAL_CHART.md spec: range -1.2 ~ +1.2
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
                     this.textColor = textColor  // Black labels
-                    axisMinimum = -1.5f
-                    axisMaximum = 1.5f
+                    axisMinimum = -1.2f
+                    axisMaximum = 1.2f
                     setLabelCount(5, true)  // Show 5 labels at fixed positions
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
                             return when {
-                                value >= 1.0f -> "탐욕"
-                                value >= 0.3f -> "탐욕"
-                                value >= -0.3f -> "중립"
-                                value >= -1.0f -> "공포"
+                                value > 0.6f -> "탐욕"
+                                value > 0.2f -> "+"
+                                value >= -0.2f -> "중립"
+                                value >= -0.6f -> "-"
                                 else -> "공포"
                             }
                         }
@@ -300,47 +307,50 @@ fun TrendSignalChart(
             val combinedData = CombinedData()
             val lineDataSets = mutableListOf<LineDataSet>()
 
-            // 종가 (Close price) line (left axis) - Black, solid line
+            // 종가 (Close price) line (left axis)
+            // Per TREND_SIGNAL_CHART.md spec: Cubic Bezier, 2.5px, MACD lineColor1 (blue)
             val priceEntries = priceValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
             val priceDataSet = LineDataSet(priceEntries, "종가").apply {
-                color = ChartDefaultBlack.toArgb()  // Black for close price
-                lineWidth = 1.5f
+                color = TrendSignalPriceColor.toArgb()  // MACD lineColor1 (#2196F3)
+                lineWidth = 2.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.LINEAR
+                mode = LineDataSet.Mode.CUBIC_BEZIER
                 axisDependency = YAxis.AxisDependency.LEFT
             }
             lineDataSets.add(priceDataSet)
 
-            // MA line (left axis) - Orange, dashed
+            // MA line (left axis) - Dashed
+            // Per TREND_SIGNAL_CHART.md spec: Dashed, 2.0px, MACD lineColor2 (orange #FF9800)
             if (ma10Values.isNotEmpty()) {
                 val ma10Entries = ma10Values.mapIndexed { index, value ->
                     Entry(index.toFloat(), value.toFloat())
                 }
                 val ma10DataSet = LineDataSet(ma10Entries, "MA").apply {
-                    color = TabOrange.toArgb()  // Orange
-                    lineWidth = 1.5f
+                    color = TrendSignalMaColor.toArgb()  // MACD lineColor2 (#FF9800)
+                    lineWidth = 2f
                     setDrawCircles(false)
                     setDrawValues(false)
                     mode = LineDataSet.Mode.LINEAR
                     axisDependency = YAxis.AxisDependency.LEFT
-                    enableDashedLine(10f, 5f, 0f)  // Dashed line
+                    enableDashedLine(10f, 5f, 0f)  // Dashed line: 10px line, 5px gap
                 }
                 lineDataSets.add(ma10DataSet)
             }
 
             // F&G (Fear/Greed) line (right axis) - Purple
+            // Per TREND_SIGNAL_CHART.md spec: Cubic Bezier, 1.5px, Purple RGB(156, 39, 176)
             val fearGreedEntries = fearGreedValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
             val fearGreedDataSet = LineDataSet(fearGreedEntries, "F&G").apply {
-                color = ChartPurple.toArgb()  // Purple like reference
+                color = TrendSignalFearGreedColor.toArgb()  // Purple #9C27B0
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
-                mode = LineDataSet.Mode.LINEAR
+                mode = LineDataSet.Mode.CUBIC_BEZIER
                 axisDependency = YAxis.AxisDependency.RIGHT
             }
             lineDataSets.add(fearGreedDataSet)
@@ -348,7 +358,7 @@ fun TrendSignalChart(
             // Threshold lines for Fear/Greed (±0.5) - Dashed reference lines
             // +0.5 threshold (Greed zone - red dashed)
             val threshold05Entries = dates.indices.map { Entry(it.toFloat(), 0.5f) }
-            val threshold05DataSet = LineDataSet(threshold05Entries, "").apply {
+            val threshold05DataSet = LineDataSet(threshold05Entries, "탐욕(0.5)").apply {
                 color = FearGreedRed.toArgb()
                 lineWidth = 1f
                 setDrawCircles(false)
@@ -361,7 +371,7 @@ fun TrendSignalChart(
 
             // -0.5 threshold (Fear zone - green dashed)
             val thresholdNeg05Entries = dates.indices.map { Entry(it.toFloat(), -0.5f) }
-            val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "").apply {
+            val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "공포(-0.5)").apply {
                 color = FearGreedGreen.toArgb()
                 lineWidth = 1f
                 setDrawCircles(false)
@@ -523,7 +533,8 @@ fun ElderImpulseChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -698,7 +709,7 @@ fun DemarkTDChart(
                     CombinedChart.DrawOrder.LINE
                 ))
 
-                // X Axis - Python style
+                // X Axis - Python style with date range based formatting
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -710,7 +721,8 @@ fun DemarkTDChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -832,7 +844,7 @@ fun MacdHistogramChart(
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
 
-                // X Axis - Python style
+                // X Axis - Python style with date range based formatting
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -843,7 +855,8 @@ fun MacdHistogramChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }
@@ -919,7 +932,7 @@ fun SimpleLineChart(
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
 
-                // X Axis
+                // X Axis - date range based formatting for weekly/monthly charts
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -931,7 +944,8 @@ fun SimpleLineChart(
                         override fun getFormattedValue(value: Float): String {
                             val index = value.toInt()
                             return if (index >= 0 && index < dates.size) {
-                                DateFormatter.formatForChartByDataCount(dates[index], dates.size)
+                                // Use date range based formatting for weekly/monthly charts
+                                DateFormatter.formatForChartByDateRange(dates[index], dates)
                             } else ""
                         }
                     }

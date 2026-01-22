@@ -110,3 +110,8 @@ val HistogramTeal = Color(0xFF26A69A)     // Positive histogram
 val HistogramRed = Color(0xFFEF5350)      // Negative histogram
 val MacdBlue = Color(0xFF2196F3)          // MACD line
 val MacdSignalOrange = Color(0xFFFF9800)  // Signal line
+
+// Trend Signal chart colors (Python reference style)
+val TrendSignalPriceColor = Color(0xFF2196F3)  // Close price line - uses MACD lineColor1
+val TrendSignalMaColor = Color(0xFFFF9800)     // MA line - uses MACD lineColor2
+val TrendSignalFearGreedColor = Color(0xFF9C27B0)  // Fear/Greed line - Purple RGB(156, 39, 176)
