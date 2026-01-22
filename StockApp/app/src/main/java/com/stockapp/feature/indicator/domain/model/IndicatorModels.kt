@@ -184,7 +184,8 @@ data class ElderImpulse(
     val ema13: List<Double>,
     val macdLine: List<Double>,
     val signalLine: List<Double>,
-    val macdHist: List<Double>
+    val macdHist: List<Double>,
+    val close: List<Double> = emptyList()  // Close prices for chart display
 )
 
 @Serializable
@@ -203,7 +204,8 @@ data class ElderDataDto(
     val ema13: List<Double>,
     @SerialName("macd_line") val macdLine: List<Double>,
     @SerialName("signal_line") val signalLine: List<Double>,
-    @SerialName("macd_hist") val macdHist: List<Double>
+    @SerialName("macd_hist") val macdHist: List<Double>,
+    val close: List<Double> = emptyList()  // Close prices (populated from OHLCV)
 ) {
     fun toDomain(): ElderImpulse = ElderImpulse(
         ticker = ticker,
@@ -213,7 +215,8 @@ data class ElderDataDto(
         ema13 = ema13,
         macdLine = macdLine,
         signalLine = signalLine,
-        macdHist = macdHist
+        macdHist = macdHist,
+        close = close
     )
 }
 
@@ -264,8 +267,8 @@ fun ElderImpulse.toSummary(): ElderSummary = ElderSummary(
     macdHistHistory = macdHist,
     macdLineHistory = macdLine,
     signalLineHistory = signalLine,
-    // Use EMA13 as mcap proxy for chart display
-    mcapHistory = ema13,
+    // Use actual close prices for chart display (fallback to EMA13 if not available)
+    mcapHistory = close.ifEmpty { ema13 },
     // Convert color strings to impulse states
     impulseStates = color.map { c ->
         when (c) {

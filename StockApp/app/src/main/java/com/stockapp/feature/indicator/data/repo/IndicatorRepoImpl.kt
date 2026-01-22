@@ -16,10 +16,32 @@ import com.stockapp.feature.indicator.domain.model.TrendDataDto
 import com.stockapp.feature.indicator.domain.model.TrendResponse
 import com.stockapp.feature.indicator.domain.model.TrendSignal
 import com.stockapp.feature.indicator.domain.repo.IndicatorRepo
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * OHLCV response DTOs for fetching close prices.
+ */
+@Serializable
+private data class OhlcvResponse(
+    val ok: Boolean,
+    val data: OhlcvDataDto? = null
+)
+
+@Serializable
+private data class OhlcvDataDto(
+    val ticker: String,
+    val dates: List<String>,
+    val open: List<Int>,
+    val high: List<Int>,
+    val low: List<Int>,
+    val close: List<Int>,
+    val volume: List<Long>
+)
 
 @Singleton
 class IndicatorRepoImpl @Inject constructor(
@@ -78,11 +100,16 @@ class IndicatorRepoImpl @Inject constructor(
 
         // Check cache
         if (useCache) {
-            getCachedElder(cacheKey)?.let { return Result.success(it) }
+            getCachedElder(cacheKey)?.let { cached ->
+                // Only use cache if it has close prices
+                if (cached.close.isNotEmpty()) {
+                    return Result.success(cached)
+                }
+            }
         }
 
-        // Fetch from Python
-        val result = pyClient.call(
+        // Fetch Elder indicator from Python
+        val elderResult = pyClient.call(
             module = "stock_analyzer.indicator.elder",
             func = "calc",
             args = listOf(ticker, days, timeframe),
@@ -90,18 +117,52 @@ class IndicatorRepoImpl @Inject constructor(
         ) { jsonStr ->
             val response = json.decodeFromString<ElderResponse>(jsonStr)
             if (response.ok && response.data != null) {
-                Pair(response.data.toDomain(), response.data)
+                response.data
             } else {
                 throw PyError.CallError(response.error?.msg ?: "Failed to get elder impulse")
             }
         }
 
-        // Cache the result after the call completes
-        result.onSuccess { (_, dto) ->
-            cacheElder(cacheKey, ticker, dto)
+        if (elderResult.isFailure) {
+            return Result.failure(elderResult.exceptionOrNull()!!)
         }
 
-        return result.map { it.first }
+        val elderDto = elderResult.getOrThrow()
+
+        // Fetch OHLCV data to get close prices
+        // Note: Python ohlcv functions use default days=180, which matches our needs
+        // Using null for start_date and end_date to use defaults
+        val ohlcvFunc = if (timeframe == "weekly") "get_weekly" else "get_daily"
+        val closePrices = try {
+            val ohlcvResult = pyClient.call(
+                module = "stock_analyzer.stock.ohlcv",
+                func = ohlcvFunc,
+                // Args: ticker, start_date=null, end_date=null, days
+                // Python signature: get_daily(client, ticker, start_date=None, end_date=None, days=180)
+                args = listOf(ticker, null, null, days),
+                timeoutMs = PyClient.DEFAULT_TIMEOUT_MS
+            ) { jsonStr ->
+                val response = json.decodeFromString<OhlcvResponse>(jsonStr)
+                if (response.ok && response.data != null) {
+                    response.data.close.map { it.toDouble() }
+                } else {
+                    emptyList()
+                }
+            }
+            ohlcvResult.getOrDefault(emptyList())
+        } catch (e: Exception) {
+            // If OHLCV fetch fails, continue without close prices
+            emptyList()
+        }
+
+        // Create ElderDataDto with close prices
+        val elderDtoWithClose = elderDto.copy(close = closePrices)
+        val elderImpulse = elderDtoWithClose.toDomain()
+
+        // Cache the result with close prices
+        cacheElder(cacheKey, ticker, elderDtoWithClose)
+
+        return Result.success(elderImpulse)
     }
 
     override suspend fun getDemark(
