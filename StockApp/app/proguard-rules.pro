@@ -49,3 +49,11 @@
 
 # Chaquopy
 -keep class com.chaquo.python.** { *; }
+
+# Google Error Prone annotations (used by Tink/Security Crypto)
+# These are compile-time annotations not needed at runtime
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
+-dontwarn com.google.errorprone.annotations.CheckReturnValue
+-dontwarn com.google.errorprone.annotations.Immutable
+-dontwarn com.google.errorprone.annotations.RestrictedApi
+-dontwarn com.google.errorprone.annotations.**
