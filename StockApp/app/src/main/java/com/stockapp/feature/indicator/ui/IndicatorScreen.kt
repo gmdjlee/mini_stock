@@ -293,6 +293,11 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
         .mapNotNull { it?.toDouble() }
         .reversed()
 
+    // MA20 for MA overlay line - use ma20 to avoid overlap with priceHistory (which uses ma10)
+    val ma20History = summary.ma20History.take(displayCount)
+        .mapNotNull { it?.toDouble() }
+        .reversed()
+
     // Calculate signal indices for the displayed data range
     // Signals are calculated on reversed data (chronological order)
     val maSignalHistory = summary.maSignalHistory.take(displayCount).reversed()
@@ -352,7 +357,7 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
                 dates = dates,
                 priceValues = priceHistory,
                 fearGreedValues = fearGreedHistory,
-                ma10Values = ma10History,
+                ma10Values = ma20History,  // Use MA20 to avoid overlap with priceHistory (which uses MA10)
                 primaryBuySignals = primaryBuySignals,
                 additionalBuySignals = additionalBuySignals,
                 primarySellSignals = primarySellSignals,
