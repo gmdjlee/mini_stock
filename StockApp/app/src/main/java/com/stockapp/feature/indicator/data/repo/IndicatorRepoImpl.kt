@@ -130,16 +130,16 @@ class IndicatorRepoImpl @Inject constructor(
         val elderDto = elderResult.getOrThrow()
 
         // Fetch OHLCV data to get close prices
-        // Note: Python ohlcv functions use default days=180, which matches our needs
-        // Using null for start_date and end_date to use defaults
+        // Note: Empty strings are treated as falsy in Python, so they work like None
         val ohlcvFunc = if (timeframe == "weekly") "get_weekly" else "get_daily"
         val closePrices = try {
             val ohlcvResult = pyClient.call(
                 module = "stock_analyzer.stock.ohlcv",
                 func = ohlcvFunc,
-                // Args: ticker, start_date=null, end_date=null, days
+                // Args: ticker, start_date="", end_date="", days
                 // Python signature: get_daily(client, ticker, start_date=None, end_date=None, days=180)
-                args = listOf(ticker, null, null, days),
+                // Empty strings are falsy in Python, so `"" or default` returns default
+                args = listOf(ticker, "", "", days),
                 timeoutMs = PyClient.DEFAULT_TIMEOUT_MS
             ) { jsonStr ->
                 val response = json.decodeFromString<OhlcvResponse>(jsonStr)
