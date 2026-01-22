@@ -61,11 +61,11 @@ import com.stockapp.feature.indicator.domain.model.IndicatorType
 import com.stockapp.feature.indicator.domain.model.TrendSummary
 
 /**
- * Chart display constants - aligned with AnalysisScreen for consistency.
+ * Chart display constants for trend signal visualization.
  */
 private object ChartConfig {
-    /** Maximum days to display in charts (aligned with AnalysisScreen.OSCILLATOR_CHART_MAX_DAYS) */
-    const val CHART_MAX_DAYS = 120
+    /** Maximum days to display in charts (6 months of weekly data) */
+    const val CHART_MAX_DAYS = 180
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -288,6 +288,53 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
     val fearGreedHistory = summary.fearGreedHistory.take(displayCount).reversed()
     val cmfHistory = summary.cmfHistory.take(displayCount).reversed()
 
+    // MA10 for overlay line (using ma10History if available, otherwise ma20)
+    val ma10History = summary.ma10History.take(displayCount)
+        .mapNotNull { it?.toDouble() }
+        .reversed()
+
+    // Calculate signal indices for the displayed data range
+    // Signals are calculated on reversed data (chronological order)
+    val maSignalHistory = summary.maSignalHistory.take(displayCount).reversed()
+    val trendHistory = summary.trendHistory.take(displayCount).reversed()
+
+    // Generate signal indices based on trend and maSignal
+    val primaryBuySignals = mutableListOf<Int>()
+    val additionalBuySignals = mutableListOf<Int>()
+    val primarySellSignals = mutableListOf<Int>()
+    val additionalSellSignals = mutableListOf<Int>()
+
+    for (i in maSignalHistory.indices) {
+        if (i < trendHistory.size) {
+            val signal = maSignalHistory[i]
+            val trend = trendHistory[i]
+
+            when {
+                // Primary Buy: bullish trend AND positive signal
+                signal == 1 && trend == "bullish" -> primaryBuySignals.add(i)
+                // Additional Buy: positive signal but not bullish trend
+                signal == 1 && trend != "bullish" -> additionalBuySignals.add(i)
+                // Primary Sell: bearish trend AND negative signal
+                signal == -1 && trend == "bearish" -> primarySellSignals.add(i)
+                // Additional Sell: negative signal but not bearish trend
+                signal == -1 && trend != "bearish" -> additionalSellSignals.add(i)
+            }
+        }
+    }
+
+    // Format latest date for subtitle
+    val latestDate = dates.lastOrNull()?.let { date ->
+        val normalized = date.replace("-", "")
+        if (normalized.length >= 8) {
+            "${normalized.substring(0, 4)}-${normalized.substring(4, 6)}-${normalized.substring(6, 8)}"
+        } else date
+    } ?: ""
+    val timeframeLabel = when (timeframe) {
+        Timeframe.DAILY -> "d"
+        Timeframe.WEEKLY -> "w"
+        Timeframe.MONTHLY -> "m"
+    }
+
     // Title with current status
     Text(
         text = "추세 시그널 (MA/CMF/Fear&Greed)",
@@ -295,16 +342,21 @@ private fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
         fontWeight = FontWeight.Bold
     )
 
-    // Main Trend Signal Chart (EtfMonitor style)
+    // Main Trend Signal Chart with all signals
     if (priceHistory.isNotEmpty() && fearGreedHistory.isNotEmpty()) {
         ChartCard(
             title = "추세 시그널 (${timeframe.label})",
-            subtitle = "현재 상태: ${summary.trendLabel}"
+            subtitle = "최신 데이터: $latestDate ($timeframeLabel)"
         ) {
             TrendSignalChart(
                 dates = dates,
                 priceValues = priceHistory,
-                fearGreedValues = fearGreedHistory
+                fearGreedValues = fearGreedHistory,
+                ma10Values = ma10History,
+                primaryBuySignals = primaryBuySignals,
+                additionalBuySignals = additionalBuySignals,
+                primarySellSignals = primarySellSignals,
+                additionalSellSignals = additionalSellSignals
             )
         }
     }

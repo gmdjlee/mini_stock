@@ -33,6 +33,7 @@ import com.stockapp.core.ui.theme.ChartGreen
 import com.stockapp.core.ui.theme.ChartGridDark
 import com.stockapp.core.ui.theme.ChartGridLight
 import com.stockapp.core.ui.theme.ChartOrange
+import com.stockapp.core.ui.theme.ChartPurple
 import com.stockapp.core.ui.theme.ChartRed
 import com.stockapp.core.ui.theme.DemarkBlue
 import com.stockapp.core.ui.theme.DemarkRed
@@ -186,17 +187,17 @@ fun MacdChart(
 
 /**
  * TrendSignalChart - Trend Signal chart with price, MA, and Fear/Greed
- * Python reference style with dual Y-axis and signal markers
+ * Python reference style with dual Y-axis (left: price, right: 탐욕/중립/공포 text labels)
  * Style: {ticker}.KS Weekly Strategy + Fear & Greed
  *
  * @param dates List of date strings
- * @param priceValues Close price values
+ * @param priceValues Close price values (종가)
  * @param ma10Values MA10 values (optional, for overlay)
  * @param fearGreedValues Fear/Greed index values (-1 to 1.5)
- * @param primaryBuySignals List of indices with primary buy signals (bullish trend)
- * @param additionalBuySignals List of indices with additional buy signals
- * @param primarySellSignals List of indices with primary sell signals (bearish trend)
- * @param additionalSellSignals List of indices with additional sell signals
+ * @param primaryBuySignals List of indices with primary buy signals (매수)
+ * @param additionalBuySignals List of indices with additional buy signals (보조매수)
+ * @param primarySellSignals List of indices with primary sell signals (매도)
+ * @param additionalSellSignals List of indices with additional sell signals (보조매도)
  */
 @Composable
 fun TrendSignalChart(
@@ -216,7 +217,8 @@ fun TrendSignalChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All labels in black as per requirement
+    val textColor = Color.BLACK
 
     // Merge legacy signals with new ones
     val effectivePrimaryBuy = if (primaryBuySignals.isEmpty()) buySignals else primaryBuySignals
@@ -232,12 +234,13 @@ fun TrendSignalChart(
                 setPinchZoom(true)
                 setDrawGridBackground(false)
                 setExtraBottomOffset(10f)
+                setExtraRightOffset(30f)  // Extra space for right axis labels
                 setDrawOrder(arrayOf(
                     CombinedChart.DrawOrder.LINE,
                     CombinedChart.DrawOrder.SCATTER
                 ))
 
-                // X Axis - Python style
+                // X Axis - Python reference style with YYYY-MM-DD format
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(true)
@@ -255,7 +258,7 @@ fun TrendSignalChart(
                     }
                 }
 
-                // Left Y Axis (Price)
+                // Left Y Axis (Price/Market Cap) - Black labels
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
@@ -263,18 +266,30 @@ fun TrendSignalChart(
                     enableGridDashedLine(10f, 10f, 0f)
                 }
 
-                // Right Y Axis (Fear/Greed: -1.5 to 1.5) - Python style
+                // Right Y Axis (Fear/Greed with text labels: 탐욕, 중립, 공포)
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = TabOrange.toArgb()  // Orange like Python
+                    this.textColor = textColor  // Black labels
                     axisMinimum = -1.5f
                     axisMaximum = 1.5f
+                    setLabelCount(5, true)  // Show 5 labels at fixed positions
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            return when {
+                                value >= 1.0f -> "탐욕"
+                                value >= 0.3f -> "탐욕"
+                                value >= -0.3f -> "중립"
+                                value >= -1.0f -> "공포"
+                                else -> "공포"
+                            }
+                        }
+                    }
                 }
 
                 legend.apply {
                     isEnabled = true
-                    this.textColor = textColor
+                    this.textColor = textColor  // Black legend text
                 }
 
                 // Marker
@@ -285,12 +300,12 @@ fun TrendSignalChart(
             val combinedData = CombinedData()
             val lineDataSets = mutableListOf<LineDataSet>()
 
-            // Close price line (left axis) - Python style: tab:blue, solid
+            // 종가 (Close price) line (left axis) - Black, solid line
             val priceEntries = priceValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val priceDataSet = LineDataSet(priceEntries, "Close").apply {
-                color = TabBlue.toArgb()  // tab:blue
+            val priceDataSet = LineDataSet(priceEntries, "종가").apply {
+                color = ChartDefaultBlack.toArgb()  // Black for close price
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
@@ -299,13 +314,13 @@ fun TrendSignalChart(
             }
             lineDataSets.add(priceDataSet)
 
-            // MA10 line (left axis) - Python style: tab:orange, dashed
+            // MA line (left axis) - Orange, dashed
             if (ma10Values.isNotEmpty()) {
                 val ma10Entries = ma10Values.mapIndexed { index, value ->
                     Entry(index.toFloat(), value.toFloat())
                 }
-                val ma10DataSet = LineDataSet(ma10Entries, "MA10").apply {
-                    color = TabOrange.toArgb()  // tab:orange
+                val ma10DataSet = LineDataSet(ma10Entries, "MA").apply {
+                    color = TabOrange.toArgb()  // Orange
                     lineWidth = 1.5f
                     setDrawCircles(false)
                     setDrawValues(false)
@@ -316,12 +331,12 @@ fun TrendSignalChart(
                 lineDataSets.add(ma10DataSet)
             }
 
-            // Fear/Greed line (right axis) - Python style: orange
+            // F&G (Fear/Greed) line (right axis) - Purple
             val fearGreedEntries = fearGreedValues.mapIndexed { index, value ->
                 Entry(index.toFloat(), value.toFloat())
             }
-            val fearGreedDataSet = LineDataSet(fearGreedEntries, "FG Index").apply {
-                color = TabOrange.toArgb()  // Orange like Python
+            val fearGreedDataSet = LineDataSet(fearGreedEntries, "F&G").apply {
+                color = ChartPurple.toArgb()  // Purple like reference
                 lineWidth = 1.5f
                 setDrawCircles(false)
                 setDrawValues(false)
@@ -330,8 +345,8 @@ fun TrendSignalChart(
             }
             lineDataSets.add(fearGreedDataSet)
 
-            // Threshold lines for Fear/Greed (±0.5) - Python style
-            // +0.5 threshold (Greed - red dashed)
+            // Threshold lines for Fear/Greed (±0.5) - Dashed reference lines
+            // +0.5 threshold (Greed zone - red dashed)
             val threshold05Entries = dates.indices.map { Entry(it.toFloat(), 0.5f) }
             val threshold05DataSet = LineDataSet(threshold05Entries, "").apply {
                 color = FearGreedRed.toArgb()
@@ -344,7 +359,7 @@ fun TrendSignalChart(
             }
             lineDataSets.add(threshold05DataSet)
 
-            // -0.5 threshold (Fear - green dashed)
+            // -0.5 threshold (Fear zone - green dashed)
             val thresholdNeg05Entries = dates.indices.map { Entry(it.toFloat(), -0.5f) }
             val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "").apply {
                 color = FearGreedGreen.toArgb()
@@ -359,10 +374,10 @@ fun TrendSignalChart(
 
             combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
 
-            // Signal markers - Python style
+            // Signal markers on close price line - Python reference style
             val scatterDataSets = mutableListOf<ScatterDataSet>()
 
-            // Additional Buy (light red, smaller) - Python style
+            // 보조매수 (Additional Buy) - Light red, smaller triangle
             if (additionalBuySignals.isNotEmpty()) {
                 val entries = additionalBuySignals.mapNotNull { index ->
                     if (index >= 0 && index < priceValues.size) {
@@ -370,7 +385,7 @@ fun TrendSignalChart(
                     } else null
                 }
                 if (entries.isNotEmpty()) {
-                    val dataSet = ScatterDataSet(entries, "Add. Buy").apply {
+                    val dataSet = ScatterDataSet(entries, "보조매수").apply {
                         color = AdditionalBuy.toArgb()
                         setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
                         scatterShapeSize = 16f
@@ -382,7 +397,7 @@ fun TrendSignalChart(
                 }
             }
 
-            // Primary Buy (dark red, larger) - Python style: darkred
+            // 매수 (Primary Buy) - Dark red, larger triangle
             if (effectivePrimaryBuy.isNotEmpty()) {
                 val entries = effectivePrimaryBuy.mapNotNull { index ->
                     if (index >= 0 && index < priceValues.size) {
@@ -390,7 +405,7 @@ fun TrendSignalChart(
                     } else null
                 }
                 if (entries.isNotEmpty()) {
-                    val dataSet = ScatterDataSet(entries, "Primary Buy").apply {
+                    val dataSet = ScatterDataSet(entries, "매수").apply {
                         color = PrimaryBuy.toArgb()  // darkred
                         setScatterShape(ScatterChart.ScatterShape.TRIANGLE)
                         scatterShapeSize = 24f
@@ -402,7 +417,7 @@ fun TrendSignalChart(
                 }
             }
 
-            // Additional Sell (light blue, smaller) - Python style
+            // 보조매도 (Additional Sell) - Light blue, smaller inverted triangle
             if (additionalSellSignals.isNotEmpty()) {
                 val entries = additionalSellSignals.mapNotNull { index ->
                     if (index >= 0 && index < priceValues.size) {
@@ -410,7 +425,7 @@ fun TrendSignalChart(
                     } else null
                 }
                 if (entries.isNotEmpty()) {
-                    val dataSet = ScatterDataSet(entries, "Add. Sell").apply {
+                    val dataSet = ScatterDataSet(entries, "보조매도").apply {
                         color = AdditionalSell.toArgb()
                         scatterShapeSize = 16f
                         setDrawValues(false)
@@ -421,7 +436,7 @@ fun TrendSignalChart(
                 }
             }
 
-            // Primary Sell (dark blue, larger) - Python style: darkblue
+            // 매도 (Primary Sell) - Dark blue, larger inverted triangle
             if (effectivePrimarySell.isNotEmpty()) {
                 val entries = effectivePrimarySell.mapNotNull { index ->
                     if (index >= 0 && index < priceValues.size) {
@@ -429,7 +444,7 @@ fun TrendSignalChart(
                     } else null
                 }
                 if (entries.isNotEmpty()) {
-                    val dataSet = ScatterDataSet(entries, "Primary Sell").apply {
+                    val dataSet = ScatterDataSet(entries, "매도").apply {
                         color = PrimarySell.toArgb()  // darkblue
                         scatterShapeSize = 24f
                         setDrawValues(false)

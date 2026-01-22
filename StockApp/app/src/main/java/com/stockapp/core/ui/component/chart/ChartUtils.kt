@@ -69,7 +69,7 @@ fun ChartCard(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.Black  // All labels in black
                 )
             }
             content()
