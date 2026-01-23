@@ -105,14 +105,13 @@ data class ForeignInstitutionTopResponse(
 
 /**
  * Item DTO for ka90009 (외국인기관매매상위요청).
- * Each row contains data for 4 categories, but institution data shares the same
- * stock as foreign data (no separate ticker/name for institution).
+ * Each row contains data for 4 independent rankings:
  *
  * API structure per row:
  * - 외인 순매도: for_netslmt_stk_cd, for_netslmt_stk_nm, for_netslmt_amt, for_netslmt_qty
  * - 외인 순매수: for_netprps_stk_cd, for_netprps_stk_nm, for_netprps_amt, for_netprps_qty
- * - 기관 순매도: orgn_netslmt_amt, orgn_netslmt_qty (same stock as 외인 순매도)
- * - 기관 순매수: orgn_netprps_amt, orgn_netprps_qty (same stock as 외인 순매수)
+ * - 기관 순매도: orgn_netslmt_stk_cd, orgn_netslmt_stk_nm, orgn_netslmt_amt, orgn_netslmt_qty
+ * - 기관 순매수: orgn_netprps_stk_cd, orgn_netprps_stk_nm, orgn_netprps_amt, orgn_netprps_qty
  */
 @Serializable
 data class ForeignInstitutionItemDto(
@@ -126,10 +125,14 @@ data class ForeignInstitutionItemDto(
     @SerialName("for_netprps_stk_nm") val forNetprpsStkNm: String? = null,
     @SerialName("for_netprps_amt") val forNetprpsAmt: String? = null,
     @SerialName("for_netprps_qty") val forNetprpsQty: String? = null,
-    // 기관 순매도 - values only, same stock as 외인 순매도 (for_netslmt)
+    // 기관 순매도 종목 (includes ticker and name)
+    @SerialName("orgn_netslmt_stk_cd") val orgnNetslmtStkCd: String? = null,
+    @SerialName("orgn_netslmt_stk_nm") val orgnNetslmtStkNm: String? = null,
     @SerialName("orgn_netslmt_amt") val orgnNetslmtAmt: String? = null,
     @SerialName("orgn_netslmt_qty") val orgnNetslmtQty: String? = null,
-    // 기관 순매수 - values only, same stock as 외인 순매수 (for_netprps)
+    // 기관 순매수 종목 (includes ticker and name)
+    @SerialName("orgn_netprps_stk_cd") val orgnNetprpsStkCd: String? = null,
+    @SerialName("orgn_netprps_stk_nm") val orgnNetprpsStkNm: String? = null,
     @SerialName("orgn_netprps_amt") val orgnNetprpsAmt: String? = null,
     @SerialName("orgn_netprps_qty") val orgnNetprpsQty: String? = null
 )

@@ -393,10 +393,8 @@ class RankingRepoImpl @Inject constructor(
 
     /**
      * Extract institution investor data (순매수 or 순매도).
-     * Note: The API does not provide separate ticker/name for institution data.
-     * Institution data shares the same stock as foreign data in each row.
-     * - 순매수: Uses for_netprps_stk_cd/nm as reference, with orgn_netprps values
-     * - 순매도: Uses for_netslmt_stk_cd/nm as reference, with orgn_netslmt values
+     * Uses institution-specific ticker and name fields from the API response.
+     * Falls back to foreign ticker/name if institution fields are empty (mock API compatibility).
      */
     private fun extractInstitutionData(
         dto: ForeignInstitutionItemDto,
@@ -405,13 +403,18 @@ class RankingRepoImpl @Inject constructor(
         direction: TradeDirection
     ): RankingItem? {
         return if (direction == TradeDirection.NET_BUY) {
-            // Use foreign net buy ticker as reference (same stock for institution)
-            val ticker = dto.forNetprpsStkCd ?: return null
+            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
+            val ticker = dto.orgnNetprpsStkCd?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetprpsStkCd
+                ?: return null
+            val name = dto.orgnNetprpsStkNm?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetprpsStkNm
+                ?: ""
             val value = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.forNetprpsStkNm ?: "",
+                name = name,
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
@@ -420,13 +423,18 @@ class RankingRepoImpl @Inject constructor(
                 netValue = value
             )
         } else {
-            // Use foreign net sell ticker as reference (same stock for institution)
-            val ticker = dto.forNetslmtStkCd ?: return null
+            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
+            val ticker = dto.orgnNetslmtStkCd?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetslmtStkCd
+                ?: return null
+            val name = dto.orgnNetslmtStkNm?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetslmtStkNm
+                ?: ""
             val value = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.forNetslmtStkNm ?: "",
+                name = name,
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
