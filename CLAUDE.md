@@ -13,6 +13,47 @@
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
+---
+
+## Claude Code Agent 활용 지침
+
+개발 작업 시 다음 Agent들을 **적극적으로 활용**하세요:
+
+### 필수 활용 Agent
+
+| Agent | 용도 | 활용 시점 |
+|-------|------|----------|
+| **Explore** | 코드베이스 탐색, 파일 검색 | 코드 구조 파악, 기능 위치 찾기 |
+| **Plan** | 구현 계획 수립, 아키텍처 설계 | 새 기능 개발 전, 리팩토링 전 |
+| **code-simplifier** | 코드 단순화, 정리 | 코드 작성 완료 후 |
+| **verify-app** | 앱 실행 및 품질 검증 | 코드 변경 후 |
+
+### Agent 활용 예시
+
+```
+# 코드베이스 탐색 시
+Task(subagent_type="Explore", prompt="Find all files related to stock scheduling")
+
+# 구현 계획 수립 시
+Task(subagent_type="Plan", prompt="Plan implementation for new notification feature")
+
+# 코드 작성 후 단순화
+Task(subagent_type="code-simplifier", prompt="Simplify the recently added code")
+
+# 앱 검증
+Task(subagent_type="verify-app", prompt="Run the app and verify scheduling feature works")
+```
+
+### 개발 워크플로우
+
+1. **탐색** (Explore): 관련 코드 위치 및 패턴 파악
+2. **계획** (Plan): 구현 전략 수립 (복잡한 작업 시)
+3. **구현**: 코드 작성
+4. **단순화** (code-simplifier): 불필요한 복잡성 제거
+5. **검증** (verify-app): 앱 실행하여 동작 확인
+
+---
+
 ## Current Status
 
 ### Python 패키지 (stock-analyzer) 🔒 FROZEN
@@ -39,22 +80,44 @@
 | App Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
 | App Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
 | App Phase 2 | ✅ Done | 기술적 지표 화면 (Vico Charts) |
-| App Phase 3 | ✅ Done | 시장 지표, 조건검색 화면 |
+| App Phase 3 | ⛔ Removed | ~~시장 지표, 조건검색 화면~~ (제거됨) |
+| App Phase 4 | ✅ Done | **설정 화면 (API 키 관리, 투자 모드)** |
+| App Phase 5 | ✅ Done | **자동 스케줄링 (WorkManager 기반)** |
 
-**코드**: ~101 files, ~11,100 lines (Kotlin)
+**코드**: ~79 files, ~11,100 lines (Kotlin)
 **코드 품질**: 7.4/10 (테스트 부재로 감점)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 > 🚀 **이 프로젝트가 현재 활성 개발 대상입니다.** 모든 기능 추가, 버그 수정, 개선 작업은 여기에 적용됩니다.
+
+### 현재 앱 네비게이션 (Bottom Nav)
+
+| 탭 | 화면 | 기능 |
+|----|------|------|
+| 🔍 Search | SearchScreen | 종목 검색, 검색 히스토리 |
+| 📊 Analysis | AnalysisScreen | 수급 분석, 매매 신호 |
+| 📈 Indicator | IndicatorScreen | 기술적 지표 (Trend, Elder, DeMark) |
+| ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정 |
 
 ## Quick Commands
 
 ```bash
 # Android 앱 빌드 (주요 명령어)
 cd StockApp
-./gradlew build
-./gradlew installDebug
-./gradlew test
+./gradlew build              # 전체 빌드
+./gradlew assembleDebug      # Debug APK 빌드
+./gradlew installDebug       # 디바이스에 설치
+./gradlew test               # 단위 테스트
+./gradlew lint               # Lint 검사
+./gradlew ktlintCheck        # Kotlin 코드 스타일 검사
+./gradlew ktlintFormat       # Kotlin 코드 포맷팅
+
+# Release 빌드
+./gradlew assembleRelease    # Release APK 빌드
+
+# 의존성 확인
+./gradlew dependencies       # 전체 의존성 트리
+./gradlew app:dependencies   # 앱 모듈 의존성
 
 # Python 테스트 (참조용 - 수정 불필요)
 cd stock-analyzer
@@ -469,64 +532,66 @@ StockApp/
 │   ├── core/
 │   │   ├── db/                     # Room Database
 │   │   │   ├── AppDb.kt
-│   │   │   ├── entity/StockEntity.kt
-│   │   │   └── dao/*.kt
+│   │   │   ├── entity/*.kt         # StockEntity, SchedulingEntity 등
+│   │   │   └── dao/*.kt            # 6개 DAO
 │   │   ├── py/                     # Python Bridge
 │   │   │   ├── PyClient.kt
 │   │   │   └── PyResponse.kt
+│   │   ├── cache/                  # 캐시 관리
+│   │   │   └── StockCacheManager.kt
+│   │   ├── state/                  # 공유 상태
+│   │   │   └── SelectedStockManager.kt
+│   │   ├── theme/                  # 테마 관리
+│   │   │   ├── ThemeManager.kt
+│   │   │   └── ThemeToggle.kt
 │   │   ├── ui/                     # Common UI
-│   │   │   ├── theme/
-│   │   │   └── component/
+│   │   │   ├── theme/              # Color, Type, Theme, Spacing
+│   │   │   └── component/          # ErrorCard, LoadingIndicator, Charts
+│   │   │       ├── chart/          # TechnicalCharts, ChartUtils
+│   │   │       └── stockinput/     # StockInputField 컴포넌트
 │   │   └── di/                     # DI Modules
 │   │       ├── AppModule.kt
 │   │       ├── DbModule.kt
 │   │       └── PyModule.kt
 │   ├── feature/
 │   │   ├── search/                 # 종목 검색 (Phase 1)
-│   │   │   ├── domain/model/Stock.kt
-│   │   │   ├── domain/repo/SearchRepo.kt
-│   │   │   ├── domain/usecase/SearchStockUC.kt
-│   │   │   ├── data/repo/SearchRepoImpl.kt
-│   │   │   ├── ui/SearchScreen.kt
-│   │   │   ├── ui/SearchVm.kt
+│   │   │   ├── domain/
+│   │   │   ├── data/
+│   │   │   ├── ui/SearchScreen.kt, SearchVm.kt
 │   │   │   └── di/SearchModule.kt
 │   │   ├── analysis/               # 수급 분석 (Phase 1)
-│   │   │   ├── domain/model/StockData.kt
-│   │   │   ├── domain/repo/AnalysisRepo.kt
-│   │   │   ├── domain/usecase/GetAnalysisUC.kt
-│   │   │   ├── data/repo/AnalysisRepoImpl.kt
-│   │   │   ├── ui/AnalysisScreen.kt
-│   │   │   ├── ui/AnalysisVm.kt
+│   │   │   ├── domain/
+│   │   │   ├── data/
+│   │   │   ├── ui/AnalysisScreen.kt, AnalysisVm.kt
 │   │   │   └── di/AnalysisModule.kt
 │   │   ├── indicator/              # 기술적 지표 (Phase 2)
-│   │   │   ├── domain/model/IndicatorModels.kt
-│   │   │   ├── domain/repo/IndicatorRepo.kt
-│   │   │   ├── domain/usecase/GetTrendUC.kt
-│   │   │   ├── domain/usecase/GetElderUC.kt
-│   │   │   ├── domain/usecase/GetDemarkUC.kt
-│   │   │   ├── data/repo/IndicatorRepoImpl.kt
-│   │   │   ├── ui/IndicatorScreen.kt
-│   │   │   ├── ui/IndicatorVm.kt
+│   │   │   ├── domain/
+│   │   │   ├── data/
+│   │   │   ├── ui/IndicatorScreen.kt, IndicatorVm.kt
 │   │   │   └── di/IndicatorModule.kt
-│   │   ├── market/                 # 시장 지표 (Phase 3)
-│   │   │   ├── domain/model/MarketModels.kt
-│   │   │   ├── domain/repo/MarketRepo.kt
-│   │   │   ├── domain/usecase/GetMarketIndicatorsUC.kt
-│   │   │   ├── data/repo/MarketRepoImpl.kt
-│   │   │   ├── ui/MarketScreen.kt
-│   │   │   ├── ui/MarketVm.kt
-│   │   │   └── di/MarketModule.kt
-│   │   └── condition/              # 조건검색 (Phase 3)
-│   │       ├── domain/model/ConditionModels.kt
-│   │       ├── domain/repo/ConditionRepo.kt
-│   │       ├── domain/usecase/GetConditionListUC.kt
-│   │       ├── domain/usecase/SearchConditionUC.kt
-│   │       ├── data/repo/ConditionRepoImpl.kt
-│   │       ├── ui/ConditionScreen.kt
-│   │       ├── ui/ConditionVm.kt
-│   │       └── di/ConditionModule.kt
+│   │   ├── settings/               # 설정 (Phase 4) ⭐ NEW
+│   │   │   ├── domain/
+│   │   │   │   ├── model/ApiKeyConfig.kt  # API 키, InvestmentMode
+│   │   │   │   ├── repo/SettingsRepo.kt
+│   │   │   │   └── usecase/*.kt
+│   │   │   ├── data/
+│   │   │   │   └── repo/SettingsRepoImpl.kt  # EncryptedSharedPreferences
+│   │   │   ├── ui/SettingsScreen.kt, SettingsVm.kt
+│   │   │   └── di/SettingsModule.kt
+│   │   └── scheduling/             # 자동 스케줄링 (Phase 5) ⭐ NEW
+│   │       ├── SchedulingManager.kt       # WorkManager 오케스트레이션
+│   │       ├── SyncWorkState.kt           # 동기화 상태 enum
+│   │       ├── domain/
+│   │       │   ├── model/SchedulingModels.kt  # SchedulingConfig, SyncStatus
+│   │       │   └── repo/SchedulingRepo.kt
+│   │       ├── data/
+│   │       │   └── repo/SchedulingRepoImpl.kt
+│   │       ├── worker/
+│   │       │   └── StockSyncWorker.kt     # WorkManager Worker
+│   │       ├── ui/SchedulingTab.kt, SchedulingVm.kt
+│   │       └── di/SchedulingModule.kt
 │   └── nav/
-│       ├── Nav.kt                  # Screen 정의
+│       ├── Nav.kt                  # Screen 정의 (4개 탭)
 │       └── NavGraph.kt             # Navigation
 │
 └── app/src/main/python/            # Python 패키지 (chart/ 제외)
@@ -694,89 +759,199 @@ val result = pyClient.call(
 - **BarChartContent**: MACD Histogram
 - **DemarkSetupChart**: Sell/Buy Setup 카운트 추이
 
-### App Phase 3: 시장 지표 + 조건검색
+### App Phase 3: ~~시장 지표 + 조건검색~~ (제거됨)
 
-#### MarketScreen (시장 지표)
-- 고객예탁금, 신용융자, 신용잔고, 신용비율 표시
-- 기간 선택 (7일, 14일, 30일, 60일, 90일)
-- 추이 차트 (Vico LineChart)
-- Pull-to-refresh 지원
-- 캐시 TTL: 24시간
+> ⚠️ **이 기능은 제거되었습니다.** Market 및 Condition 기능은 앱에서 제외되었습니다.
 
-#### 시장 지표 모델
+---
+
+### App Phase 4: 설정 화면 (Settings)
+
+#### SettingsScreen (API 키 관리 + 투자 모드)
+
+**탭 구조**:
+- **API Key 탭**: 키움 API 키 설정
+- **Scheduling 탭**: 자동 동기화 설정
+
+#### API 키 설정 기능
+- App Key, Secret Key 입력
+- 투자 모드 선택: MOCK (모의투자) / PRODUCTION (실전투자)
+- API 연결 테스트
+- **보안**: EncryptedSharedPreferences (AES256 암호화)
+
+#### 설정 모델
 ```kotlin
-data class MarketSummary(
-    val dates: List<String>,
-    val currentDeposit: Long,        // 고객예탁금 (원)
-    val currentCreditLoan: Long,     // 신용융자 (원)
-    val currentCreditBalance: Long,  // 신용잔고 (원)
-    val currentCreditRatio: Double,  // 신용비율 (%)
-    // 전일 대비 변화
-    val depositChange: Long,
-    val creditLoanChange: Long,
-    // 차트 데이터
-    val depositHistory: List<Long>,
-    val creditRatioHistory: List<Double>
+// 투자 모드
+enum class InvestmentMode {
+    MOCK,       // 모의투자 (mockapi.kiwoom.com)
+    PRODUCTION  // 실전투자 (api.kiwoom.com)
+}
+
+// API 키 설정
+data class ApiKeyConfig(
+    val appKey: String,
+    val secretKey: String,
+    val investmentMode: InvestmentMode
 )
 ```
 
-#### Python 호출 예시 (Market)
+#### 사용 예시
 ```kotlin
-// 시장 지표 조회
-val result = pyClient.call(
-    module = "stock_analyzer.market.deposit",
-    func = "get_market_indicators",
-    args = listOf(30)  // days
-) { json -> json.decodeFromString<MarketIndicatorsResponse>(json) }
+// 설정 저장
+settingsRepo.saveApiKeyConfig(
+    ApiKeyConfig(
+        appKey = "your_app_key",
+        secretKey = "your_secret_key",
+        investmentMode = InvestmentMode.MOCK
+    )
+)
+
+// 설정 조회
+val config = settingsRepo.getApiKeyConfig()
 ```
 
-#### ConditionScreen (조건검색)
-- 조건검색 목록 표시
-- 조건 선택 시 검색 실행
-- 검색 결과에서 종목 선택 시 수급 분석 화면으로 이동
-- Pull-to-refresh 지원
-- 캐시 TTL: 24시간
+---
 
-#### 조건검색 모델
+### App Phase 5: 자동 스케줄링 (Scheduling)
+
+#### SchedulingTab (자동 동기화 설정)
+
+**기능**:
+- 자동 동기화 활성화/비활성화
+- 동기화 시간 설정 (기본: 01:00 AM)
+- 수동 동기화 실행
+- 동기화 히스토리 조회
+- 마지막 동기화 상태 표시
+
+**기술 스택**: Android WorkManager (백그라운드 작업)
+
+#### 스케줄링 모델
 ```kotlin
-data class Condition(
-    val idx: String,    // 조건검색 인덱스
-    val name: String    // 조건검색 이름
+// 동기화 상태
+enum class SyncStatus {
+    NEVER,       // 한 번도 실행 안 됨
+    SUCCESS,     // 성공
+    FAILED,      // 실패
+    IN_PROGRESS  // 진행 중
+}
+
+// 동기화 유형
+enum class SyncType {
+    SCHEDULED,   // 예약된 동기화
+    MANUAL       // 수동 동기화
+}
+
+// 스케줄링 설정
+data class SchedulingConfig(
+    val isEnabled: Boolean,      // 자동 동기화 활성화 여부
+    val syncHour: Int,           // 동기화 시각 (시)
+    val syncMinute: Int,         // 동기화 시각 (분)
+    val lastSyncAt: Long?,       // 마지막 동기화 시각
+    val lastSyncStatus: SyncStatus  // 마지막 동기화 상태
 )
 
-data class ConditionResult(
-    val condition: Condition,
-    val stocks: List<ConditionStock>
-)
-
-data class ConditionStock(
-    val ticker: String,
-    val name: String,
-    val price: Int,
-    val change: Double  // 등락률 (%)
+// 동기화 히스토리
+data class SyncHistory(
+    val id: Long,
+    val syncType: SyncType,
+    val startedAt: Long,
+    val completedAt: Long?,
+    val status: SyncStatus,
+    val syncedStocksCount: Int,
+    val errorMessage: String?
 )
 ```
 
-#### Python 호출 예시 (Condition)
+#### WorkManager Worker
 ```kotlin
-// 조건검색 목록 조회
-val result = pyClient.call(
-    module = "stock_analyzer.search.condition",
-    func = "get_list",
-    args = emptyList()
-) { json -> json.decodeFromString<ConditionListResponse>(json) }
+// StockSyncWorker.kt
+class StockSyncWorker(
+    context: Context,
+    params: WorkerParameters
+) : CoroutineWorker(context, params) {
 
-// 조건검색 실행
-val result = pyClient.call(
-    module = "stock_analyzer.search.condition",
-    func = "search",
-    args = listOf("000", "골든크로스")
-) { json -> json.decodeFromString<ConditionSearchResponse>(json) }
+    override suspend fun doWork(): Result {
+        // 1. 등록된 종목 목록 조회
+        // 2. 각 종목 데이터 동기화 (수급 분석, 지표)
+        // 3. 결과 저장 및 히스토리 기록
+        return Result.success()
+    }
+}
+```
+
+#### 스케줄링 관리
+```kotlin
+// 스케줄 등록
+schedulingManager.scheduleDaily(hour = 1, minute = 0)
+
+// 수동 동기화 실행
+schedulingManager.syncNow()
+
+// 스케줄 취소
+schedulingManager.cancelSchedule()
+
+// 동기화 상태 관찰
+schedulingManager.syncState.collect { state ->
+    when (state) {
+        SyncWorkState.IDLE -> { /* 대기 중 */ }
+        SyncWorkState.RUNNING -> { /* 실행 중 */ }
+        SyncWorkState.SUCCEEDED -> { /* 성공 */ }
+        SyncWorkState.FAILED -> { /* 실패 */ }
+    }
+}
 ```
 
 ### 참고 문서
 
 - Android 사전 준비: `docs/ANDROID_PREPARATION.md`
 - 상세 명세서: `docs/STOCK_APP_SPEC.md`
+- 코드 리뷰: `docs/CODE_REVIEW_REPORT.md`
+- UI 디자인 리뷰: `docs/UI_DESIGN_REVIEW.md`
+- 키움 API 문서: `docs/kiwoom_api_docs/`
+
+### 외부 라이브러리 문서
+
 - Chaquopy: https://chaquo.com/chaquopy/
 - Vico Charts: https://github.com/patrykandpatrick/vico
+- Hilt (DI): https://dagger.dev/hilt/
+- Room (DB): https://developer.android.com/training/data-storage/room
+- WorkManager: https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started
+
+---
+
+## Database Schema
+
+### Room Entities
+
+| Entity | 용도 | 주요 필드 |
+|--------|------|----------|
+| `StockEntity` | 종목 정보 캐시 | ticker, name, market |
+| `SearchHistoryEntity` | 검색 히스토리 | ticker, name, searchedAt |
+| `StockDataEntity` | 수급 분석 캐시 | ticker, data (JSON), cachedAt |
+| `IndicatorCacheEntity` | 기술 지표 캐시 | ticker, indicatorType, data, cachedAt |
+| `SchedulingEntity` | 스케줄링 설정 | isEnabled, syncHour, lastSyncAt, status |
+
+### 캐시 정책
+
+| 데이터 | TTL | 비고 |
+|--------|-----|------|
+| 종목 정보 | 24시간 | 앱 시작 시 체크 |
+| 수급 분석 | 24시간 | 요청 시 갱신 |
+| 기술 지표 | 24시간 | 요청 시 갱신 |
+| 검색 히스토리 | 무제한 | 최대 50개 유지 |
+
+---
+
+## 기술 스택 요약
+
+| 기술 | 버전 | 용도 |
+|------|------|------|
+| Kotlin | 2.1.0+ | 앱 개발 언어 |
+| Jetpack Compose | BOM 2024.12 | UI 프레임워크 |
+| Hilt | 2.54 | 의존성 주입 |
+| Room | 2.8.3 | 로컬 데이터베이스 |
+| WorkManager | Latest | 백그라운드 작업 |
+| Vico | 2.0.0 | 차트 라이브러리 |
+| Chaquopy | 15.0.1+ | Python 통합 |
+| DataStore | Latest | 설정 저장 |
+| Security Crypto | Latest | 암호화 저장소 |
