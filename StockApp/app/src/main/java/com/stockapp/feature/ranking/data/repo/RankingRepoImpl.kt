@@ -3,6 +3,7 @@ package com.stockapp.feature.ranking.data.repo
 import android.util.Log
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
+import com.stockapp.feature.ranking.data.dto.ForeignInstitutionItemDto
 import com.stockapp.feature.ranking.data.dto.ForeignInstitutionTopResponse
 import com.stockapp.feature.ranking.data.dto.OrderBookSurgeResponse
 import com.stockapp.feature.ranking.data.dto.RankingItemDto
@@ -146,16 +147,8 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                // Try DTO-based parsing first, fallback to dynamic parsing
                 val response = json.decodeFromString<ForeignInstitutionTopResponse>(responseJson)
-                val result = parseForeignInstitutionTopResponse(response, params)
-                // If no items found, try dynamic parsing
-                if (result.items.isEmpty()) {
-                    val items = findAndParseItemsArray(responseJson)
-                    parseForeignInstitutionTopItems(items, params)
-                } else {
-                    result
-                }
+                parseForeignInstitutionTopResponse(response, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -326,23 +319,31 @@ class RankingRepoImpl @Inject constructor(
         )
     }
 
-    private fun parseForeignInstitutionTopItems(
-        dtoItems: List<RankingItemDto>,
+    private fun parseForeignInstitutionTopResponse(
+        response: ForeignInstitutionTopResponse,
         params: ForeignInstitutionTopParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
+        val dtoItems = response.items ?: emptyList()
 
+        // Each row contains 4 different stock entries (for_netslmt, for_netprps, orgn_netslmt, orgn_netprps)
+        // We use foreign net buy (for_netprps) as the primary list
         for ((index, dto) in dtoItems.withIndex()) {
+            // Skip if no foreign net buy data
+            val ticker = dto.forNetprpsStkCd
+            if (ticker.isNullOrEmpty()) continue
+
             items.add(
                 RankingItem(
                     rank = index + 1,
-                    ticker = cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = parseLong(dto.curPrc),
-                    priceChange = parseLong(dto.predPre),
-                    priceChangeSign = parseSign(dto.predPreSig),
-                    changeRate = parseDouble(dto.fluRt),
-                    volume = parseLong(dto.trdeQty)
+                    ticker = cleanTicker(ticker),
+                    name = dto.forNetprpsStkNm ?: "",
+                    currentPrice = 0, // Not provided in this API
+                    priceChange = 0,
+                    priceChangeSign = "",
+                    changeRate = 0.0,
+                    foreignNetBuy = parseLong(dto.forNetprpsAmt),
+                    institutionNetBuy = findInstitutionNetBuy(dto, ticker)
                 )
             )
         }
@@ -356,53 +357,18 @@ class RankingRepoImpl @Inject constructor(
         )
     }
 
-    private fun parseForeignInstitutionTopResponse(
-        response: ForeignInstitutionTopResponse,
-        params: ForeignInstitutionTopParams
-    ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        // Combine foreign and institution net buy data
-        val forTickers = response.forNetprpsStkCdList ?: emptyList()
-        val forNames = response.forNetprpsStkNmList ?: emptyList()
-        val forAmts = response.forNetprpsAmtList ?: emptyList()
-
-        val orgnTickers = response.orgnNetprpsStkCdList ?: emptyList()
-        val orgnNames = response.orgnNetprpsStkNmList ?: emptyList()
-        val orgnAmts = response.orgnNetprpsAmtList ?: emptyList()
-
-        // Create a map for institution data keyed by ticker
-        val orgnDataMap = mutableMapOf<String, Long>()
-        for (i in orgnTickers.indices) {
-            val ticker = orgnTickers.getOrNull(i) ?: continue
-            orgnDataMap[ticker] = parseLong(orgnAmts.getOrNull(i))
+    /**
+     * Find institution net buy amount for the same ticker from the same row.
+     * Each row has separate foreign and institution data, so we check if the
+     * institution net buy ticker matches the foreign ticker.
+     */
+    private fun findInstitutionNetBuy(dto: ForeignInstitutionItemDto, forTicker: String): Long? {
+        val orgnTicker = cleanTicker(dto.orgnNetprpsStkCd)
+        return if (orgnTicker == cleanTicker(forTicker)) {
+            parseLong(dto.orgnNetprpsAmt)
+        } else {
+            null
         }
-
-        // Primary list is foreign net buy, add institution data if available
-        for (i in forTickers.indices) {
-            val ticker = forTickers.getOrNull(i) ?: ""
-            items.add(
-                RankingItem(
-                    rank = i + 1,
-                    ticker = ticker,
-                    name = forNames.getOrNull(i) ?: "",
-                    currentPrice = 0, // Not provided in this API
-                    priceChange = 0,
-                    priceChangeSign = "",
-                    changeRate = 0.0,
-                    foreignNetBuy = parseLong(forAmts.getOrNull(i)),
-                    institutionNetBuy = orgnDataMap[ticker]
-                )
-            )
-        }
-
-        return RankingResult(
-            rankingType = RankingType.FOREIGN_INSTITUTION_TOP,
-            marketType = params.marketType,
-            exchangeType = params.exchangeType,
-            items = items,
-            fetchedAt = LocalDateTime.now()
-        )
     }
 
     // Utility functions
