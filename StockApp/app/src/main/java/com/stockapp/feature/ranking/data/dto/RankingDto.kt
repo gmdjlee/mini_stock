@@ -66,13 +66,14 @@ data class VolumeSurgeResponse(
 
 /**
  * Response for ka10030 (당일거래량상위요청).
- * API returns data wrapped in "today_trde_qty_top" field as array of objects.
+ * API returns data wrapped in "tdy_trde_qty_top" field as array of objects.
+ * Note: Field name uses "tdy" abbreviation for "today" per Kiwoom API convention.
  */
 @Serializable
 data class DailyVolumeTopResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("today_trde_qty_top") val items: List<RankingItemDto>? = null
+    @SerialName("tdy_trde_qty_top") val items: List<RankingItemDto>? = null
 )
 
 /**
@@ -88,30 +89,44 @@ data class CreditRatioTopResponse(
 
 /**
  * Response for ka90009 (외국인기관매매상위요청).
- * Note: This API returns separate lists for foreign buy/sell and institution buy/sell.
+ * API returns data wrapped in "frgnr_orgn_trde_upper" field.
+ * Each row contains 4 different rankings side by side:
+ * - 외인 순매도 (for_netslmt_*)
+ * - 외인 순매수 (for_netprps_*)
+ * - 기관 순매도 (orgn_netslmt_*)
+ * - 기관 순매수 (orgn_netprps_*)
  */
 @Serializable
 data class ForeignInstitutionTopResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    // 외인 순매수 종목
-    @SerialName("for_netprps_stk_cd") val forNetprpsStkCdList: List<String>? = null,
-    @SerialName("for_netprps_stk_nm") val forNetprpsStkNmList: List<String>? = null,
-    @SerialName("for_netprps_amt") val forNetprpsAmtList: List<String>? = null,
-    @SerialName("for_netprps_qty") val forNetprpsQtyList: List<String>? = null,
+    @SerialName("frgnr_orgn_trde_upper") val items: List<ForeignInstitutionItemDto>? = null
+)
+
+/**
+ * Item DTO for ka90009 (외국인기관매매상위요청).
+ * Each row contains 4 different stock entries for different categories.
+ */
+@Serializable
+data class ForeignInstitutionItemDto(
     // 외인 순매도 종목
-    @SerialName("for_netslmt_stk_cd") val forNetslmtStkCdList: List<String>? = null,
-    @SerialName("for_netslmt_stk_nm") val forNetslmtStkNmList: List<String>? = null,
-    @SerialName("for_netslmt_amt") val forNetslmtAmtList: List<String>? = null,
-    @SerialName("for_netslmt_qty") val forNetslmtQtyList: List<String>? = null,
-    // 기관 순매수 종목
-    @SerialName("orgn_netprps_stk_cd") val orgnNetprpsStkCdList: List<String>? = null,
-    @SerialName("orgn_netprps_stk_nm") val orgnNetprpsStkNmList: List<String>? = null,
-    @SerialName("orgn_netprps_amt") val orgnNetprpsAmtList: List<String>? = null,
-    @SerialName("orgn_netprps_qty") val orgnNetprpsQtyList: List<String>? = null,
+    @SerialName("for_netslmt_stk_cd") val forNetslmtStkCd: String? = null,
+    @SerialName("for_netslmt_stk_nm") val forNetslmtStkNm: String? = null,
+    @SerialName("for_netslmt_amt") val forNetslmtAmt: String? = null,
+    @SerialName("for_netslmt_qty") val forNetslmtQty: String? = null,
+    // 외인 순매수 종목
+    @SerialName("for_netprps_stk_cd") val forNetprpsStkCd: String? = null,
+    @SerialName("for_netprps_stk_nm") val forNetprpsStkNm: String? = null,
+    @SerialName("for_netprps_amt") val forNetprpsAmt: String? = null,
+    @SerialName("for_netprps_qty") val forNetprpsQty: String? = null,
     // 기관 순매도 종목
-    @SerialName("orgn_netslmt_stk_cd") val orgnNetslmtStkCdList: List<String>? = null,
-    @SerialName("orgn_netslmt_stk_nm") val orgnNetslmtStkNmList: List<String>? = null,
-    @SerialName("orgn_netslmt_amt") val orgnNetslmtAmtList: List<String>? = null,
-    @SerialName("orgn_netslmt_qty") val orgnNetslmtQtyList: List<String>? = null
+    @SerialName("orgn_netslmt_stk_cd") val orgnNetslmtStkCd: String? = null,
+    @SerialName("orgn_netslmt_stk_nm") val orgnNetslmtStkNm: String? = null,
+    @SerialName("orgn_netslmt_amt") val orgnNetslmtAmt: String? = null,
+    @SerialName("orgn_netslmt_qty") val orgnNetslmtQty: String? = null,
+    // 기관 순매수 종목
+    @SerialName("orgn_netprps_stk_cd") val orgnNetprpsStkCd: String? = null,
+    @SerialName("orgn_netprps_stk_nm") val orgnNetprpsStkNm: String? = null,
+    @SerialName("orgn_netprps_amt") val orgnNetprpsAmt: String? = null,
+    @SerialName("orgn_netprps_qty") val orgnNetprpsQty: String? = null
 )
