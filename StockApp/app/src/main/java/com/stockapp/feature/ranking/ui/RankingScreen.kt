@@ -299,69 +299,78 @@ private fun ForeignInstitutionFilters(
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // Row 1: Investor Type
-        Text(
-            text = "투자자유형",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            InvestorType.entries.forEach { type ->
-                FilterChip(
-                    selected = investorType == type,
-                    onClick = { onInvestorTypeChange(type) },
-                    label = { Text(type.displayName) }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Row 2: Trade Direction + Value Type
+        // Row 1: Labels
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Trade Direction
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "매매방향",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TradeDirection.entries.forEach { direction ->
-                        FilterChip(
-                            selected = tradeDirection == direction,
-                            onClick = { onTradeDirectionChange(direction) },
-                            label = { Text(direction.displayName) }
-                        )
-                    }
+            Text(
+                text = "투자자유형",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1.2f)
+            )
+            Text(
+                text = "매매방향",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "표시단위",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Row 2: Filter Chips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Investor Type chips
+            Row(
+                modifier = Modifier.weight(1.2f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                InvestorType.entries.forEach { type ->
+                    FilterChip(
+                        selected = investorType == type,
+                        onClick = { onInvestorTypeChange(type) },
+                        label = { Text(type.displayName, style = MaterialTheme.typography.labelSmall) }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            // Trade Direction chips
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                TradeDirection.entries.forEach { direction ->
+                    FilterChip(
+                        selected = tradeDirection == direction,
+                        onClick = { onTradeDirectionChange(direction) },
+                        label = { Text(direction.displayName, style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
 
-            // Value Type
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "표시단위",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ValueType.entries.forEach { type ->
-                        FilterChip(
-                            selected = valueType == type,
-                            onClick = { onValueTypeChange(type) },
-                            label = { Text(type.displayName) }
-                        )
-                    }
+            // Value Type chips
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ValueType.entries.forEach { type ->
+                    FilterChip(
+                        selected = valueType == type,
+                        onClick = { onValueTypeChange(type) },
+                        label = { Text(type.displayName, style = MaterialTheme.typography.labelSmall) }
+                    )
                 }
             }
         }
