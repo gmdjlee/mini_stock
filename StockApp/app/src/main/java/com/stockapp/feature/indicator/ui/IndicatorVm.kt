@@ -79,6 +79,8 @@ class IndicatorVm @Inject constructor(
             selectedStockManager.selectedTicker.collect { ticker ->
                 if (ticker != null && ticker != currentTicker) {
                     currentTicker = ticker
+                    // Update stock name from selected stock
+                    stockName = selectedStockManager.selectedStock.value?.name ?: ""
                     // Clear cached data for new stock
                     clearCachedData()
                     loadInitialData(ticker)
@@ -143,9 +145,9 @@ class IndicatorVm @Inject constructor(
     }
 
     private fun loadInitialData(ticker: String) {
-        viewModelScope.launch {
-            loadTabData(ticker, IndicatorType.TREND, useCache = true)
-        }
+        // Load data for currently selected tab (not always TREND)
+        // This fixes the infinite loading issue when user had selected a different tab
+        loadTabData(ticker, _selectedTab.value, useCache = true)
     }
 
     private fun loadTabData(ticker: String, tab: IndicatorType, useCache: Boolean) {
@@ -172,7 +174,8 @@ class IndicatorVm @Inject constructor(
         getTrendUC(ticker, DAYS, timeframe, useCache).fold(
             onSuccess = { trend ->
                 trendData = trend.toSummary()
-                stockName = trend.ticker
+                // Only update stockName if empty (prefer name from SelectedStockManager)
+                if (stockName.isEmpty()) stockName = trend.ticker
                 updateSuccessState(ticker)
             },
             onFailure = { e ->
