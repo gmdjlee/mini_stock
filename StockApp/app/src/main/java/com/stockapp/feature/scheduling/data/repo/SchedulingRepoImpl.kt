@@ -235,7 +235,7 @@ class SchedulingRepoImpl @Inject constructor(
 
     private suspend fun syncTopStocksAnalysis(): Result<Int> {
         // Get recently searched stocks or top KOSPI/KOSDAQ stocks
-        val stocks = stockDao.getAll().take(100) // Limit to top 100
+        val stocks = stockDao.getAllOnce(100) // Limit to top 100
 
         if (stocks.isEmpty()) {
             return Result.success(0)
