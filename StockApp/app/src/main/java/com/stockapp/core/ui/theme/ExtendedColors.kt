@@ -81,7 +81,29 @@ data class ExtendedColors(
     /** Elder Impulse - Bearish (Red) */
     val elderRed: Color = Color(0xFFF44336),
     /** Elder Impulse - Neutral (Blue) */
-    val elderBlue: Color = Color(0xFF2196F3)
+    val elderBlue: Color = Color(0xFF2196F3),
+
+    // Danger Colors (for production mode warnings)
+    /** Danger/Critical state */
+    val danger: Color = Color(0xFFC62828),
+    /** Danger state container */
+    val dangerContainer: Color = Color(0xFFFFF3E0),
+    /** Content on danger container */
+    val onDangerContainer: Color = Color(0xFFE65100),
+
+    // Chart UI Colors (theme-aware)
+    /** Chart text/label color */
+    val chartOnSurface: Color = Color.Black,
+    /** Chart grid color */
+    val chartGrid: Color = Color(0xFFE1E4D5),
+
+    // Content Colors
+    /** Content on primary color backgrounds */
+    val onPrimary: Color = Color.White,
+
+    // Highlight Colors
+    /** Active/highlight state (e.g., DeMark active setup) */
+    val activeHighlight: Color = Color(0xFFFFEB3B)
 )
 
 /**
@@ -122,7 +144,22 @@ val DarkExtendedColors = ExtendedColors(
     // Elder Impulse Colors (brighter for dark theme)
     elderGreen = Color(0xFF66BB6A),
     elderRed = Color(0xFFEF5350),
-    elderBlue = Color(0xFF64B5F6)
+    elderBlue = Color(0xFF64B5F6),
+
+    // Danger Colors (brighter for dark theme)
+    danger = Color(0xFFEF5350),
+    dangerContainer = Color(0xFF4A1C1C),
+    onDangerContainer = Color(0xFFFFAB91),
+
+    // Chart UI Colors (inverted for dark theme)
+    chartOnSurface = Color.White,
+    chartGrid = Color(0xFF353733),
+
+    // Content Colors (same for dark theme)
+    onPrimary = Color.White,
+
+    // Highlight Colors (brighter for dark theme)
+    activeHighlight = Color(0xFFFFEE58)
 )
 
 /**

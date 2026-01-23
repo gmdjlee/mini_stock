@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.core.ui.component.chart.ChartCard
+import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.core.ui.component.chart.MarketCapOscillatorChart
 import com.stockapp.core.ui.component.chart.SupplyDemandBarChart
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
@@ -440,31 +441,33 @@ private fun ErrorContent(
 
 // Helper functions
 
+@Composable
 private fun getSignalDisplay(signal: SupplySignal): Triple<ImageVector, Color, String> {
+    val extendedColors = LocalExtendedColors.current
     return when (signal) {
         SupplySignal.STRONG_BUY -> Triple(
             Icons.AutoMirrored.Filled.TrendingUp,
-            Color(0xFF4CAF50),
+            extendedColors.signalStrongBuy,
             "강력 매수"
         )
         SupplySignal.BUY -> Triple(
             Icons.AutoMirrored.Filled.TrendingUp,
-            Color(0xFF8BC34A),
+            extendedColors.signalBuy,
             "매수"
         )
         SupplySignal.NEUTRAL -> Triple(
             Icons.AutoMirrored.Filled.TrendingFlat,
-            Color(0xFF9E9E9E),
+            extendedColors.signalNeutral,
             "중립"
         )
         SupplySignal.SELL -> Triple(
             Icons.AutoMirrored.Filled.TrendingDown,
-            Color(0xFFFF9800),
+            extendedColors.signalSell,
             "매도"
         )
         SupplySignal.STRONG_SELL -> Triple(
             Icons.AutoMirrored.Filled.TrendingDown,
-            Color(0xFFF44336),
+            extendedColors.signalStrongSell,
             "강력 매도"
         )
     }
@@ -472,9 +475,10 @@ private fun getSignalDisplay(signal: SupplySignal): Triple<ImageVector, Color, S
 
 @Composable
 private fun getValueColor(value: Double): Color {
+    val extendedColors = LocalExtendedColors.current
     return when {
-        value > 0 -> Color(0xFFF44336) // Red for positive (Korean market convention)
-        value < 0 -> Color(0xFF2196F3) // Blue for negative
+        value > 0 -> extendedColors.statusUp // Red for positive (Korean market convention)
+        value < 0 -> extendedColors.statusDown // Blue for negative
         else -> MaterialTheme.colorScheme.onSurface
     }
 }

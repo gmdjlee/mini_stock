@@ -17,7 +17,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +26,7 @@ import com.github.mikephil.charting.renderer.scatter.IShapeRenderer
 import com.github.mikephil.charting.utils.ViewPortHandler
 import com.stockapp.core.ui.theme.ChartCardBackgroundDark
 import com.stockapp.core.ui.theme.ChartCardBackgroundLight
+import com.stockapp.core.ui.theme.LocalExtendedColors
 
 /**
  * ChartCard - EtfMonitor style chart container
@@ -64,13 +64,13 @@ fun ChartCard(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = MaterialTheme.colorScheme.onSurface
             )
             subtitle?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Black  // All labels in black
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             content()
@@ -230,12 +230,7 @@ fun formatPercentForChart(value: Double): String {
  */
 @Composable
 fun getChartGridColor(): Int {
-    val isDark = isSystemInDarkTheme()
-    return if (isDark) {
-        Color(0xFF353733).toArgb()
-    } else {
-        Color(0xFFE1E4D5).toArgb()
-    }
+    return LocalExtendedColors.current.chartGrid.toArgb()
 }
 
 /**
@@ -243,12 +238,7 @@ fun getChartGridColor(): Int {
  */
 @Composable
 fun getChartTextColor(): Int {
-    val isDark = isSystemInDarkTheme()
-    return if (isDark) {
-        Color.White.toArgb()
-    } else {
-        Color.Black.toArgb()
-    }
+    return LocalExtendedColors.current.chartOnSurface.toArgb()
 }
 
 /**

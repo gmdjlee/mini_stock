@@ -26,7 +26,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,11 +40,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.stockapp.feature.scheduling.SyncWorkState
+import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.scheduling.domain.model.SyncHistory
 import com.stockapp.feature.scheduling.domain.model.SyncStatus
 import com.stockapp.feature.scheduling.domain.model.SyncType
@@ -219,6 +217,7 @@ fun SchedulingTab(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val extendedColors = LocalExtendedColors.current
                         Text(
                             text = "상태",
                             style = MaterialTheme.typography.bodyMedium,
@@ -229,13 +228,13 @@ fun SchedulingTab(
                                 SyncStatus.SUCCESS -> Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = Color(0xFF4CAF50),
+                                    tint = extendedColors.success,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 SyncStatus.FAILED -> Icon(
                                     imageVector = Icons.Default.Error,
                                     contentDescription = null,
-                                    tint = Color(0xFFF44336),
+                                    tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 else -> {}
@@ -245,8 +244,8 @@ fun SchedulingTab(
                                 text = uiState.lastSyncStatusDisplay,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = when (uiState.config.lastSyncStatus) {
-                                    SyncStatus.SUCCESS -> Color(0xFF4CAF50)
-                                    SyncStatus.FAILED -> Color(0xFFF44336)
+                                    SyncStatus.SUCCESS -> extendedColors.success
+                                    SyncStatus.FAILED -> MaterialTheme.colorScheme.error
                                     else -> MaterialTheme.colorScheme.onSurface
                                 }
                             )
@@ -344,6 +343,7 @@ fun SchedulingTab(
 @Composable
 private fun SyncHistoryItem(history: SyncHistory) {
     val dateFormat = SimpleDateFormat("MM/dd HH:mm", Locale.KOREA)
+    val extendedColors = LocalExtendedColors.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -363,13 +363,13 @@ private fun SyncHistoryItem(history: SyncHistory) {
                     SyncStatus.SUCCESS -> Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = Color(0xFF4CAF50),
+                        tint = extendedColors.success,
                         modifier = Modifier.size(20.dp)
                     )
                     SyncStatus.FAILED -> Icon(
                         imageVector = Icons.Default.Error,
                         contentDescription = null,
-                        tint = Color(0xFFF44336),
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(20.dp)
                     )
                     SyncStatus.IN_PROGRESS -> CircularProgressIndicator(

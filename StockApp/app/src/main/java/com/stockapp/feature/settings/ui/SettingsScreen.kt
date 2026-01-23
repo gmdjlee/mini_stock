@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.theme.ThemeToggleButton
+import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.scheduling.ui.SchedulingTab
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 
@@ -248,6 +249,8 @@ private fun InvestmentModeSelector(
     onModeSelected: (InvestmentMode) -> Unit,
     enabled: Boolean
 ) {
+    val extendedColors = LocalExtendedColors.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -284,7 +287,7 @@ private fun InvestmentModeSelector(
                         },
                         contentDescription = null,
                         tint = if (mode == InvestmentMode.PRODUCTION) {
-                            Color(0xFFC62828)
+                            extendedColors.danger
                         } else {
                             MaterialTheme.colorScheme.primary
                         },
@@ -297,7 +300,7 @@ private fun InvestmentModeSelector(
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = if (selectedMode == mode) FontWeight.Bold else FontWeight.Normal,
                             color = if (mode == InvestmentMode.PRODUCTION) {
-                                Color(0xFFC62828)
+                                extendedColors.danger
                             } else {
                                 MaterialTheme.colorScheme.onSurface
                             }
@@ -318,7 +321,7 @@ private fun InvestmentModeSelector(
                         .fillMaxWidth()
                         .padding(top = 8.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFFF3E0)
+                        containerColor = extendedColors.dangerContainer
                     )
                 ) {
                     Row(
@@ -328,14 +331,14 @@ private fun InvestmentModeSelector(
                         Icon(
                             imageVector = Icons.Default.Error,
                             contentDescription = null,
-                            tint = Color(0xFFE65100),
+                            tint = extendedColors.onDangerContainer,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "실전투자 모드입니다. 실제 거래가 발생할 수 있습니다.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFE65100)
+                            color = extendedColors.onDangerContainer
                         )
                     }
                 }
@@ -346,6 +349,7 @@ private fun InvestmentModeSelector(
 
 @Composable
 private fun TestResultCard(result: TestResult) {
+    val extendedColors = LocalExtendedColors.current
     val (containerColor, contentColor, icon, title, description) = when (result) {
         is TestResult.Idle -> return
         is TestResult.Testing -> TestResultInfo(
@@ -356,15 +360,15 @@ private fun TestResultCard(result: TestResult) {
             description = "API 서버에 연결을 시도하고 있습니다."
         )
         is TestResult.Success -> TestResultInfo(
-            containerColor = Color(0xFFE8F5E9),
-            contentColor = Color(0xFF2E7D32),
+            containerColor = extendedColors.successContainer,
+            contentColor = extendedColors.onSuccessContainer,
             icon = Icons.Default.CheckCircle,
             title = "연결 성공",
             description = "API Key가 정상적으로 확인되었습니다."
         )
         is TestResult.Failure -> TestResultInfo(
-            containerColor = Color(0xFFFFEBEE),
-            contentColor = Color(0xFFC62828),
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
             icon = Icons.Default.Error,
             title = "연결 실패",
             description = result.message

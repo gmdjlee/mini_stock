@@ -14,11 +14,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stockapp.core.ui.component.chart.ChartCard
 import com.stockapp.core.ui.component.chart.DemarkTDChart
+import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.indicator.domain.model.DemarkSummary
 
 /**
@@ -64,11 +64,12 @@ internal fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
     }
 
     // Current Status Card
+    val extendedColors = LocalExtendedColors.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (summary.hasActiveSetup)
-                Color(0xFFFFEB3B).copy(alpha = 0.2f)
+                extendedColors.activeHighlight.copy(alpha = 0.2f)
             else
                 MaterialTheme.colorScheme.surfaceVariant
         )
@@ -89,26 +90,26 @@ internal fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
                     Text(
                         text = "Sell Setup",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFF44336)
+                        color = extendedColors.statusUp
                     )
                     Text(
                         text = "${summary.currentSellSetup}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF44336)
+                        color = extendedColors.statusUp
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "Buy Setup",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF4CAF50)
+                        color = extendedColors.success
                     )
                     Text(
                         text = "${summary.currentBuySetup}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
+                        color = extendedColors.success
                     )
                 }
             }
@@ -123,13 +124,13 @@ internal fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
         SignalCard(
             title = "매도피로",
             signal = summary.sellSignal,
-            color = Color(0xFFF44336),
+            color = extendedColors.statusUp,
             modifier = Modifier.weight(1f)
         )
         SignalCard(
             title = "매수피로",
             signal = summary.buySignal,
-            color = Color(0xFF4CAF50),
+            color = extendedColors.success,
             modifier = Modifier.weight(1f)
         )
     }
