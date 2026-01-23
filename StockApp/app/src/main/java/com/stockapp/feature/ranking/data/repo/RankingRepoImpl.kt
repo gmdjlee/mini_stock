@@ -394,6 +394,7 @@ class RankingRepoImpl @Inject constructor(
     /**
      * Extract institution investor data (순매수 or 순매도).
      * Uses institution-specific ticker and name fields from the API response.
+     * Falls back to foreign ticker/name if institution fields are empty (mock API compatibility).
      */
     private fun extractInstitutionData(
         dto: ForeignInstitutionItemDto,
@@ -402,13 +403,18 @@ class RankingRepoImpl @Inject constructor(
         direction: TradeDirection
     ): RankingItem? {
         return if (direction == TradeDirection.NET_BUY) {
-            // Use institution net buy ticker and name
-            val ticker = dto.orgnNetprpsStkCd ?: return null
+            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
+            val ticker = dto.orgnNetprpsStkCd?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetprpsStkCd
+                ?: return null
+            val name = dto.orgnNetprpsStkNm?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetprpsStkNm
+                ?: ""
             val value = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.orgnNetprpsStkNm ?: "",
+                name = name,
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
@@ -417,13 +423,18 @@ class RankingRepoImpl @Inject constructor(
                 netValue = value
             )
         } else {
-            // Use institution net sell ticker and name
-            val ticker = dto.orgnNetslmtStkCd ?: return null
+            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
+            val ticker = dto.orgnNetslmtStkCd?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetslmtStkCd
+                ?: return null
+            val name = dto.orgnNetslmtStkNm?.takeIf { it.isNotEmpty() }
+                ?: dto.forNetslmtStkNm
+                ?: ""
             val value = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.orgnNetslmtStkNm ?: "",
+                name = name,
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
