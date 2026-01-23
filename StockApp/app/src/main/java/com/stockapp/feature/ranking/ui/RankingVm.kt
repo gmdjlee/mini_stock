@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.ranking.domain.model.ExchangeType
+import com.stockapp.feature.ranking.domain.model.InvestorType
 import com.stockapp.feature.ranking.domain.model.ItemCount
 import com.stockapp.feature.ranking.domain.model.MarketType
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
 import com.stockapp.feature.ranking.domain.model.RankingType
+import com.stockapp.feature.ranking.domain.model.TradeDirection
+import com.stockapp.feature.ranking.domain.model.ValueType
 import com.stockapp.feature.ranking.domain.usecase.GetRankingUC
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
@@ -59,6 +62,16 @@ class RankingVm @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    // ka90009 (Foreign/Institution Top) specific filters
+    private val _investorType = MutableStateFlow(InvestorType.FOREIGN)
+    val investorType: StateFlow<InvestorType> = _investorType.asStateFlow()
+
+    private val _tradeDirection = MutableStateFlow(TradeDirection.NET_BUY)
+    val tradeDirection: StateFlow<TradeDirection> = _tradeDirection.asStateFlow()
+
+    private val _valueType = MutableStateFlow(ValueType.AMOUNT)
+    val valueType: StateFlow<ValueType> = _valueType.asStateFlow()
+
     init {
         checkApiKeyAndLoad()
     }
@@ -102,6 +115,21 @@ class RankingVm @Inject constructor(
         loadRanking()
     }
 
+    fun onInvestorTypeChange(type: InvestorType) {
+        _investorType.value = type
+        loadRanking()
+    }
+
+    fun onTradeDirectionChange(direction: TradeDirection) {
+        _tradeDirection.value = direction
+        loadRanking()
+    }
+
+    fun onValueTypeChange(type: ValueType) {
+        _valueType.value = type
+        loadRanking()
+    }
+
     fun onItemCountChange(count: ItemCount) {
         _itemCount.value = count
         // If we already have data, just filter it locally
@@ -132,7 +160,10 @@ class RankingVm @Inject constructor(
                 rankingType = _rankingType.value,
                 marketType = _marketType.value,
                 exchangeType = _exchangeType.value,
-                itemCount = _itemCount.value
+                itemCount = _itemCount.value,
+                investorType = _investorType.value,
+                tradeDirection = _tradeDirection.value,
+                valueType = _valueType.value
             )
 
             result.fold(
@@ -168,6 +199,25 @@ class RankingVm @Inject constructor(
         return when (_investmentMode.value) {
             InvestmentMode.MOCK -> listOf(ExchangeType.KRX_MOCK)
             InvestmentMode.PRODUCTION -> listOf(ExchangeType.KRX, ExchangeType.NXT)
+        }
+    }
+
+    /**
+     * Check if current ranking type supports ka90009 filters.
+     */
+    fun isForeignInstitutionType(): Boolean {
+        return _rankingType.value == RankingType.FOREIGN_INSTITUTION_TOP
+    }
+
+    /**
+     * Get available market types for current ranking type.
+     * ka90009 supports ALL market, others only support KOSPI/KOSDAQ.
+     */
+    fun getAvailableMarketTypes(): List<MarketType> {
+        return if (_rankingType.value == RankingType.FOREIGN_INSTITUTION_TOP) {
+            listOf(MarketType.KOSPI, MarketType.KOSDAQ, MarketType.ALL)
+        } else {
+            listOf(MarketType.KOSPI, MarketType.KOSDAQ)
         }
     }
 }

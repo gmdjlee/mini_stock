@@ -4,8 +4,11 @@ import com.stockapp.feature.ranking.domain.model.CreditRatioTopParams
 import com.stockapp.feature.ranking.domain.model.DailyVolumeTopParams
 import com.stockapp.feature.ranking.domain.model.ExchangeType
 import com.stockapp.feature.ranking.domain.model.ForeignInstitutionTopParams
+import com.stockapp.feature.ranking.domain.model.InvestorType
 import com.stockapp.feature.ranking.domain.model.ItemCount
 import com.stockapp.feature.ranking.domain.model.MarketType
+import com.stockapp.feature.ranking.domain.model.TradeDirection
+import com.stockapp.feature.ranking.domain.model.ValueType
 import com.stockapp.feature.ranking.domain.model.OrderBookSurgeParams
 import com.stockapp.feature.ranking.domain.model.RankingResult
 import com.stockapp.feature.ranking.domain.model.RankingType
@@ -21,12 +24,17 @@ class GetRankingUC @Inject constructor(
 ) {
     /**
      * Get ranking data based on type, market, exchange, and item count.
+     * For FOREIGN_INSTITUTION_TOP, additional filters (investorType, tradeDirection, valueType) are supported.
      */
     suspend operator fun invoke(
         rankingType: RankingType,
         marketType: MarketType,
         exchangeType: ExchangeType,
-        itemCount: ItemCount = ItemCount.TEN
+        itemCount: ItemCount = ItemCount.TEN,
+        // ka90009 specific filters
+        investorType: InvestorType = InvestorType.FOREIGN,
+        tradeDirection: TradeDirection = TradeDirection.NET_BUY,
+        valueType: ValueType = ValueType.AMOUNT
     ): Result<RankingResult> {
         val result = when (rankingType) {
             RankingType.ORDER_BOOK_SURGE_BUY -> repo.getOrderBookSurge(
@@ -64,7 +72,10 @@ class GetRankingUC @Inject constructor(
             RankingType.FOREIGN_INSTITUTION_TOP -> repo.getForeignInstitutionTop(
                 ForeignInstitutionTopParams(
                     marketType = marketType,
-                    exchangeType = exchangeType
+                    exchangeType = exchangeType,
+                    amountQtyType = valueType.code,
+                    investorType = investorType,
+                    tradeDirection = tradeDirection
                 )
             )
         }

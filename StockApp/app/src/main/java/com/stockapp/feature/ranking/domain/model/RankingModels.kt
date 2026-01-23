@@ -44,6 +44,32 @@ enum class ItemCount(val value: Int) {
 }
 
 /**
+ * Investor type filter for Foreign/Institution Top (ka90009).
+ */
+enum class InvestorType(val displayName: String) {
+    FOREIGN("외국인"),
+    INSTITUTION("기관"),
+    ALL("전체")
+}
+
+/**
+ * Trade direction filter for Foreign/Institution Top (ka90009).
+ */
+enum class TradeDirection(val displayName: String) {
+    NET_BUY("순매수"),
+    NET_SELL("순매도")
+}
+
+/**
+ * Value type filter for Foreign/Institution Top (ka90009).
+ * Maps to amt_qty_tp API parameter.
+ */
+enum class ValueType(val code: String, val displayName: String) {
+    AMOUNT("1", "금액"),
+    QUANTITY("2", "수량")
+}
+
+/**
  * Individual ranking item.
  */
 data class RankingItem(
@@ -61,8 +87,12 @@ data class RankingItem(
     val creditRatio: Double? = null,
     val foreignNetBuy: Long? = null,
     val institutionNetBuy: Long? = null,
+    val foreignNetSell: Long? = null,
+    val institutionNetSell: Long? = null,
     val totalBuyQuantity: Long? = null,
-    val totalSellQuantity: Long? = null
+    val totalSellQuantity: Long? = null,
+    // Primary display value based on selected filter (for ka90009)
+    val netValue: Long? = null
 )
 
 /**
@@ -73,5 +103,9 @@ data class RankingResult(
     val marketType: MarketType,
     val exchangeType: ExchangeType,
     val items: List<RankingItem>,
-    val fetchedAt: java.time.LocalDateTime = java.time.LocalDateTime.now()
+    val fetchedAt: java.time.LocalDateTime = java.time.LocalDateTime.now(),
+    // Filter context for ka90009 (Foreign/Institution Top)
+    val investorType: InvestorType? = null,
+    val tradeDirection: TradeDirection? = null,
+    val valueType: ValueType? = null
 )

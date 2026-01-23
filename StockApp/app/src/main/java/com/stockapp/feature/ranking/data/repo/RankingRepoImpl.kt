@@ -15,6 +15,9 @@ import com.stockapp.feature.ranking.domain.model.OrderBookSurgeParams
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
 import com.stockapp.feature.ranking.domain.model.RankingType
+import com.stockapp.feature.ranking.domain.model.InvestorType
+import com.stockapp.feature.ranking.domain.model.TradeDirection
+import com.stockapp.feature.ranking.domain.model.ValueType
 import com.stockapp.feature.ranking.domain.model.VolumeSurgeParams
 import com.stockapp.feature.ranking.domain.repo.RankingRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
@@ -325,49 +328,151 @@ class RankingRepoImpl @Inject constructor(
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
         val dtoItems = response.items ?: emptyList()
+        val isAmount = params.amountQtyType == "1"
 
-        // Each row contains 4 different stock entries (for_netslmt, for_netprps, orgn_netslmt, orgn_netprps)
-        // We use foreign net buy (for_netprps) as the primary list
         for ((index, dto) in dtoItems.withIndex()) {
-            // Skip if no foreign net buy data
-            val ticker = dto.forNetprpsStkCd
-            if (ticker.isNullOrEmpty()) continue
-
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = cleanTicker(ticker),
-                    name = dto.forNetprpsStkNm ?: "",
-                    currentPrice = 0, // Not provided in this API
-                    priceChange = 0,
-                    priceChangeSign = "",
-                    changeRate = 0.0,
-                    foreignNetBuy = parseLong(dto.forNetprpsAmt),
-                    institutionNetBuy = findInstitutionNetBuy(dto, ticker)
-                )
-            )
+            val item = when (params.investorType) {
+                InvestorType.FOREIGN -> extractForeignData(dto, index, isAmount, params.tradeDirection)
+                InvestorType.INSTITUTION -> extractInstitutionData(dto, index, isAmount, params.tradeDirection)
+                InvestorType.ALL -> extractAllInvestorsData(dto, index, isAmount, params.tradeDirection)
+            }
+            item?.let { items.add(it) }
         }
 
         return RankingResult(
             rankingType = RankingType.FOREIGN_INSTITUTION_TOP,
             marketType = params.marketType,
             exchangeType = params.exchangeType,
-            items = items,
-            fetchedAt = LocalDateTime.now()
+            items = items.filter { it.ticker.isNotEmpty() },
+            fetchedAt = LocalDateTime.now(),
+            investorType = params.investorType,
+            tradeDirection = params.tradeDirection,
+            valueType = if (isAmount) ValueType.AMOUNT else ValueType.QUANTITY
         )
     }
 
     /**
-     * Find institution net buy amount for the same ticker from the same row.
-     * Each row has separate foreign and institution data, so we check if the
-     * institution net buy ticker matches the foreign ticker.
+     * Extract foreign investor data (순매수 or 순매도).
      */
-    private fun findInstitutionNetBuy(dto: ForeignInstitutionItemDto, forTicker: String): Long? {
-        val orgnTicker = cleanTicker(dto.orgnNetprpsStkCd)
-        return if (orgnTicker == cleanTicker(forTicker)) {
-            parseLong(dto.orgnNetprpsAmt)
+    private fun extractForeignData(
+        dto: ForeignInstitutionItemDto,
+        index: Int,
+        isAmount: Boolean,
+        direction: TradeDirection
+    ): RankingItem? {
+        return if (direction == TradeDirection.NET_BUY) {
+            val ticker = dto.forNetprpsStkCd ?: return null
+            val value = parseLong(if (isAmount) dto.forNetprpsAmt else dto.forNetprpsQty)
+            RankingItem(
+                rank = index + 1,
+                ticker = cleanTicker(ticker),
+                name = dto.forNetprpsStkNm ?: "",
+                currentPrice = 0,
+                priceChange = 0,
+                priceChangeSign = "",
+                changeRate = 0.0,
+                foreignNetBuy = value,
+                netValue = value
+            )
         } else {
-            null
+            val ticker = dto.forNetslmtStkCd ?: return null
+            val value = parseLong(if (isAmount) dto.forNetslmtAmt else dto.forNetslmtQty)
+            RankingItem(
+                rank = index + 1,
+                ticker = cleanTicker(ticker),
+                name = dto.forNetslmtStkNm ?: "",
+                currentPrice = 0,
+                priceChange = 0,
+                priceChangeSign = "",
+                changeRate = 0.0,
+                foreignNetSell = value,
+                netValue = value
+            )
+        }
+    }
+
+    /**
+     * Extract institution investor data (순매수 or 순매도).
+     */
+    private fun extractInstitutionData(
+        dto: ForeignInstitutionItemDto,
+        index: Int,
+        isAmount: Boolean,
+        direction: TradeDirection
+    ): RankingItem? {
+        return if (direction == TradeDirection.NET_BUY) {
+            val ticker = dto.orgnNetprpsStkCd ?: return null
+            val value = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
+            RankingItem(
+                rank = index + 1,
+                ticker = cleanTicker(ticker),
+                name = dto.orgnNetprpsStkNm ?: "",
+                currentPrice = 0,
+                priceChange = 0,
+                priceChangeSign = "",
+                changeRate = 0.0,
+                institutionNetBuy = value,
+                netValue = value
+            )
+        } else {
+            val ticker = dto.orgnNetslmtStkCd ?: return null
+            val value = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
+            RankingItem(
+                rank = index + 1,
+                ticker = cleanTicker(ticker),
+                name = dto.orgnNetslmtStkNm ?: "",
+                currentPrice = 0,
+                priceChange = 0,
+                priceChangeSign = "",
+                changeRate = 0.0,
+                institutionNetSell = value,
+                netValue = value
+            )
+        }
+    }
+
+    /**
+     * Extract all investors data (foreign as primary, with institution as secondary).
+     * Uses foreign data as the main list and includes institution data for the same direction.
+     */
+    private fun extractAllInvestorsData(
+        dto: ForeignInstitutionItemDto,
+        index: Int,
+        isAmount: Boolean,
+        direction: TradeDirection
+    ): RankingItem? {
+        return if (direction == TradeDirection.NET_BUY) {
+            val ticker = dto.forNetprpsStkCd ?: return null
+            val foreignValue = parseLong(if (isAmount) dto.forNetprpsAmt else dto.forNetprpsQty)
+            val institutionValue = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
+            RankingItem(
+                rank = index + 1,
+                ticker = cleanTicker(ticker),
+                name = dto.forNetprpsStkNm ?: "",
+                currentPrice = 0,
+                priceChange = 0,
+                priceChangeSign = "",
+                changeRate = 0.0,
+                foreignNetBuy = foreignValue,
+                institutionNetBuy = institutionValue,
+                netValue = foreignValue
+            )
+        } else {
+            val ticker = dto.forNetslmtStkCd ?: return null
+            val foreignValue = parseLong(if (isAmount) dto.forNetslmtAmt else dto.forNetslmtQty)
+            val institutionValue = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
+            RankingItem(
+                rank = index + 1,
+                ticker = cleanTicker(ticker),
+                name = dto.forNetslmtStkNm ?: "",
+                currentPrice = 0,
+                priceChange = 0,
+                priceChangeSign = "",
+                changeRate = 0.0,
+                foreignNetSell = foreignValue,
+                institutionNetSell = institutionValue,
+                netValue = foreignValue
+            )
         }
     }
 

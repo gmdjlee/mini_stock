@@ -118,7 +118,10 @@ data class ForeignInstitutionTopParams(
     override val exchangeType: ExchangeType,
     val amountQtyType: String = "1",   // 1: 금액, 2: 수량
     val queryDateType: String = "1",   // 1: 당일
-    val date: String? = null           // 날짜 (YYYYMMDD), null이면 당일
+    val date: String? = null,          // 날짜 (YYYYMMDD), null이면 당일
+    // Filter parameters (used for parsing, not API)
+    val investorType: InvestorType = InvestorType.FOREIGN,
+    val tradeDirection: TradeDirection = TradeDirection.NET_BUY
 ) : RankingParams {
 
     override fun toRequestBody(): Map<String, String> = buildMap {

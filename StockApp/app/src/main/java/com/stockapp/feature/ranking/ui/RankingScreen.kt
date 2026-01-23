@@ -55,11 +55,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.ranking.domain.model.ExchangeType
+import com.stockapp.feature.ranking.domain.model.InvestorType
 import com.stockapp.feature.ranking.domain.model.ItemCount
 import com.stockapp.feature.ranking.domain.model.MarketType
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
 import com.stockapp.feature.ranking.domain.model.RankingType
+import com.stockapp.feature.ranking.domain.model.TradeDirection
+import com.stockapp.feature.ranking.domain.model.ValueType
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import java.text.NumberFormat
 import java.util.Locale
@@ -77,6 +80,10 @@ fun RankingScreen(
     val itemCount by viewModel.itemCount.collectAsState()
     val investmentMode by viewModel.investmentMode.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    // ka90009 filters
+    val investorType by viewModel.investorType.collectAsState()
+    val tradeDirection by viewModel.tradeDirection.collectAsState()
+    val valueType by viewModel.valueType.collectAsState()
 
     Scaffold(
         topBar = {
@@ -102,9 +109,10 @@ fun RankingScreen(
                 onTypeSelected = viewModel::onRankingTypeChange
             )
 
-            // Market type tabs (KOSPI / KOSDAQ)
+            // Market type tabs (dynamic based on ranking type)
             MarketTypeTabs(
                 selectedMarket = marketType,
+                availableMarkets = viewModel.getAvailableMarketTypes(),
                 onMarketSelected = viewModel::onMarketTypeChange
             )
 
@@ -114,6 +122,18 @@ fun RankingScreen(
                     selectedExchange = exchangeType,
                     availableExchanges = viewModel.getAvailableExchangeTypes(),
                     onExchangeSelected = viewModel::onExchangeTypeChange
+                )
+            }
+
+            // ka90009 specific filters
+            if (viewModel.isForeignInstitutionType()) {
+                ForeignInstitutionFilters(
+                    investorType = investorType,
+                    tradeDirection = tradeDirection,
+                    valueType = valueType,
+                    onInvestorTypeChange = viewModel::onInvestorTypeChange,
+                    onTradeDirectionChange = viewModel::onTradeDirectionChange,
+                    onValueTypeChange = viewModel::onValueTypeChange
                 )
             }
 
@@ -197,16 +217,16 @@ private fun RankingTypeSelector(
 @Composable
 private fun MarketTypeTabs(
     selectedMarket: MarketType,
+    availableMarkets: List<MarketType>,
     onMarketSelected: (MarketType) -> Unit
 ) {
-    val markets = listOf(MarketType.KOSPI, MarketType.KOSDAQ)
-    val selectedIndex = markets.indexOf(selectedMarket).coerceAtLeast(0)
+    val selectedIndex = availableMarkets.indexOf(selectedMarket).coerceAtLeast(0)
 
     TabRow(
         selectedTabIndex = selectedIndex,
         modifier = Modifier.fillMaxWidth()
     ) {
-        markets.forEachIndexed { index, market ->
+        availableMarkets.forEachIndexed { index, market ->
             Tab(
                 selected = selectedIndex == index,
                 onClick = { onMarketSelected(market) },
@@ -261,6 +281,93 @@ private fun ItemCountSelector(
     }
 }
 
+/**
+ * Filter options for Foreign/Institution Top (ka90009).
+ */
+@Composable
+private fun ForeignInstitutionFilters(
+    investorType: InvestorType,
+    tradeDirection: TradeDirection,
+    valueType: ValueType,
+    onInvestorTypeChange: (InvestorType) -> Unit,
+    onTradeDirectionChange: (TradeDirection) -> Unit,
+    onValueTypeChange: (ValueType) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        // Row 1: Investor Type
+        Text(
+            text = "투자자유형",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            InvestorType.entries.forEach { type ->
+                FilterChip(
+                    selected = investorType == type,
+                    onClick = { onInvestorTypeChange(type) },
+                    label = { Text(type.displayName) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Row 2: Trade Direction + Value Type
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Trade Direction
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "매매방향",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TradeDirection.entries.forEach { direction ->
+                        FilterChip(
+                            selected = tradeDirection == direction,
+                            onClick = { onTradeDirectionChange(direction) },
+                            label = { Text(direction.displayName) }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Value Type
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "표시단위",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ValueType.entries.forEach { type ->
+                        FilterChip(
+                            selected = valueType == type,
+                            onClick = { onValueTypeChange(type) },
+                            label = { Text(type.displayName) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun RankingTable(
     result: RankingResult,
@@ -271,14 +378,14 @@ private fun RankingTable(
     ) {
         // Header
         item {
-            RankingTableHeader(result.rankingType)
+            RankingTableHeader(result)
         }
 
         // Items
         itemsIndexed(result.items) { index, item ->
             RankingTableRow(
                 item = item,
-                rankingType = result.rankingType,
+                result = result,
                 onClick = { onItemClick(item) }
             )
             if (index < result.items.lastIndex) {
@@ -310,7 +417,7 @@ private fun RankingTable(
 }
 
 @Composable
-private fun RankingTableHeader(rankingType: RankingType) {
+private fun RankingTableHeader(result: RankingResult) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -339,7 +446,7 @@ private fun RankingTableHeader(rankingType: RankingType) {
             modifier = Modifier.width(80.dp)
         )
         Text(
-            text = getTypeSpecificHeader(rankingType),
+            text = getTypeSpecificHeader(result),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End,
@@ -348,21 +455,34 @@ private fun RankingTableHeader(rankingType: RankingType) {
     }
 }
 
-private fun getTypeSpecificHeader(rankingType: RankingType): String {
-    return when (rankingType) {
+private fun getTypeSpecificHeader(result: RankingResult): String {
+    return when (result.rankingType) {
         RankingType.ORDER_BOOK_SURGE_BUY,
         RankingType.ORDER_BOOK_SURGE_SELL -> "급증률"
         RankingType.VOLUME_SURGE -> "급증률"
         RankingType.DAILY_VOLUME_TOP -> "거래량"
         RankingType.CREDIT_RATIO_TOP -> "신용비율"
-        RankingType.FOREIGN_INSTITUTION_TOP -> "외인순매수"
+        RankingType.FOREIGN_INSTITUTION_TOP -> {
+            val investor = when (result.investorType) {
+                InvestorType.FOREIGN -> "외인"
+                InvestorType.INSTITUTION -> "기관"
+                InvestorType.ALL -> "외인"
+                null -> "외인"
+            }
+            val direction = when (result.tradeDirection) {
+                TradeDirection.NET_BUY -> "순매수"
+                TradeDirection.NET_SELL -> "순매도"
+                null -> "순매수"
+            }
+            "$investor$direction"
+        }
     }
 }
 
 @Composable
 private fun RankingTableRow(
     item: RankingItem,
-    rankingType: RankingType,
+    result: RankingResult,
     onClick: () -> Unit
 ) {
     val extendedColors = LocalExtendedColors.current
@@ -425,7 +545,7 @@ private fun RankingTableRow(
 
         // Type-specific column
         Text(
-            text = formatTypeSpecificValue(item, rankingType),
+            text = formatTypeSpecificValue(item, result),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.End,
             modifier = Modifier.width(80.dp)
@@ -433,10 +553,8 @@ private fun RankingTableRow(
     }
 }
 
-private fun formatTypeSpecificValue(item: RankingItem, rankingType: RankingType): String {
-    val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
-
-    return when (rankingType) {
+private fun formatTypeSpecificValue(item: RankingItem, result: RankingResult): String {
+    return when (result.rankingType) {
         RankingType.ORDER_BOOK_SURGE_BUY,
         RankingType.ORDER_BOOK_SURGE_SELL -> {
             item.surgeRate?.let { "%.1f%%".format(it) } ?: "-"
@@ -451,7 +569,12 @@ private fun formatTypeSpecificValue(item: RankingItem, rankingType: RankingType)
             item.creditRatio?.let { "%.2f%%".format(it) } ?: "-"
         }
         RankingType.FOREIGN_INSTITUTION_TOP -> {
-            item.foreignNetBuy?.let { formatAmount(it) } ?: "-"
+            val value = item.netValue ?: item.foreignNetBuy ?: 0L
+            if (result.valueType == ValueType.QUANTITY) {
+                formatVolume(value)
+            } else {
+                formatAmount(value)
+            }
         }
     }
 }

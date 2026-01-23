@@ -930,8 +930,8 @@ schedulingManager.syncState.collect { state ->
 #### RankingScreen (순위정보 조회)
 
 **기능**:
-- 5가지 순위 유형: 호가잔량급증(매수/매도), 거래량급증, 당일거래량상위, 신용비율상위, 외국인기관상위
-- 시장 필터: KOSPI (001), KOSDAQ (101)
+- 6가지 순위 유형: 호가잔량급증(매수/매도), 거래량급증, 당일거래량상위, 신용비율상위, 외국인기관상위
+- 시장 필터: KOSPI (001), KOSDAQ (101), 전체 (000, ka90009 전용)
 - 거래소 필터: KRX (실전), NXT (실전), KRX (모의)
 - 표시 개수 선택: 5, 10, 20, 30개
 - 종목 클릭 시 Analysis 화면으로 이동
@@ -956,6 +956,22 @@ schedulingManager.syncState.collect { state ->
 | MOCK (모의) | KRX만 | stex_tp: 3 |
 | PRODUCTION (실전) | KRX, NXT | stex_tp: 1, 2 |
 
+#### 외국인/기관상위 (ka90009) 전용 필터
+
+| 필터 | 옵션 | 설명 |
+|------|------|------|
+| 투자자유형 | 외국인, 기관, 전체 | InvestorType enum |
+| 매매방향 | 순매수, 순매도 | TradeDirection enum |
+| 표시단위 | 금액, 수량 | ValueType enum (amt_qty_tp) |
+| 시장 | KOSPI, KOSDAQ, 전체 | MarketType.ALL 지원 |
+
+**ka90009 API 응답 구조**:
+- 각 row에 4가지 데이터가 포함됨:
+  - `for_netprps_*`: 외인 순매수 종목
+  - `for_netslmt_*`: 외인 순매도 종목
+  - `orgn_netprps_*`: 기관 순매수 종목
+  - `orgn_netslmt_*`: 기관 순매도 종목
+
 #### 핵심 모델
 ```kotlin
 // 순위 유형
@@ -966,6 +982,23 @@ enum class RankingType(val displayName: String, val apiId: String) {
     DAILY_VOLUME_TOP("당일거래량상위", "ka10030"),
     CREDIT_RATIO_TOP("신용비율상위", "ka10033"),
     FOREIGN_INSTITUTION_TOP("외국인기관상위", "ka90009")
+}
+
+// ka90009 전용 필터 enum
+enum class InvestorType(val displayName: String) {
+    FOREIGN("외국인"),
+    INSTITUTION("기관"),
+    ALL("전체")
+}
+
+enum class TradeDirection(val displayName: String) {
+    NET_BUY("순매수"),
+    NET_SELL("순매도")
+}
+
+enum class ValueType(val code: String, val displayName: String) {
+    AMOUNT("1", "금액"),
+    QUANTITY("2", "수량")
 }
 
 // 순위 아이템
@@ -983,16 +1016,23 @@ data class RankingItem(
     val creditRatio: Double? = null,
     val foreignNetBuy: Long? = null,
     val institutionNetBuy: Long? = null,
-    val totalBuyQuantity: Long? = null
+    val foreignNetSell: Long? = null,
+    val institutionNetSell: Long? = null,
+    val totalBuyQuantity: Long? = null,
+    val netValue: Long? = null  // 선택된 필터 기준 표시 값
 )
 
 // 순위 결과
 data class RankingResult(
     val rankingType: RankingType,
-    val marketType: String,
-    val exchangeType: String,
+    val marketType: MarketType,
+    val exchangeType: ExchangeType,
     val items: List<RankingItem>,
-    val fetchedAt: LocalDateTime
+    val fetchedAt: LocalDateTime,
+    // ka90009 필터 컨텍스트
+    val investorType: InvestorType? = null,
+    val tradeDirection: TradeDirection? = null,
+    val valueType: ValueType? = null
 )
 ```
 
