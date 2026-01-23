@@ -393,6 +393,10 @@ class RankingRepoImpl @Inject constructor(
 
     /**
      * Extract institution investor data (순매수 or 순매도).
+     * Note: The API does not provide separate ticker/name for institution data.
+     * Institution data shares the same stock as foreign data in each row.
+     * - 순매수: Uses for_netprps_stk_cd/nm as reference, with orgn_netprps values
+     * - 순매도: Uses for_netslmt_stk_cd/nm as reference, with orgn_netslmt values
      */
     private fun extractInstitutionData(
         dto: ForeignInstitutionItemDto,
@@ -401,12 +405,13 @@ class RankingRepoImpl @Inject constructor(
         direction: TradeDirection
     ): RankingItem? {
         return if (direction == TradeDirection.NET_BUY) {
-            val ticker = dto.orgnNetprpsStkCd ?: return null
+            // Use foreign net buy ticker as reference (same stock for institution)
+            val ticker = dto.forNetprpsStkCd ?: return null
             val value = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.orgnNetprpsStkNm ?: "",
+                name = dto.forNetprpsStkNm ?: "",
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
@@ -415,12 +420,13 @@ class RankingRepoImpl @Inject constructor(
                 netValue = value
             )
         } else {
-            val ticker = dto.orgnNetslmtStkCd ?: return null
+            // Use foreign net sell ticker as reference (same stock for institution)
+            val ticker = dto.forNetslmtStkCd ?: return null
             val value = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.orgnNetslmtStkNm ?: "",
+                name = dto.forNetslmtStkNm ?: "",
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
@@ -432,8 +438,9 @@ class RankingRepoImpl @Inject constructor(
     }
 
     /**
-     * Extract all investors data (foreign as primary, with institution as secondary).
-     * Uses foreign data as the main list and includes institution data for the same direction.
+     * Extract all investors data (foreign + institution combined).
+     * Uses foreign ticker/name as reference and combines both investor values.
+     * netValue shows the combined total (foreign + institution).
      */
     private fun extractAllInvestorsData(
         dto: ForeignInstitutionItemDto,
@@ -455,7 +462,7 @@ class RankingRepoImpl @Inject constructor(
                 changeRate = 0.0,
                 foreignNetBuy = foreignValue,
                 institutionNetBuy = institutionValue,
-                netValue = foreignValue
+                netValue = foreignValue + institutionValue  // Combined total
             )
         } else {
             val ticker = dto.forNetslmtStkCd ?: return null
@@ -471,7 +478,7 @@ class RankingRepoImpl @Inject constructor(
                 changeRate = 0.0,
                 foreignNetSell = foreignValue,
                 institutionNetSell = institutionValue,
-                netValue = foreignValue
+                netValue = foreignValue + institutionValue  // Combined total
             )
         }
     }

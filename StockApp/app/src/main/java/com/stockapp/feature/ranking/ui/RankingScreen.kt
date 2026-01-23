@@ -475,7 +475,7 @@ private fun getTypeSpecificHeader(result: RankingResult): String {
             val investor = when (result.investorType) {
                 InvestorType.FOREIGN -> "외인"
                 InvestorType.INSTITUTION -> "기관"
-                InvestorType.ALL -> "외인"
+                InvestorType.ALL -> "합계"  // Combined foreign + institution
                 null -> "외인"
             }
             val direction = when (result.tradeDirection) {
