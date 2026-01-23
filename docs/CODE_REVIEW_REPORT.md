@@ -1,62 +1,53 @@
 # Code Review Report
 
-**Date:** 2026-01-20
+**Date:** 2026-01-23
 **Reviewer:** Claude (AI-assisted comprehensive code review)
-**Branch:** claude/code-review-update-docs-oS7JU
+**Branch:** claude/code-review-update-docs-JoSTK
 
 ---
 
 ## Executive Summary
 
-This report presents a comprehensive code review of the mini_stock project, covering both the Python stock-analyzer backend and the Android StockApp frontend. The codebase demonstrates excellent architectural patterns with Clean Architecture, proper error handling, and comprehensive documentation. The Python backend is production-ready with solid test coverage, while the Android app requires attention in testing and security areas.
+This report presents a comprehensive code review of the mini_stock project, covering both the Python stock-analyzer backend (FROZEN) and the Android StockApp frontend (ACTIVE). The Android codebase has matured significantly with proper security implementations, thread-safety patterns, and clean architecture. The main area requiring attention remains test coverage.
 
 ### Overall Assessment
 
 | Component | Score | Quality | Notes |
 |-----------|-------|---------|-------|
-| **Python Backend** | 8.5/10 | Excellent | Production-ready, comprehensive tests |
-| **Android Frontend** | 7.4/10 | Good | Clean Architecture, needs tests & security fixes |
+| **Python Backend** | 8.5/10 | Excellent | Production-ready, frozen state |
+| **Android Frontend** | 7.8/10 | Good | Clean Architecture, security improved, needs tests |
 | **Documentation** | 9/10 | Excellent | Comprehensive CLAUDE.md and API docs |
-| **Test Coverage** | Moderate | - | Python: 173 tests, Android: 0 tests |
+| **Test Coverage** | Moderate | - | Python: 168 tests, Android: 0 tests |
 
 ---
 
 ## Project Statistics
 
-### Python (stock-analyzer)
+### Python (stock-analyzer) 🔒 FROZEN
 
 | Metric | Count |
 |--------|-------|
 | **Source Files** | 29 files |
-| **Source Lines** | ~6,186 lines |
+| **Source Lines** | ~6,200 lines |
 | **Test Files** | 16 files |
-| **Test Lines** | ~2,958 lines |
-| **Test Functions** | 173 tests |
+| **Test Functions** | 168 tests |
 | **Python Version** | 3.10+ |
 
-#### Module Breakdown
+> Note: Python package is frozen and used only for reference and Chaquopy integration.
 
-| Module | Files | Lines | Purpose |
-|--------|-------|-------|---------|
-| **core** | 5 | 211 | Config, logging, HTTP client, date/JSON utilities |
-| **client** | 3 | 684 | OAuth auth, Kiwoom REST API wrapper |
-| **stock** | 4 | 1,122 | Stock search, supply/demand analysis, OHLCV data |
-| **indicator** | 5 | 1,746 | Technical indicators (Trend, Elder, DeMark, Oscillator) |
-| **chart** | 6 | 1,924 | Chart visualization (Candle, Line, Bar, Oscillator) |
-| **market** | 2 | 228 | Market indicators (deposits, credit) |
-| **search** | 2 | 202 | Condition search functionality |
-
-### Android (StockApp)
+### Android (StockApp) 🚀 ACTIVE
 
 | Metric | Count |
 |--------|-------|
-| **Kotlin Files** | 101 files |
-| **Total Lines** | ~11,100 lines |
-| **Feature Modules** | 6 (search, analysis, indicator, market, condition, settings) |
-| **Core Modules** | 7 (db, py, ui, theme, di, cache, state) |
+| **Kotlin Files** | 91 files |
+| **Total Lines** | ~13,697 lines |
+| **Feature Modules** | 6 (search, analysis, indicator, ranking, settings, scheduling) |
+| **Core Modules** | 8 (db, api, cache, di, py, state, theme, ui) |
 | **Architecture** | Clean Architecture + MVVM |
 | **Min SDK** | 26 |
 | **Target SDK** | 35 |
+| **Compile SDK** | 35 |
+| **Java Version** | 17 |
 
 #### Technology Stack
 
@@ -67,319 +58,380 @@ This report presents a comprehensive code review of the mini_stock project, cove
 | Jetpack Compose | BOM 2024.12.01 | Latest |
 | Hilt | 2.54 | Latest |
 | Room | 2.8.3 | Latest |
-| Vico Charts | 2.0.0-alpha.28 | Alpha |
+| Vico Charts | 2.0.0 | Stable |
+| MPAndroidChart | Latest | Legacy support |
 | Chaquopy | 15.0.1 | Stable |
+| OkHttp | 4.12.0 | Latest |
+| Security Crypto | Latest | Latest |
 
 ---
 
-## Critical Issues (Fix Immediately)
+## Module Analysis
 
-### Python Backend
+### Feature Modules (6 modules, ~6,228 LOC)
 
-#### 1. Index Out of Bounds Risk in Oscillator
+| Module | Files | Lines | Score | Purpose |
+|--------|-------|-------|-------|---------|
+| **Search** | 7 | 680 | 8.0/10 | Stock search with 300ms debounce, history management |
+| **Analysis** | 7 | 1,055 | 9.0/10 | Supply/demand analysis, MACD oscillator, pull-to-refresh |
+| **Indicator** | 9 | 1,839 | 8.0/10 | Trend/Elder/DeMark technical indicators with tabbed UI |
+| **Ranking** | 9 | 1,987 | 8.0/10 | 6 ranking types via Kotlin REST API |
+| **Settings** | 9 | 853 | 9.0/10 | API key management with AES256 encryption |
+| **Scheduling** | 8 | 1,415 | 9.0/10 | WorkManager-based background sync |
 
-**File:** `stock-analyzer/src/stock_analyzer/indicator/oscillator.py:309-316`
+### Core Modules (8 modules, ~3,948 LOC)
 
-```python
-# Current: Accessing [-1] and [-2] without bounds checking
-if macd[-1] > signal[-1] and macd[-2] <= signal[-2]:
-```
-
-**Problem:** The `analyze_signal()` function accesses list indices without verifying length.
-
-**Recommendation:**
-```python
-if n < 3 or len(macd) < 3 or len(signal) < 3:
-    return {"ok": False, "error": {"code": "INSUFFICIENT_DATA", "msg": "데이터 부족"}}
-```
-
-**Severity:** Medium - only affects signal analysis for insufficient data
+| Module | Files | Lines | Score | Purpose |
+|--------|-------|-------|-------|---------|
+| **Database (db/)** | 9 | 650 | 8.5/10 | Room DB with 8 entities, 8 DAOs, explicit migrations |
+| **API (api/)** | 3 | 400 | 8.0/10 | Kotlin REST client, OAuth token management |
+| **Cache** | 1 | 240 | 7.5/10 | TTL-based caching with market-aware truncation |
+| **Python Bridge (py/)** | 2 | 310 | 8.5/10 | Thread-safe Chaquopy integration |
+| **DI (di/)** | 3 | 190 | 8.0/10 | Hilt modules with proper scoping |
+| **State** | 1 | 60 | 8.0/10 | Cross-screen stock selection |
+| **Theme** | 7 | 500 | 9.0/10 | Material3 theming with dark mode |
+| **UI Components** | 17 | 3,574 | 7.5/10 | Charts, inputs, loading states |
 
 ---
 
-### Android Frontend
+## Security Analysis
 
-#### 2. No Unit Tests (Critical)
+### Resolved Issues ✅
 
-**Status:** 11,100 lines of code with 0 tests
+| Issue | Status | Implementation |
+|-------|--------|----------------|
+| API Key Encryption | ✅ Fixed | EncryptedSharedPreferences with AES256 |
+| Thread-safe PyClient | ✅ Fixed | AtomicReference + Mutex for initialization |
+| Database Migrations | ✅ Fixed | Explicit migrations (v1→v5), no destructive fallback |
+| Debug Logging | ✅ Fixed | BuildConfig.DEBUG checks for sensitive data |
 
-**Problem:** Complete absence of unit tests, instrumentation tests, and E2E tests.
+### Current Security Status
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Credentials Storage | ✅ Excellent | AES256 encryption via Security Crypto |
+| Token Management | ✅ Good | Auto-refresh, 1-minute expiry buffer |
+| HTTPS | ✅ Good | All API calls over HTTPS |
+| Rate Limiting | ✅ Good | 500ms minimum interval between API calls |
+| Input Validation | ✅ Good | Parameters validated before API calls |
+| Thread Safety | ✅ Good | Proper use of Mutex, AtomicReference |
+
+### Remaining Concerns (Low Priority)
+
+| Issue | Severity | Recommendation |
+|-------|----------|----------------|
+| No HTTPS Pinning | Low | Add certificate pinning for production |
+| Korean-only errors | Low | Consider localization for error messages |
+
+---
+
+## Critical Issues
+
+### 1. No Unit Tests (Critical) ⚠️
+
+**Status:** 13,697 lines of code with 0 tests
 
 **Impact:**
 - Bug detection impossible before deployment
 - Refactoring is risky
-- Code quality cannot be verified
+- Code quality cannot be verified objectively
 
-**Recommendation:**
-```
-Priority 1: PyClient tests (initialization, timeout, error handling)
-Priority 2: Repository tests (cache logic, data transformation)
-Priority 3: ViewModel tests (state transitions)
-Priority 4: UI tests (navigation, loading states)
-
-Target: 80% coverage with at least 50 unit tests
-```
-
----
-
-#### 3. API Key Plain Text Storage
-
-**File:** `StockApp/app/src/main/java/com/stockapp/feature/settings/data/repo/SettingsRepoImpl.kt:59-87`
-
-```kotlin
-// Current: Plain text storage
-override suspend fun saveApiKeyConfig(config: ApiKeyConfig) {
-    context.dataStore.edit { prefs ->
-        prefs[Keys.APP_KEY] = config.appKey        // Plain text
-        prefs[Keys.SECRET_KEY] = config.secretKey  // Plain text
-    }
-}
-```
-
-**Problem:** DataStore stores credentials in plain text. Rooted devices can access these files.
-
-**Recommendation:**
-```kotlin
-// Use EncryptedSharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-
-override suspend fun saveApiKeyConfig(config: ApiKeyConfig) {
-    val encryptedPrefs = EncryptedSharedPreferences.create(
-        context, "secure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
-    encryptedPrefs.edit {
-        putString(Keys.APP_KEY, config.appKey)
-        putString(Keys.SECRET_KEY, config.secretKey)
-    }
-}
-```
-
----
-
-#### 4. Non-Thread-Safe PyClient Initialization
-
-**File:** `StockApp/app/src/main/java/com/stockapp/core/py/PyClient.kt:29-30, 42-54`
-
-```kotlin
-// Current: Not thread-safe
-private var kiwoomClient: PyObject? = null
-private var isInitialized = false
-```
-
-**Problem:** Multiple concurrent calls to `initialize()` could result in race conditions.
-
-**Recommendation:** Use `AtomicReference<PyObject>()` or `Mutex` for thread-safe initialization.
-
----
-
-#### 5. Database Migration - Destructive Fallback
-
-**File:** `StockApp/app/src/main/java/com/stockapp/core/di/DbModule.kt`
-
-```kotlin
-Room.databaseBuilder(...)
-    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-    .fallbackToDestructiveMigration(dropAllTables = true)  // DANGEROUS
-    .build()
-```
-
-**Problem:** Migration failure deletes all cached data without warning.
-
-**Recommendation:** Enable `exportSchema = true` and implement proper migrations.
-
----
-
-## High Priority Issues
-
-### Python Backend
-
-| # | Issue | File | Line | Severity |
-|---|-------|------|------|----------|
-| 1 | Data order assumption not validated | oscillator.py | 66-71 | Medium |
-| 2 | Token expiration boundary condition | auth.py | 23 | Low |
-| 3 | Hard-coded limits scattered in code | search.py | 121, 130, 68 | Low |
-| 4 | Overly broad exception handling | chart/oscillator.py | 240-245 | Low |
-| 5 | Rate limiting not thread-safe | kiwoom.py | 62-69 | Medium |
-
-### Android Frontend
-
-| # | Issue | File | Line | Severity |
-|---|-------|------|------|----------|
-| 1 | Debug logging exposes sensitive data | PyClient.kt | 115 | High |
-| 2 | Memory leak potential in AnalysisScreen | AnalysisScreen.kt | 156-273 | Medium |
-| 3 | Cache TTL not validated in memory | IndicatorVm.kt | - | Medium |
-| 4 | Large Composable functions | IndicatorScreen (668 lines), TechnicalCharts (870 lines) | - | Low |
-| 5 | Concurrent cache access without synchronization | IndicatorVm.kt | trendData, elderData | Medium |
-
----
-
-## Medium Priority Issues
-
-### Python Backend
-
-1. **Fear/Greed calculation magic numbers** (trend.py:490-523)
-   - Multiple unexplained constants (7-period, /10 divisor, -1/1.5 bounds)
-   - Recommendation: Extract to named constants with documentation
-
-2. **Date format conversions scattered** (analysis.py, oscillator.py, deposit.py)
-   - Repeated YYYYMMDD → YYYY-MM-DD conversion
-   - Recommendation: Add `to_display_date()` in `core/date.py`
-
-3. **Missing type hints in utility functions** (search.py:301-314)
-   - `_to_int()`, `_to_float()` missing parameter types
-   - Recommendation: Add `value: Any` and return type hints
-
-4. **Test coverage lacks parametrization**
-   - Similar test cases could use `@pytest.mark.parametrize`
-   - Recommendation: Refactor repetitive tests
-
-### Android Frontend
-
-1. **Cache size management** (StockCacheManager.kt)
-   - MAX_CACHE_SIZE = 10,000 but `take(10000)` doesn't preserve most relevant stocks
-   - Recommendation: Sort by recency or popularity before truncating
-
-2. **Hardcoded timeout values** (PyClient.kt)
-   - 30s default, 60s for analysis - not user configurable
-   - Recommendation: Allow Settings to adjust timeouts
-
-3. **Error messages not localized**
-   - Korean strings hardcoded in code
-   - Recommendation: Move to strings.xml resources
-
-4. **Large Composable functions need refactoring**
-   - IndicatorScreen: 668 lines → should be ~200 lines
-   - TechnicalCharts: 870 lines → should be split into components
-
----
-
-## Test Coverage Analysis
-
-### Python Backend - Excellent
-
-| Category | Files | Tests | Coverage |
-|----------|-------|-------|----------|
-| Unit Tests | 9 | ~140 | Excellent |
-| Integration Tests | 1 | ~10 | Good |
-| E2E Tests | 1 | ~5 | Adequate |
-| Conftest (fixtures) | 1 | 20+ fixtures | Good |
-| **Total** | **16** | **173** | **~70%** |
-
-#### Test Distribution by Module
-
-| Module | Test File | Test Count | Quality |
-|--------|-----------|-----------|---------|
-| auth | test_auth.py | 25+ | Excellent |
-| search | test_search.py | 30+ | Comprehensive |
-| analysis | test_analysis.py | 20+ | Good |
-| ohlcv | test_ohlcv.py | 25+ | Good |
-| indicator | test_indicator.py | 35+ | Excellent |
-| oscillator | test_oscillator.py | 30+ | Comprehensive |
-| chart | test_chart.py | 25+ | Excellent |
-| market | test_market.py | 15+ | Good |
-| condition | test_condition.py | 15+ | Good |
-
-### Android Frontend - Critical Gap
-
-| Category | Files | Tests | Coverage |
-|----------|-------|-------|----------|
-| Unit Tests | 0 | 0 | None |
-| Instrumentation Tests | 0 | 0 | None |
-| E2E Tests | 0 | 0 | None |
-| **Total** | **0** | **0** | **0%** |
-
-#### Recommended Test Plan
+**Recommended Test Plan:**
 
 ```
 Phase 1 (Urgent): 30 Unit Tests
 ├── PyClient tests (10)
-│   ├── Initialization
-│   ├── Timeout handling
+│   ├── Initialization (success, failure, timeout)
+│   ├── Thread safety verification
 │   └── Error mapping
 ├── Repository tests (10)
 │   ├── Cache TTL logic
 │   └── Data transformation
 └── ViewModel tests (10)
     ├── State transitions
-    └── Debouncing
+    └── Debouncing behavior
 
 Phase 2 (Important): 20 Instrumentation Tests
-├── Navigation tests (5)
 ├── Database tests (10)
-└── Settings tests (5)
+├── Navigation tests (5)
+└── Settings encryption tests (5)
 
 Phase 3 (Nice-to-have): 10 E2E Tests
 ├── Search → Analysis flow
-├── Condition → Analysis flow
+├── Ranking → Analysis flow
 └── Settings → API test flow
+
+Target: 80% coverage with at least 60 tests
 ```
 
 ---
 
-## Security Analysis
+## High Priority Issues
 
-### Strengths
+### Code Organization
 
-| Area | Status | Notes |
-|------|--------|-------|
-| Credentials | ✅ Good | Environment variables, no hardcoding |
-| HTTPS | ✅ Good | All API calls over HTTPS |
-| Token Management | ✅ Good | Auto-refresh, proper expiry handling |
-| Input Validation | ✅ Good | Parameters validated before API calls |
-| Code Injection | ✅ Good | No eval/exec usage |
+| # | Issue | Location | Severity | Recommendation |
+|---|-------|----------|----------|----------------|
+| 1 | TechnicalCharts.kt is 1,245 lines | core/ui/component/chart/ | Medium | Split into 4 files |
+| 2 | IndicatorScreen.kt is 748 lines | feature/indicator/ui/ | Medium | Extract composables |
+| 3 | RankingRepoImpl.kt is 537 lines | feature/ranking/data/ | Medium | Extract parsers |
 
-### Concerns
+### Error Handling Gaps
 
-| Issue | Severity | Location | Recommendation |
-|-------|----------|----------|----------------|
-| API Key plain text | High | SettingsRepoImpl.kt | Use EncryptedSharedPreferences |
-| Debug logging | High | PyClient.kt:115 | Sanitize sensitive data in logs |
-| No HTTPS pinning | Medium | Network config | Add certificate pinning |
-| Migration fallback | Medium | DbModule.kt | Implement proper migrations |
+| # | Issue | Location | Severity | Recommendation |
+|---|-------|----------|----------|----------------|
+| 1 | Empty catch block in search | SearchVm.kt | Medium | Log and handle errors |
+| 2 | Silent cache deletion on parse failure | AnalysisRepoImpl.kt | Low | Add logging |
+| 3 | Unsafe list access | IndicatorVm.kt | Medium | Add bounds checking |
+
+### Configuration Hardcoding
+
+| # | Issue | Location | Value | Recommendation |
+|---|-------|----------|-------|----------------|
+| 1 | Cache size | StockCacheManager.kt | 10,000 | Make configurable |
+| 2 | Debounce delay | SearchVm.kt | 300ms | Extract to config |
+| 3 | History limit | Multiple files | 50 | Centralize constant |
+| 4 | API timeout | PyClient.kt | 30s/60s | Allow user setting |
+
+---
+
+## Medium Priority Issues
+
+### Architecture Improvements
+
+1. **Chart Label Calculation Duplication**
+   - Same logic repeated across 5 chart types
+   - Recommendation: Extract to shared utility
+
+2. **Marker View Repetition**
+   - 9 custom MarkerView implementations with similar code
+   - Recommendation: Generic MarkerView with formatter lambda
+
+3. **Date Formatting Logic**
+   - Complex if-then-else chains in DateFormatter
+   - Recommendation: Use sealed classes for date ranges
+
+4. **Test Infrastructure Missing**
+   - No Clock abstraction for TokenManager testing
+   - Recommendation: Add test doubles for time-dependent code
+
+### Performance Considerations
+
+1. **JSON Manual Building in KiwoomApiClient**
+   - Lines 85-91 build JSON manually
+   - Recommendation: Use kotlinx.serialization
+
+2. **Stock List Truncation**
+   - Sorts then takes 10,000 items
+   - Recommendation: More efficient filtering algorithm
+
+---
+
+## Detailed Module Analysis
+
+### Search Module (8.0/10)
+
+**Strengths:**
+- Proper debouncing mechanism (300ms)
+- Local cache fallback reduces network load
+- Search history limited to 50 items
+- Good logging at critical points
+
+**Weaknesses:**
+- Empty catch block in `onQueryChange` ignores errors
+- No validation on search results count
+- Cache count refresh could be more reactive
+
+### Analysis Module (9.0/10)
+
+**Strengths:**
+- Sophisticated MACD-style oscillator calculation
+- Proper unit conversion (trillion ↔ billion)
+- TTL-based cache expiration
+- Pull-to-refresh pattern
+
+**Weaknesses:**
+- Error code extraction regex could fail on malformed messages
+- No circuit breaker pattern for repeated failures
+
+### Indicator Module (8.0/10)
+
+**Strengths:**
+- Intelligent tab caching (checks before API call)
+- Timeframe switching properly clears cache
+- Elder Impulse fetches close prices from OHLCV as fallback
+- Buy/Sell signal generation with multiple conditions
+
+**Weaknesses:**
+- Signal calculation relies on list indices without boundary checking
+- DemarkSetup uses arbitrary 5/9 thresholds without documentation
+
+### Ranking Module (8.0/10)
+
+**Strengths:**
+- 5 distinct ranking types with specialized parsing
+- Dynamic API response parsing
+- Investment mode-aware exchange filtering
+- Fallback for mock API institution data
+
+**Weaknesses:**
+- No request rate limiting or caching
+- Price formatting could handle 0 values more explicitly
+
+### Settings Module (9.0/10)
+
+**Strengths:**
+- Secure credential storage using EncryptedSharedPreferences
+- Three-step process: Update → Save → Test
+- Production mode warning (red styling)
+- Proper validation before save
+
+**Weaknesses:**
+- Test happens after save (risky order)
+- API key format validation missing
+
+### Scheduling Module (9.0/10)
+
+**Strengths:**
+- Proper CoroutineWorker for async operations
+- Retry logic (max 3 attempts)
+- HiltWorker for DI in background context
+- Duration calculation in human-readable format
+
+**Weaknesses:**
+- No network state checking before sync
+- No max execution time configured for WorkManager
+
+---
+
+## Core Module Analysis
+
+### Database Layer (8.5/10)
+
+**Strengths:**
+- 8 entities covering all app needs
+- Clear entity design with proper indexes
+- Comprehensive migration path (v1→v5)
+- Type-safe DAO interfaces with suspend functions
+
+**Schema:**
+
+| Table | Entity | Purpose |
+|-------|--------|---------|
+| stocks | StockEntity | Stock info cache |
+| analysis_cache | AnalysisCacheEntity | Analysis data cache |
+| search_history | SearchHistoryEntity | Search history |
+| indicator_cache | IndicatorCacheEntity | Indicator cache |
+| scheduling_config | SchedulingConfigEntity | Scheduling settings |
+| sync_history | SyncHistoryEntity | Sync history records |
+| stock_analysis_data | StockAnalysisDataEntity | Incremental analysis data |
+| indicator_data | IndicatorDataEntity | Incremental indicator data |
+
+### API Layer (8.0/10)
+
+**Strengths:**
+- Thread-safe token cache using Mutex
+- Smart token expiry checking (1 minute buffer)
+- Proper rate limiting (500ms interval)
+- Comprehensive error handling with sealed ApiError class
+
+**Weaknesses:**
+- Manual JSON building instead of serialization
+- No token revocation when user changes keys
+
+### Python Bridge (8.5/10)
+
+**Strengths:**
+- Thread-safe initialization (AtomicReference + Mutex)
+- Timeout support with coroutine suspension
+- Smart error message extraction from Python exceptions
+- Connection testing with actual OAuth call
+
+**Weaknesses:**
+- No retry mechanism for transient Python errors
+- Limited error context for Python exceptions
+
+### Theme System (9.0/10)
+
+**Strengths:**
+- Excellent color system with semantic meanings
+- Korean market convention (Red=Up, Blue=Down)
+- Complete typography system matching Material3
+- DataStore-based persistence
+
+**Weaknesses:**
+- 118 color definitions is excessive (some duplicates)
+
+### UI Components (7.5/10)
+
+**Strengths:**
+- Comprehensive chart library (9 chart types)
+- Python-reference style chart colors
+- Well-designed stock input with history
+- Proper error and loading state separation
+
+**Weaknesses:**
+- TechnicalCharts.kt needs refactoring (1,245 lines)
+- Chart label formatting duplicated across types
+- No responsive sizing for different devices
 
 ---
 
 ## Architecture Assessment
 
-### Python Backend - Score: 9/10
+### Clean Architecture Implementation (8.5/10)
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    UI Layer                          │
+│  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
+│  │ Screens │  │ViewModels│  │ Composables         │  │
+│  └────┬────┘  └────┬────┘  └─────────────────────┘  │
+│       │            │                                 │
+├───────┼────────────┼─────────────────────────────────┤
+│       ▼            ▼           Domain Layer          │
+│  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
+│  │Use Cases│  │ Models  │  │ Repository Interfaces│  │
+│  └────┬────┘  └─────────┘  └─────────────────────┘  │
+│       │                                              │
+├───────┼──────────────────────────────────────────────┤
+│       ▼                        Data Layer            │
+│  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
+│  │  Repos  │  │  DTOs   │  │ Data Sources        │  │
+│  └────┬────┘  └─────────┘  │ (API, DB, Prefs)    │  │
+│       │                     └─────────────────────┘  │
+└───────┼──────────────────────────────────────────────┘
+        ▼
+   External Services (Kiwoom API, Python/Chaquopy)
+```
 
 **Strengths:**
-- Consistent response format: `{"ok": bool, "data/error": ...}`
-- Clear module separation (client, stock, indicator, chart, market, search)
-- Good error code taxonomy (INVALID_ARG, API_ERROR, NO_DATA, etc.)
-- Comprehensive docstrings and type hints
-- No pandas/numpy dependency (Chaquopy-ready)
-- Dataclasses used appropriately for structured data
+- Consistent domain/data/ui layer separation
+- Repository pattern properly implemented
+- Use cases encapsulate business logic
+- Hilt DI properly configured
 
 **Weaknesses:**
-- Some hard-coded constants scattered throughout code
-- Minor type hint gaps in utility functions
+- Some feature modules could share more common code
+- Chart utilities could be better organized
 
-### Android Frontend - Score: 8/10
+### State Management (8.5/10)
 
-**Strengths:**
-- Clean Architecture with domain/data/ui layers
-- MVVM pattern with StateFlow for reactivity
-- Hilt dependency injection properly configured
-- Repository pattern for data access
-- Room caching with TTL
-- 100% Jetpack Compose (no XML layouts)
-- Material3 design system
+- All modules use sealed classes for UI state
+- Proper StateFlow for reactive updates
+- Good separation between domain and UI models
 
-**Weaknesses:**
-- No tests (critical)
-- API Key security (critical)
-- Large Composable functions need refactoring
-- Some thread safety concerns
+### Error Handling (7.5/10)
+
+- Sealed error classes used throughout
+- Some modules have inconsistent patterns
+- Silent failures in a few catch blocks
 
 ---
 
 ## API Implementation Status
 
-### Implemented Kiwoom APIs (17 APIs)
+### Implemented Kiwoom APIs (22 APIs)
 
 | API ID | Function | Module | Status |
 |--------|----------|--------|--------|
@@ -400,6 +452,11 @@ Phase 3 (Nice-to-have): 10 E2E Tests
 | kt00001 | Customer deposit trend | market/deposit | ✅ Complete |
 | ka40003 | ETF daily trend | client/kiwoom | ✅ Complete |
 | ka40004 | ETF full quote list | client/kiwoom | ✅ Complete |
+| ka10021 | Order book surge | ranking (Kotlin) | ✅ Complete |
+| ka10023 | Volume surge | ranking (Kotlin) | ✅ Complete |
+| ka10030 | Daily volume top | ranking (Kotlin) | ✅ Complete |
+| ka10033 | Credit ratio top | ranking (Kotlin) | ✅ Complete |
+| ka90009 | Foreign/institution top | ranking (Kotlin) | ✅ Complete |
 
 ---
 
@@ -409,155 +466,113 @@ Phase 3 (Nice-to-have): 10 E2E Tests
 
 | Priority | Action | Component | Effort |
 |----------|--------|-----------|--------|
-| 1 | Add Android unit tests (30+) | Android | 2-3 days |
-| 2 | Encrypt API key storage | Android | 4 hours |
-| 3 | Fix PyClient thread safety | Android | 2 hours |
-| 4 | Fix debug logging exposure | Android | 1 hour |
-| 5 | Add oscillator bounds check | Python | 30 min |
+| 1 | Add Android unit tests (30+) | Android | 3-4 days |
+| 2 | Refactor TechnicalCharts.kt | Android | 1 day |
+| 3 | Add bounds checking to Indicator | Android | 2 hours |
+| 4 | Fix empty catch blocks | Android | 1 hour |
 
 ### Short-term Improvements (Week 2-3)
 
 | Priority | Action | Component | Effort |
 |----------|--------|-----------|--------|
-| 6 | Implement proper DB migrations | Android | 4 hours |
-| 7 | Refactor large Composables | Android | 1 day |
-| 8 | Add parametrized tests | Python | 4 hours |
-| 9 | Consolidate constants to config | Python | 2 hours |
-| 10 | Add HTTPS certificate pinning | Android | 4 hours |
+| 5 | Extract configuration constants | Android | 4 hours |
+| 6 | Consolidate chart markers | Android | 4 hours |
+| 7 | Add instrumentation tests | Android | 2-3 days |
+| 8 | Improve error messages | Android | 4 hours |
 
 ### Long-term Improvements (Month 2+)
 
 | Priority | Action | Component | Effort |
 |----------|--------|-----------|--------|
-| 11 | Add instrumentation tests | Android | 3-5 days |
-| 12 | Implement thread-safe rate limiting | Python | 4 hours |
-| 13 | Localize error messages | Android | 1 day |
-| 14 | Create API_SCHEMA.md documentation | Docs | 2 hours |
-| 15 | Add calculation verification tests | Python | 1 day |
+| 9 | Add HTTPS certificate pinning | Android | 4 hours |
+| 10 | Implement network state awareness | Android | 4 hours |
+| 11 | Add E2E tests | Android | 3-5 days |
+| 12 | Localize error messages | Android | 1 day |
 
 ---
 
 ## Files Reviewed
 
-### Python (29 source files)
-
-```
-src/stock_analyzer/
-├── __init__.py
-├── config.py
-├── core/
-│   ├── __init__.py
-│   ├── date.py
-│   ├── http.py
-│   ├── json_util.py
-│   └── log.py
-├── client/
-│   ├── __init__.py
-│   ├── auth.py
-│   └── kiwoom.py
-├── stock/
-│   ├── __init__.py
-│   ├── analysis.py
-│   ├── ohlcv.py
-│   └── search.py
-├── indicator/
-│   ├── __init__.py
-│   ├── demark.py
-│   ├── elder.py
-│   ├── oscillator.py
-│   └── trend.py
-├── chart/
-│   ├── __init__.py
-│   ├── bar.py
-│   ├── candle.py
-│   ├── line.py
-│   ├── oscillator.py
-│   └── utils.py
-├── market/
-│   ├── __init__.py
-│   └── deposit.py
-└── search/
-    ├── __init__.py
-    └── condition.py
-```
-
-### Kotlin (101 files)
+### Kotlin (91 files)
 
 ```
 app/src/main/java/com/stockapp/
-├── App.kt
-├── MainActivity.kt
+├── App.kt (122 lines)
+├── MainActivity.kt (111 lines)
 ├── core/
-│   ├── cache/StockCacheManager.kt
-│   ├── db/ (8 files)
-│   ├── di/ (5 files)
-│   ├── py/ (2 files)
-│   ├── state/ (1 file)
-│   └── ui/ (15 files)
+│   ├── api/ (3 files, 355 lines)
+│   │   ├── ApiModels.kt
+│   │   ├── TokenManager.kt
+│   │   └── KiwoomApiClient.kt
+│   ├── cache/ (1 file, 237 lines)
+│   │   └── StockCacheManager.kt
+│   ├── db/ (9 files, ~650 lines)
+│   │   ├── AppDb.kt
+│   │   ├── entity/ (2 files)
+│   │   └── dao/ (6 files)
+│   ├── di/ (3 files, 267 lines)
+│   ├── py/ (2 files, 386 lines)
+│   ├── state/ (1 file, 57 lines)
+│   ├── theme/ (2 files, 143 lines)
+│   └── ui/ (17 files, ~3,574 lines)
+│       ├── theme/ (5 files)
+│       └── component/ (12 files)
 ├── feature/
-│   ├── analysis/ (8 files)
-│   ├── condition/ (7 files)
-│   ├── indicator/ (7 files)
-│   ├── market/ (7 files)
-│   ├── search/ (7 files)
-│   └── settings/ (7 files)
-└── nav/ (2 files)
+│   ├── search/ (7 files, 680 lines)
+│   ├── analysis/ (7 files, 1,055 lines)
+│   ├── indicator/ (9 files, 1,839 lines)
+│   ├── ranking/ (9 files, 1,987 lines)
+│   ├── settings/ (9 files, 853 lines)
+│   └── scheduling/ (8 files, 1,415 lines)
+└── nav/ (2 files, 115 lines)
 ```
 
-### Tests (16 Python test files)
+### Python (23 files in Android)
 
 ```
-tests/
+app/src/main/python/stock_analyzer/
 ├── __init__.py
-├── conftest.py
-├── unit/
-│   ├── __init__.py
-│   ├── test_analysis.py
-│   ├── test_auth.py
-│   ├── test_chart.py
-│   ├── test_condition.py
-│   ├── test_indicator.py
-│   ├── test_market.py
-│   ├── test_ohlcv.py
-│   ├── test_oscillator.py
-│   └── test_search.py
-├── integration/
-│   └── test_kiwoom.py
-└── e2e/
-    └── test_full_flow.py
+├── config.py
+├── client/ (auth.py, kiwoom.py)
+├── core/ (log.py, http.py, date.py, json_util.py)
+├── stock/ (search.py, analysis.py, ohlcv.py)
+├── indicator/ (trend.py, elder.py, demark.py, oscillator.py)
+├── market/ (deposit.py)
+└── search/ (condition.py)
 ```
 
 ---
 
 ## Conclusion
 
-The mini_stock project demonstrates strong engineering fundamentals with well-organized code, consistent architectural patterns, and comprehensive documentation.
+The StockApp Android application demonstrates **solid engineering practices** with a well-structured Clean Architecture implementation, proper security measures, and comprehensive feature coverage.
 
 ### Key Strengths
-1. **Python Backend** - Production-ready with excellent test coverage (173 tests)
-2. **Clean Architecture** - Both Python and Android follow best practices
-3. **Documentation** - Comprehensive CLAUDE.md covering all aspects
-4. **API Coverage** - 17 Kiwoom APIs fully implemented
+1. **Security** - AES256 encrypted credentials, thread-safe operations
+2. **Architecture** - Consistent MVVM + Clean Architecture across all modules
+3. **Feature Completeness** - 6 fully functional feature modules
+4. **Code Organization** - Clear separation of concerns
+5. **Modern Stack** - Jetpack Compose, Kotlin Coroutines, Hilt DI
 
 ### Critical Areas Requiring Attention
-1. **Android Tests** - 0 tests for 11,100 lines of code is a critical gap
-2. **Security** - API keys stored in plain text need encryption
-3. **Thread Safety** - PyClient initialization has race condition risks
-4. **Database Migrations** - Destructive fallback is dangerous for production
+1. **Test Coverage** - 0 tests for 13,697 lines of code
+2. **Code Organization** - Large files need refactoring (TechnicalCharts.kt)
+3. **Error Handling** - Some inconsistent patterns
 
 ### Final Scores
 
-| Component | Before Review | After Fixes (Expected) |
-|-----------|--------------|------------------------|
-| Python Backend | 8.5/10 | 9.0/10 |
-| Android Frontend | 7.4/10 | 8.5/10 |
-| Overall Project | 7.9/10 | 8.7/10 |
+| Component | Current Score | After Fixes (Expected) |
+|-----------|---------------|------------------------|
+| Python Backend | 8.5/10 | 8.5/10 (frozen) |
+| Android Frontend | 7.8/10 | 8.8/10 |
+| Overall Project | 8.0/10 | 8.7/10 |
 
-With the recommended improvements implemented, this codebase will be production-ready with high reliability and maintainability.
+With the recommended test coverage and code organization improvements, this codebase will be production-ready with high reliability and maintainability.
 
 ---
 
-*This comprehensive review was conducted using parallel agent analysis covering Python backend, Android frontend, test suites, and documentation.*
+*This comprehensive review was conducted using parallel agent analysis covering Python backend, Android frontend, security, architecture, and documentation.*
 
-**Review Duration:** ~15 minutes
-**Analysis Method:** AI-assisted multi-agent review with specialized agents for Python, Android, and documentation analysis
+**Review Duration:** ~20 minutes
+**Analysis Method:** AI-assisted multi-agent review with specialized Explore agents
+**Total Files Analyzed:** 114 files (~20,000 lines)

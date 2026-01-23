@@ -85,8 +85,8 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | App Phase 5 | ✅ Done | **자동 스케줄링 (WorkManager 기반)** |
 | App Phase 6 | ✅ Done | **순위정보 (Ranking) - Kotlin REST API 직접 호출** |
 
-**코드**: ~79 files, ~11,100 lines (Kotlin)
-**코드 품질**: 7.4/10 (테스트 부재로 감점)
+**코드**: 91 files, ~13,697 lines (Kotlin)
+**코드 품질**: 7.8/10 (테스트 부재로 감점, 보안/스레드안전성 개선)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 > 🚀 **이 프로젝트가 현재 활성 개발 대상입니다.** 모든 기능 추가, 버그 수정, 개선 작업은 여기에 적용됩니다.
@@ -539,8 +539,8 @@ StockApp/
 │   ├── core/
 │   │   ├── db/                     # Room Database
 │   │   │   ├── AppDb.kt
-│   │   │   ├── entity/*.kt         # StockEntity, SchedulingEntity 등
-│   │   │   └── dao/*.kt            # 6개 DAO
+│   │   │   ├── entity/*.kt         # 8개 Entity (Stock, Analysis, Search, Indicator, Scheduling 등)
+│   │   │   └── dao/*.kt            # 8개 DAO
 │   │   ├── py/                     # Python Bridge
 │   │   │   ├── PyClient.kt
 │   │   │   └── PyResponse.kt
@@ -1101,11 +1101,14 @@ sealed class RankingState {
 
 | Entity | 용도 | 주요 필드 |
 |--------|------|----------|
-| `StockEntity` | 종목 정보 캐시 | ticker, name, market |
-| `SearchHistoryEntity` | 검색 히스토리 | ticker, name, searchedAt |
-| `StockDataEntity` | 수급 분석 캐시 | ticker, data (JSON), cachedAt |
-| `IndicatorCacheEntity` | 기술 지표 캐시 | ticker, indicatorType, data, cachedAt |
-| `SchedulingEntity` | 스케줄링 설정 | isEnabled, syncHour, lastSyncAt, status |
+| `StockEntity` | 종목 정보 캐시 | ticker, name, market, updatedAt |
+| `AnalysisCacheEntity` | 수급 분석 캐시 | ticker, data (JSON), startDate, endDate, cachedAt |
+| `SearchHistoryEntity` | 검색 히스토리 | id, ticker, name, searchedAt |
+| `IndicatorCacheEntity` | 기술 지표 캐시 | key, ticker, type, data (JSON), cachedAt |
+| `SchedulingConfigEntity` | 스케줄링 설정 | id, isEnabled, syncHour, syncMinute, lastSyncAt, lastSyncStatus |
+| `SyncHistoryEntity` | 동기화 히스토리 | id, syncType, startedAt, completedAt, status, syncedStocksCount |
+| `StockAnalysisDataEntity` | 증분 분석 데이터 | ticker, date, data (JSON) |
+| `IndicatorDataEntity` | 증분 지표 데이터 | ticker, date, indicatorType, data (JSON) |
 
 ### 캐시 정책
 
@@ -1125,10 +1128,11 @@ sealed class RankingState {
 | Kotlin | 2.1.0+ | 앱 개발 언어 |
 | Jetpack Compose | BOM 2024.12 | UI 프레임워크 |
 | Hilt | 2.54 | 의존성 주입 |
-| Room | 2.8.3 | 로컬 데이터베이스 |
+| Room | 2.8.3 | 로컬 데이터베이스 (8 entities, 8 DAOs) |
 | WorkManager | Latest | 백그라운드 작업 |
-| Vico | 2.0.0 | 차트 라이브러리 |
+| Vico | 2.0.0 | 차트 라이브러리 (주요 차트) |
+| MPAndroidChart | Latest | 차트 라이브러리 (레거시 지원) |
 | Chaquopy | 15.0.1+ | Python 통합 |
 | DataStore | Latest | 설정 저장 |
-| Security Crypto | Latest | 암호화 저장소 |
+| Security Crypto | Latest | 암호화 저장소 (AES256) |
 | OkHttp | 4.12.0 | Kotlin REST API 클라이언트 (순위정보) |
