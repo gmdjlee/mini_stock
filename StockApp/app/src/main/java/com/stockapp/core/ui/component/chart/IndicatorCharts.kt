@@ -102,7 +102,8 @@ fun MacdChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     // Python style colors: MACD blue (#2196F3), Signal orange (#FF9800)
     val lineColor1 = MacdBlue.toArgb()  // MACD line - blue
@@ -478,7 +479,8 @@ fun ElderImpulseChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     // Use priceValues or fall back to mcapValues for backward compatibility
     val effectivePriceValues = if (priceValues.isNotEmpty()) priceValues else mcapValues
@@ -495,7 +497,7 @@ fun ElderImpulseChart(
                 // X Axis - Python style
                 xAxis.setupDateFormattedAxis(dates, gridColor, textColor)
 
-                // Left Y Axis (Price)
+                // Left Y Axis (Price) - black text for dark theme support
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
@@ -645,7 +647,8 @@ fun DemarkTDChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     // Use priceValues or fall back to mcapValues for backward compatibility
     val effectivePriceValues = if (priceValues.isNotEmpty()) priceValues else mcapValues
@@ -661,7 +664,7 @@ fun DemarkTDChart(
                 // X Axis - Python style with date range based formatting
                 xAxis.setupDateFormattedAxis(dates, gridColor, textColor)
 
-                // Left Y Axis (Close Price) - Python style
+                // Left Y Axis (Close Price) - black text for dark theme support
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
@@ -669,11 +672,11 @@ fun DemarkTDChart(
                     enableGridDashedLine(10f, 10f, 0f)
                 }
 
-                // Right Y Axis (TD Setup Count) - Python style: gray
+                // Right Y Axis (TD Setup Count) - black text for dark theme support
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = TabGray.toArgb()  // gray like Python
+                    this.textColor = textColor
                     // Dynamic Y-axis range based on max TD count
                     val maxTD = maxOf(
                         sellSetupValues.maxOrNull() ?: 0,

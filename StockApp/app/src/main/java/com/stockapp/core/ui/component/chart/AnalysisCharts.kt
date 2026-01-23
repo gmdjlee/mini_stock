@@ -69,7 +69,8 @@ fun MarketCapOscillatorChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     AndroidView(
         factory = { ctx ->
@@ -80,11 +81,11 @@ fun MarketCapOscillatorChart(
                 // X Axis - Python style
                 xAxis.setupDataCountAxis(dates, gridColor, textColor)
 
-                // Left Y Axis (Market Cap) - Python style: blue text
+                // Left Y Axis (Market Cap) - black text for dark theme support
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
-                    this.textColor = OscillatorBlue.toArgb()  // Blue like Python
+                    this.textColor = textColor
                     enableGridDashedLine(10f, 10f, 0f)
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
@@ -93,11 +94,11 @@ fun MarketCapOscillatorChart(
                     }
                 }
 
-                // Right Y Axis (Oscillator percentage) - Python style: orange text
+                // Right Y Axis (Oscillator percentage) - black text for dark theme support
                 axisRight.apply {
                     isEnabled = true
                     setDrawGridLines(false)
-                    this.textColor = OscillatorOrange.toArgb()  // Orange like Python
+                    this.textColor = textColor
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
                             return String.format("%.2f%%", value)
@@ -178,7 +179,8 @@ fun SupplyDemandBarChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     // Python style colors
     val foreignColor = ChartRed.toArgb()   // Red for foreign
