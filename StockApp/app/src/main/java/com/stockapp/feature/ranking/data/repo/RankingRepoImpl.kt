@@ -171,21 +171,29 @@ class RankingRepoImpl @Inject constructor(
             // Skip known metadata fields
             val skipFields = setOf("return_code", "return_msg", "msg_cd", "msg1")
 
-            // Find the first field that contains a JsonArray of objects
+            // Find the first field that contains a JsonArray
             for ((key, value) in rootObject.entries) {
                 if (key in skipFields) continue
 
-                if (value is JsonArray && value.isNotEmpty()) {
+                if (value is JsonArray) {
+                    // Found the data array field
+                    if (value.isEmpty()) {
+                        Log.d(TAG, "Found data array in field: $key but it is empty (no data available)")
+                        return emptyList()
+                    }
+
                     // Check if it's an array of objects (not just strings)
                     val firstElement = value.firstOrNull()
                     if (firstElement is JsonObject) {
                         Log.d(TAG, "Found items array in field: $key with ${value.size} items")
                         return json.decodeFromJsonElement<List<RankingItemDto>>(value)
+                    } else {
+                        Log.w(TAG, "Found array in field: $key but elements are not objects")
                     }
                 }
             }
 
-            Log.w(TAG, "No items array found in response. Available fields: ${rootObject.keys}")
+            Log.w(TAG, "No data array field found in response. Available fields: ${rootObject.keys}")
             return emptyList()
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing items array: ${e.message}", e)
