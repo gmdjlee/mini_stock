@@ -7,6 +7,7 @@ import com.stockapp.feature.ranking.domain.model.ForeignInstitutionTopParams
 import com.stockapp.feature.ranking.domain.model.InvestorType
 import com.stockapp.feature.ranking.domain.model.ItemCount
 import com.stockapp.feature.ranking.domain.model.MarketType
+import com.stockapp.feature.ranking.domain.model.OrderBookDirection
 import com.stockapp.feature.ranking.domain.model.TradeDirection
 import com.stockapp.feature.ranking.domain.model.ValueType
 import com.stockapp.feature.ranking.domain.model.OrderBookSurgeParams
@@ -24,6 +25,7 @@ class GetRankingUC @Inject constructor(
 ) {
     /**
      * Get ranking data based on type, market, exchange, and item count.
+     * For ORDER_BOOK_SURGE, orderBookDirection filter is supported.
      * For FOREIGN_INSTITUTION_TOP, additional filters (investorType, tradeDirection, valueType) are supported.
      */
     suspend operator fun invoke(
@@ -31,24 +33,19 @@ class GetRankingUC @Inject constructor(
         marketType: MarketType,
         exchangeType: ExchangeType,
         itemCount: ItemCount = ItemCount.TEN,
+        // ka10021 specific filter
+        orderBookDirection: OrderBookDirection = OrderBookDirection.BUY,
         // ka90009 specific filters
         investorType: InvestorType = InvestorType.FOREIGN,
         tradeDirection: TradeDirection = TradeDirection.NET_BUY,
         valueType: ValueType = ValueType.AMOUNT
     ): Result<RankingResult> {
         val result = when (rankingType) {
-            RankingType.ORDER_BOOK_SURGE_BUY -> repo.getOrderBookSurge(
+            RankingType.ORDER_BOOK_SURGE -> repo.getOrderBookSurge(
                 OrderBookSurgeParams(
                     marketType = marketType,
                     exchangeType = exchangeType,
-                    tradeType = "1" // Buy
-                )
-            )
-            RankingType.ORDER_BOOK_SURGE_SELL -> repo.getOrderBookSurge(
-                OrderBookSurgeParams(
-                    marketType = marketType,
-                    exchangeType = exchangeType,
-                    tradeType = "2" // Sell
+                    tradeType = orderBookDirection.code
                 )
             )
             RankingType.VOLUME_SURGE -> repo.getVolumeSurge(

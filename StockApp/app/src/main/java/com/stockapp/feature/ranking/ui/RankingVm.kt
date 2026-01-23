@@ -8,6 +8,7 @@ import com.stockapp.feature.ranking.domain.model.ExchangeType
 import com.stockapp.feature.ranking.domain.model.InvestorType
 import com.stockapp.feature.ranking.domain.model.ItemCount
 import com.stockapp.feature.ranking.domain.model.MarketType
+import com.stockapp.feature.ranking.domain.model.OrderBookDirection
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
 import com.stockapp.feature.ranking.domain.model.RankingType
@@ -62,6 +63,10 @@ class RankingVm @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    // ka10021 (Order Book Surge) specific filter
+    private val _orderBookDirection = MutableStateFlow(OrderBookDirection.BUY)
+    val orderBookDirection: StateFlow<OrderBookDirection> = _orderBookDirection.asStateFlow()
+
     // ka90009 (Foreign/Institution Top) specific filters
     private val _investorType = MutableStateFlow(InvestorType.FOREIGN)
     val investorType: StateFlow<InvestorType> = _investorType.asStateFlow()
@@ -115,6 +120,11 @@ class RankingVm @Inject constructor(
         loadRanking()
     }
 
+    fun onOrderBookDirectionChange(direction: OrderBookDirection) {
+        _orderBookDirection.value = direction
+        loadRanking()
+    }
+
     fun onInvestorTypeChange(type: InvestorType) {
         _investorType.value = type
         loadRanking()
@@ -161,6 +171,7 @@ class RankingVm @Inject constructor(
                 marketType = _marketType.value,
                 exchangeType = _exchangeType.value,
                 itemCount = _itemCount.value,
+                orderBookDirection = _orderBookDirection.value,
                 investorType = _investorType.value,
                 tradeDirection = _tradeDirection.value,
                 valueType = _valueType.value
@@ -200,6 +211,13 @@ class RankingVm @Inject constructor(
             InvestmentMode.MOCK -> listOf(ExchangeType.KRX_MOCK)
             InvestmentMode.PRODUCTION -> listOf(ExchangeType.KRX, ExchangeType.NXT)
         }
+    }
+
+    /**
+     * Check if current ranking type is Order Book Surge (ka10021).
+     */
+    fun isOrderBookSurgeType(): Boolean {
+        return _rankingType.value == RankingType.ORDER_BOOK_SURGE
     }
 
     /**

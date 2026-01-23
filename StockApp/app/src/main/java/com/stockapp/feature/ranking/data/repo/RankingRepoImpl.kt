@@ -11,6 +11,7 @@ import com.stockapp.feature.ranking.data.dto.VolumeSurgeResponse
 import com.stockapp.feature.ranking.domain.model.CreditRatioTopParams
 import com.stockapp.feature.ranking.domain.model.DailyVolumeTopParams
 import com.stockapp.feature.ranking.domain.model.ForeignInstitutionTopParams
+import com.stockapp.feature.ranking.domain.model.OrderBookDirection
 import com.stockapp.feature.ranking.domain.model.OrderBookSurgeParams
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
@@ -54,10 +55,10 @@ class RankingRepoImpl @Inject constructor(
     override suspend fun getOrderBookSurge(params: OrderBookSurgeParams): Result<RankingResult> {
         return try {
             val config = getApiConfig()
-            val rankingType = if (params.tradeType == "1") {
-                RankingType.ORDER_BOOK_SURGE_BUY
+            val orderBookDirection = if (params.tradeType == "1") {
+                OrderBookDirection.BUY
             } else {
-                RankingType.ORDER_BOOK_SURGE_SELL
+                OrderBookDirection.SELL
             }
 
             apiClient.call(
@@ -69,7 +70,7 @@ class RankingRepoImpl @Inject constructor(
                 baseUrl = config.baseUrl
             ) { responseJson ->
                 val response = json.decodeFromString<OrderBookSurgeResponse>(responseJson)
-                parseOrderBookSurgeResponse(response, params, rankingType)
+                parseOrderBookSurgeResponse(response, params, orderBookDirection)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -197,7 +198,7 @@ class RankingRepoImpl @Inject constructor(
     private fun parseOrderBookSurgeResponse(
         response: OrderBookSurgeResponse,
         params: OrderBookSurgeParams,
-        rankingType: RankingType
+        orderBookDirection: OrderBookDirection
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
         val dtoItems = response.items ?: emptyList()
@@ -220,11 +221,12 @@ class RankingRepoImpl @Inject constructor(
         }
 
         return RankingResult(
-            rankingType = rankingType,
+            rankingType = RankingType.ORDER_BOOK_SURGE,
             marketType = params.marketType,
             exchangeType = params.exchangeType,
             items = items,
-            fetchedAt = LocalDateTime.now()
+            fetchedAt = LocalDateTime.now(),
+            orderBookDirection = orderBookDirection
         )
     }
 
