@@ -55,19 +55,6 @@ import com.stockapp.core.ui.theme.TrendSignalPriceColor
  */
 
 /**
- * Helper function to configure common chart properties.
- */
-private fun CombinedChart.setupCommonChartProperties() {
-    description.isEnabled = false
-    setTouchEnabled(true)
-    isDragEnabled = true
-    setScaleEnabled(true)
-    setPinchZoom(true)
-    setDrawGridBackground(false)
-    setExtraBottomOffset(10f)
-}
-
-/**
  * Helper function to setup X-axis with date formatting.
  */
 private fun XAxis.setupDateFormattedAxis(dates: List<String>, gridColor: Int, textColor: Int) {

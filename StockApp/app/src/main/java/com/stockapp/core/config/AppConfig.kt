@@ -59,4 +59,25 @@ object AppConfig {
 
     /** Default number of days for indicator calculations */
     const val DEFAULT_INDICATOR_DAYS = 180
+
+    // ========== Chart Configuration ==========
+
+    /** Maximum days to display in indicator charts */
+    const val CHART_MAX_DISPLAY_DAYS = 180
+
+    // ========== DeMark TD Thresholds ==========
+
+    /** Threshold for DeMark TD active signal (shows warning) */
+    const val DEMARK_ACTIVE_THRESHOLD = 5
+
+    /** Threshold for DeMark TD strong signal (reversal likely) */
+    const val DEMARK_STRONG_THRESHOLD = 9
+
+    // ========== Fear/Greed Thresholds ==========
+
+    /** Fear/Greed index greed threshold (market overheated) */
+    const val FEAR_GREED_GREED_THRESHOLD = 0.5
+
+    /** Fear/Greed index fear threshold (market oversold) */
+    const val FEAR_GREED_FEAR_THRESHOLD = -0.5
 }

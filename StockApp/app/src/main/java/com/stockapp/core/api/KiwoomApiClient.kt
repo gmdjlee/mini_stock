@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -81,15 +82,8 @@ class KiwoomApiClient @Inject constructor(
                 return@withContext Result.failure(error)
             }
 
-            // Build request body JSON
-            val requestBodyJson = buildString {
-                append("{")
-                body.entries.forEachIndexed { index, (key, value) ->
-                    if (index > 0) append(",")
-                    append("\"$key\":\"$value\"")
-                }
-                append("}")
-            }
+            // Build request body JSON using kotlinx.serialization for proper escaping
+            val requestBodyJson = json.encodeToString(body)
 
             val request = Request.Builder()
                 .url("$baseUrl$url")
