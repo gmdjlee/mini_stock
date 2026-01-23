@@ -20,6 +20,7 @@ chaquopy = "15.0.1"
 vico = "2.0.0-alpha.28"
 hiltNavigationCompose = "1.2.0"
 mpandroidchart = "v3.1.0"
+okhttp = "4.12.0"
 
 # Testing
 junit = "4.13.2"
@@ -73,6 +74,10 @@ vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", ve
 
 # MPAndroidChart
 mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpandroidchart" }
+
+# OkHttp
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

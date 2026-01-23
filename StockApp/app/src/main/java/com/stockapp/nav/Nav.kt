@@ -3,6 +3,7 @@ package com.stockapp.nav
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -20,10 +21,11 @@ sealed class Screen(
     data object Search : Screen("search", "검색", Icons.Default.Search)
     data object Analysis : Screen("analysis", "수급 분석", Icons.Default.Analytics)
     data object Indicator : Screen("indicator", "기술 지표", Icons.AutoMirrored.Filled.ShowChart)
+    data object Ranking : Screen("ranking", "순위정보", Icons.Default.Leaderboard)
     data object Settings : Screen("settings", "설정", Icons.Default.Settings)
 
     companion object {
-        val bottomNavItems = listOf(Search, Analysis, Indicator, Settings)
+        val bottomNavItems = listOf(Search, Analysis, Indicator, Ranking, Settings)
     }
 }
 

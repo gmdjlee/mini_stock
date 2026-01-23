@@ -121,6 +121,10 @@ dependencies {
     // MPAndroidChart
     implementation(libs.mpandroidchart)
 
+    // OkHttp (for direct Kiwoom API calls)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
