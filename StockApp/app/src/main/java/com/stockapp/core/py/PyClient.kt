@@ -6,6 +6,7 @@ import com.chaquo.python.PyObject
 import com.stockapp.BuildConfig
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import com.stockapp.core.config.AppConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -259,8 +260,9 @@ class PyClient @Inject constructor(
 
     companion object {
         private const val TAG = "PyClient"
-        const val DEFAULT_TIMEOUT_MS = 30_000L
-        const val ANALYSIS_TIMEOUT_MS = 60_000L
+        // Reference centralized config for timeout constants
+        val DEFAULT_TIMEOUT_MS = AppConfig.DEFAULT_TIMEOUT_MS
+        val ANALYSIS_TIMEOUT_MS = AppConfig.ANALYSIS_TIMEOUT_MS
     }
 }
 

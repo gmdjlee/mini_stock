@@ -1,6 +1,7 @@
 package com.stockapp.core.cache
 
 import android.util.Log
+import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.StockEntity
@@ -16,7 +17,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "StockCacheManager"
-private const val MAX_CACHE_SIZE = 10_000 // Maximum number of stocks to cache
 
 /**
  * Stock cache state.
@@ -92,7 +92,7 @@ class StockCacheManager @Inject constructor(
                 module = "stock_analyzer.stock.search",
                 func = "get_all",
                 args = emptyList(),
-                timeoutMs = 120_000 // 2 minutes for full list
+                timeoutMs = AppConfig.STOCK_LIST_TIMEOUT_MS
             ) { jsonStr ->
                 parseStockList(jsonStr)
             }
@@ -109,8 +109,8 @@ class StockCacheManager @Inject constructor(
 
                     // Apply size limit to prevent excessive memory usage
                     // Sort by market (KOSPI first) then by name to preserve most relevant stocks
-                    val limitedStocks = if (stocks.size > MAX_CACHE_SIZE) {
-                        Log.w(TAG, "refreshCache() truncating ${stocks.size} stocks to $MAX_CACHE_SIZE")
+                    val limitedStocks = if (stocks.size > AppConfig.MAX_STOCK_CACHE_SIZE) {
+                        Log.w(TAG, "refreshCache() truncating ${stocks.size} stocks to ${AppConfig.MAX_STOCK_CACHE_SIZE}")
                         stocks.sortedWith(
                             compareBy<StockEntity> {
                                 // KOSPI stocks first, then KOSDAQ
@@ -120,7 +120,7 @@ class StockCacheManager @Inject constructor(
                                     else -> 2
                                 }
                             }.thenBy { it.name }
-                        ).take(MAX_CACHE_SIZE)
+                        ).take(AppConfig.MAX_STOCK_CACHE_SIZE)
                     } else {
                         stocks
                     }

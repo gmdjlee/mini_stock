@@ -1,5 +1,6 @@
 package com.stockapp.feature.analysis.data.repo
 
+import android.util.Log
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.AnalysisCacheDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
@@ -12,6 +13,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val TAG = "AnalysisRepoImpl"
 
 @Singleton
 class AnalysisRepoImpl @Inject constructor(
@@ -56,6 +59,8 @@ class AnalysisRepoImpl @Inject constructor(
         // Check if cache is expired
         val now = System.currentTimeMillis()
         if (now - cached.cachedAt > AppDb.ANALYSIS_CACHE_TTL) {
+            val ageMinutes = (now - cached.cachedAt) / 1000 / 60
+            Log.d(TAG, "Cache expired for ticker=$ticker, age=${ageMinutes}min, TTL=${AppDb.ANALYSIS_CACHE_TTL / 1000 / 60}min")
             cacheDao.delete(ticker)
             return null
         }
@@ -63,6 +68,7 @@ class AnalysisRepoImpl @Inject constructor(
         return try {
             json.decodeFromString<CachedStockData>(cached.data).toDomain()
         } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse cached analysis for ticker=$ticker, deleting invalid cache", e)
             cacheDao.delete(ticker)
             null
         }

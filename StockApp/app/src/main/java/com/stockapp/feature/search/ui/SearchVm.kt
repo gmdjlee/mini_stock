@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.core.cache.CacheState
 import com.stockapp.core.cache.StockCacheManager
+import com.stockapp.core.config.AppConfig
 import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.search.domain.model.Stock
 import com.stockapp.feature.search.domain.repo.SearchRepo
@@ -61,7 +62,10 @@ class SearchVm @Inject constructor(
         // Load search history
         viewModelScope.launch {
             repo.getHistory()
-                .catch { /* ignore errors */ }
+                .catch { e ->
+                    Log.e(TAG, "Failed to load search history", e)
+                    // History loading failure is non-critical, continue with empty list
+                }
                 .collect { _history.value = it }
         }
 
@@ -101,7 +105,7 @@ class SearchVm @Inject constructor(
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             Log.d(TAG, "onQueryChange() debounce delay started")
-            delay(300) // 300ms debounce
+            delay(AppConfig.SEARCH_DEBOUNCE_MS)
             Log.d(TAG, "onQueryChange() debounce delay complete, triggering search")
             search(newQuery)
         }

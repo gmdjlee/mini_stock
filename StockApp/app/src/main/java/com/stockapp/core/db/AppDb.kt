@@ -2,6 +2,7 @@ package com.stockapp.core.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.dao.AnalysisCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
@@ -46,10 +47,10 @@ abstract class AppDb : RoomDatabase() {
     companion object {
         const val DB_NAME = "stock_app.db"
 
-        // Cache TTL constants (milliseconds)
-        const val STOCK_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
-        const val ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
-        const val INDICATOR_CACHE_TTL = 24 * 60 * 60 * 1000L  // 24 hours
-        const val MAX_HISTORY_COUNT = 50
+        // Cache TTL constants - reference centralized config
+        val STOCK_CACHE_TTL = AppConfig.STOCK_CACHE_TTL_MS
+        val ANALYSIS_CACHE_TTL = AppConfig.ANALYSIS_CACHE_TTL_MS
+        val INDICATOR_CACHE_TTL = AppConfig.INDICATOR_CACHE_TTL_MS
+        val MAX_HISTORY_COUNT = AppConfig.MAX_HISTORY_COUNT
     }
 }

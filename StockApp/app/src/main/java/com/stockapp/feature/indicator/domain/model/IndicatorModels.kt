@@ -1,7 +1,29 @@
 package com.stockapp.feature.indicator.domain.model
 
+import android.util.Log
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+private const val TAG = "IndicatorModels"
+
+/**
+ * Helper function to validate and get minimum size from multiple lists.
+ * Logs warning if sizes are mismatched.
+ */
+private fun validateListSizes(
+    ticker: String,
+    sizes: List<Pair<String, Int>>
+): Int {
+    val sizeValues = sizes.map { it.second }
+    val minSize = sizeValues.minOrNull() ?: 0
+
+    if (sizeValues.distinct().size > 1) {
+        val description = sizes.joinToString(", ") { "${it.first}=${it.second}" }
+        Log.w(TAG, "List size mismatch for $ticker: $description. Using minSize=$minSize")
+    }
+
+    return minSize
+}
 
 // ========== Trend Signal ==========
 
@@ -101,75 +123,74 @@ data class TrendSummary(
         }
 
     /**
-     * Calculate primary buy signal indices.
-     * Primary Buy: trend == "bullish" AND maSignal == 1
+     * Calculate primary buy signal indices: trend == "bullish" AND maSignal == 1
      */
-    fun getPrimaryBuySignals(): List<Int> {
-        return trendHistory.indices.filter { i ->
-            i < maSignalHistory.size &&
-            trendHistory[i] == "bullish" &&
-            maSignalHistory[i] == 1
-        }
-    }
+    fun getPrimaryBuySignals(): List<Int> =
+        filterSignals { i, trend, maSignal -> trend == "bullish" && maSignal == 1 }
 
     /**
-     * Calculate additional buy signal indices.
-     * Additional Buy: maSignal == 1 AND trend != "bullish"
+     * Calculate additional buy signal indices: maSignal == 1 AND trend != "bullish"
      */
-    fun getAdditionalBuySignals(): List<Int> {
-        return maSignalHistory.indices.filter { i ->
-            i < trendHistory.size &&
-            maSignalHistory[i] == 1 &&
-            trendHistory[i] != "bullish"
-        }
-    }
+    fun getAdditionalBuySignals(): List<Int> =
+        filterSignals { i, trend, maSignal -> maSignal == 1 && trend != "bullish" }
 
     /**
-     * Calculate primary sell signal indices.
-     * Primary Sell: trend == "bearish" AND maSignal == -1
+     * Calculate primary sell signal indices: trend == "bearish" AND maSignal == -1
      */
-    fun getPrimarySellSignals(): List<Int> {
-        return trendHistory.indices.filter { i ->
-            i < maSignalHistory.size &&
-            trendHistory[i] == "bearish" &&
-            maSignalHistory[i] == -1
-        }
-    }
+    fun getPrimarySellSignals(): List<Int> =
+        filterSignals { i, trend, maSignal -> trend == "bearish" && maSignal == -1 }
 
     /**
-     * Calculate additional sell signal indices.
-     * Additional Sell: maSignal == -1 AND trend != "bearish"
+     * Calculate additional sell signal indices: maSignal == -1 AND trend != "bearish"
      */
-    fun getAdditionalSellSignals(): List<Int> {
-        return maSignalHistory.indices.filter { i ->
-            i < trendHistory.size &&
-            maSignalHistory[i] == -1 &&
-            trendHistory[i] != "bearish"
-        }
+    fun getAdditionalSellSignals(): List<Int> =
+        filterSignals { i, trend, maSignal -> maSignal == -1 && trend != "bearish" }
+
+    /**
+     * Helper to filter signals based on a condition.
+     */
+    private fun filterSignals(
+        condition: (Int, String, Int) -> Boolean
+    ): List<Int> = trendHistory.indices.mapNotNull { i ->
+        if (i < maSignalHistory.size) {
+            val trend = trendHistory.getOrNull(i) ?: return@mapNotNull null
+            val maSignal = maSignalHistory.getOrNull(i) ?: return@mapNotNull null
+            if (condition(i, trend, maSignal)) i else null
+        } else null
     }
 }
 
-fun TrendSignal.toSummary(): TrendSummary = TrendSummary(
-    ticker = ticker,
-    timeframe = timeframe,
-    dates = dates,
-    currentTrend = trend.firstOrNull() ?: "neutral",
-    currentMaSignal = maSignal.firstOrNull() ?: 0,
-    currentCmf = cmf.firstOrNull() ?: 0.0,
-    currentFearGreed = fearGreed.firstOrNull() ?: 0.0,
-    cmfHistory = cmf,
-    fearGreedHistory = fearGreed,
-    ma5History = ma5,
-    ma10History = ma10,
-    ma20History = ma20,
-    // Use MA10 as close price proxy for weekly data (more responsive than MA20)
-    priceHistory = ma10.mapNotNull { it?.toDouble() }.ifEmpty {
-        ma20.mapNotNull { it?.toDouble() }
-    },
-    // Include signal data for buy/sell marker generation
-    maSignalHistory = maSignal,
-    trendHistory = trend
-)
+fun TrendSignal.toSummary(): TrendSummary {
+    val minSize = validateListSizes(ticker, listOf(
+        "dates" to dates.size,
+        "maSignal" to maSignal.size,
+        "cmf" to cmf.size,
+        "fearGreed" to fearGreed.size,
+        "trend" to trend.size
+    ))
+
+    return TrendSummary(
+        ticker = ticker,
+        timeframe = timeframe,
+        dates = dates.take(minSize),
+        currentTrend = trend.firstOrNull() ?: "neutral",
+        currentMaSignal = maSignal.firstOrNull() ?: 0,
+        currentCmf = cmf.firstOrNull() ?: 0.0,
+        currentFearGreed = fearGreed.firstOrNull() ?: 0.0,
+        cmfHistory = cmf.take(minSize),
+        fearGreedHistory = fearGreed.take(minSize),
+        ma5History = ma5.take(minSize),
+        ma10History = ma10.take(minSize),
+        ma20History = ma20.take(minSize),
+        // Use MA10 as close price proxy for weekly data (more responsive than MA20)
+        priceHistory = ma10.take(minSize).mapNotNull { it?.toDouble() }.ifEmpty {
+            ma20.take(minSize).mapNotNull { it?.toDouble() }
+        },
+        // Include signal data for buy/sell marker generation
+        maSignalHistory = maSignal.take(minSize),
+        trendHistory = trend.take(minSize)
+    )
+}
 
 // ========== Elder Impulse ==========
 
@@ -256,28 +277,47 @@ data class ElderSummary(
         }
 }
 
-fun ElderImpulse.toSummary(): ElderSummary = ElderSummary(
-    ticker = ticker,
-    timeframe = timeframe,
-    dates = dates,
-    currentColor = color.firstOrNull() ?: "blue",
-    currentMacdHist = macdHist.firstOrNull() ?: 0.0,
-    colorHistory = color,
-    ema13History = ema13,
-    macdHistHistory = macdHist,
-    macdLineHistory = macdLine,
-    signalLineHistory = signalLine,
-    // Use actual close prices for chart display (fallback to EMA13 if not available)
-    mcapHistory = close.ifEmpty { ema13 },
-    // Convert color strings to impulse states
-    impulseStates = color.map { c ->
-        when (c) {
-            "green" -> 1
-            "red" -> -1
-            else -> 0
+fun ElderImpulse.toSummary(): ElderSummary {
+    val minSize = validateListSizes(ticker, listOf(
+        "dates" to dates.size,
+        "color" to color.size,
+        "ema13" to ema13.size,
+        "macdHist" to macdHist.size
+    ))
+
+    // Validate close prices separately (may be empty from OHLCV fallback)
+    val effectiveClose = if (close.isNotEmpty()) {
+        if (close.size != minSize) {
+            Log.w(TAG, "ElderImpulse close prices size mismatch for $ticker: close=${close.size}, expected=$minSize")
         }
+        close.take(minSize)
+    } else {
+        ema13.take(minSize)
     }
-)
+
+    return ElderSummary(
+        ticker = ticker,
+        timeframe = timeframe,
+        dates = dates.take(minSize),
+        currentColor = color.firstOrNull() ?: "blue",
+        currentMacdHist = macdHist.firstOrNull() ?: 0.0,
+        colorHistory = color.take(minSize),
+        ema13History = ema13.take(minSize),
+        macdHistHistory = macdHist.take(minSize),
+        macdLineHistory = macdLine.take(minSize),
+        signalLineHistory = signalLine.take(minSize),
+        // Use actual close prices for chart display (fallback to EMA13 if not available)
+        mcapHistory = effectiveClose,
+        // Convert color strings to impulse states
+        impulseStates = color.take(minSize).map { c ->
+            when (c) {
+                "green" -> 1
+                "red" -> -1
+                else -> 0
+            }
+        }
+    )
+}
 
 // ========== DeMark TD Setup ==========
 
@@ -355,20 +395,29 @@ data class DemarkSummary(
         get() = currentSellSetup >= 5 || currentBuySetup >= 5
 }
 
-fun DemarkSetup.toSummary(): DemarkSummary = DemarkSummary(
-    ticker = ticker,
-    timeframe = timeframe,
-    dates = dates,
-    currentSellSetup = sellSetup.firstOrNull() ?: 0,
-    currentBuySetup = buySetup.firstOrNull() ?: 0,
-    maxSellSetup = sellSetup.maxOrNull() ?: 0,
-    maxBuySetup = buySetup.maxOrNull() ?: 0,
-    sellSetupHistory = sellSetup,
-    buySetupHistory = buySetup,
-    closeHistory = close,
-    // Use close price as mcap reference for chart
-    mcapHistory = close.map { it.toDouble() }
-)
+fun DemarkSetup.toSummary(): DemarkSummary {
+    val minSize = validateListSizes(ticker, listOf(
+        "dates" to dates.size,
+        "close" to close.size,
+        "sellSetup" to sellSetup.size,
+        "buySetup" to buySetup.size
+    ))
+
+    return DemarkSummary(
+        ticker = ticker,
+        timeframe = timeframe,
+        dates = dates.take(minSize),
+        currentSellSetup = sellSetup.firstOrNull() ?: 0,
+        currentBuySetup = buySetup.firstOrNull() ?: 0,
+        maxSellSetup = sellSetup.maxOrNull() ?: 0,
+        maxBuySetup = buySetup.maxOrNull() ?: 0,
+        sellSetupHistory = sellSetup.take(minSize),
+        buySetupHistory = buySetup.take(minSize),
+        closeHistory = close.take(minSize),
+        // Use close price as mcap reference for chart
+        mcapHistory = close.take(minSize).map { it.toDouble() }
+    )
+}
 
 // ========== Common ==========
 
