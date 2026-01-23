@@ -1,11 +1,11 @@
 package com.stockapp.feature.ranking.data.repo
 
+import android.util.Log
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
-import com.stockapp.feature.ranking.data.dto.CreditRatioTopResponse
-import com.stockapp.feature.ranking.data.dto.DailyVolumeTopResponse
 import com.stockapp.feature.ranking.data.dto.ForeignInstitutionTopResponse
 import com.stockapp.feature.ranking.data.dto.OrderBookSurgeResponse
+import com.stockapp.feature.ranking.data.dto.RankingItemDto
 import com.stockapp.feature.ranking.data.dto.VolumeSurgeResponse
 import com.stockapp.feature.ranking.domain.model.CreditRatioTopParams
 import com.stockapp.feature.ranking.domain.model.DailyVolumeTopParams
@@ -20,6 +20,10 @@ import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -100,8 +104,9 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                val response = json.decodeFromString<DailyVolumeTopResponse>(responseJson)
-                parseDailyVolumeTopResponse(response, params)
+                // Use dynamic parsing to find the data array field
+                val items = findAndParseItemsArray(responseJson)
+                parseDailyVolumeTopItems(items, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -120,8 +125,9 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                val response = json.decodeFromString<CreditRatioTopResponse>(responseJson)
-                parseCreditRatioTopResponse(response, params)
+                // Use dynamic parsing to find the data array field
+                val items = findAndParseItemsArray(responseJson)
+                parseCreditRatioTopItems(items, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -140,11 +146,53 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
+                // Try DTO-based parsing first, fallback to dynamic parsing
                 val response = json.decodeFromString<ForeignInstitutionTopResponse>(responseJson)
-                parseForeignInstitutionTopResponse(response, params)
+                val result = parseForeignInstitutionTopResponse(response, params)
+                // If no items found, try dynamic parsing
+                if (result.items.isEmpty()) {
+                    val items = findAndParseItemsArray(responseJson)
+                    parseForeignInstitutionTopItems(items, params)
+                } else {
+                    result
+                }
             }
         } catch (e: ApiError) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Dynamically finds and parses the items array from API response.
+     * Kiwoom API wraps ranking data in a named field (e.g., "bid_req_sdnin", "trde_qty_sdnin")
+     * which varies by API. This method finds the array field automatically.
+     */
+    private fun findAndParseItemsArray(responseJson: String): List<RankingItemDto> {
+        try {
+            val rootObject = json.parseToJsonElement(responseJson).jsonObject
+
+            // Skip known metadata fields
+            val skipFields = setOf("return_code", "return_msg", "msg_cd", "msg1")
+
+            // Find the first field that contains a JsonArray of objects
+            for ((key, value) in rootObject.entries) {
+                if (key in skipFields) continue
+
+                if (value is JsonArray && value.isNotEmpty()) {
+                    // Check if it's an array of objects (not just strings)
+                    val firstElement = value.firstOrNull()
+                    if (firstElement is JsonObject) {
+                        Log.d(TAG, "Found items array in field: $key with ${value.size} items")
+                        return json.decodeFromJsonElement<List<RankingItemDto>>(value)
+                    }
+                }
+            }
+
+            Log.w(TAG, "No items array found in response. Available fields: ${rootObject.keys}")
+            return emptyList()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing items array: ${e.message}", e)
+            return emptyList()
         }
     }
 
@@ -217,12 +265,11 @@ class RankingRepoImpl @Inject constructor(
         )
     }
 
-    private fun parseDailyVolumeTopResponse(
-        response: DailyVolumeTopResponse,
+    private fun parseDailyVolumeTopItems(
+        dtoItems: List<RankingItemDto>,
         params: DailyVolumeTopParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val dtoItems = response.items ?: emptyList()
 
         for ((index, dto) in dtoItems.withIndex()) {
             items.add(
@@ -248,12 +295,11 @@ class RankingRepoImpl @Inject constructor(
         )
     }
 
-    private fun parseCreditRatioTopResponse(
-        response: CreditRatioTopResponse,
+    private fun parseCreditRatioTopItems(
+        dtoItems: List<RankingItemDto>,
         params: CreditRatioTopParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val dtoItems = response.items ?: emptyList()
 
         for ((index, dto) in dtoItems.withIndex()) {
             items.add(
@@ -273,6 +319,36 @@ class RankingRepoImpl @Inject constructor(
 
         return RankingResult(
             rankingType = RankingType.CREDIT_RATIO_TOP,
+            marketType = params.marketType,
+            exchangeType = params.exchangeType,
+            items = items,
+            fetchedAt = LocalDateTime.now()
+        )
+    }
+
+    private fun parseForeignInstitutionTopItems(
+        dtoItems: List<RankingItemDto>,
+        params: ForeignInstitutionTopParams
+    ): RankingResult {
+        val items = mutableListOf<RankingItem>()
+
+        for ((index, dto) in dtoItems.withIndex()) {
+            items.add(
+                RankingItem(
+                    rank = index + 1,
+                    ticker = cleanTicker(dto.stkCd),
+                    name = dto.stkNm ?: "",
+                    currentPrice = parseLong(dto.curPrc),
+                    priceChange = parseLong(dto.predPre),
+                    priceChangeSign = parseSign(dto.predPreSig),
+                    changeRate = parseDouble(dto.fluRt),
+                    volume = parseLong(dto.trdeQty)
+                )
+            )
+        }
+
+        return RankingResult(
+            rankingType = RankingType.FOREIGN_INSTITUTION_TOP,
             marketType = params.marketType,
             exchangeType = params.exchangeType,
             items = items,
@@ -360,4 +436,8 @@ class RankingRepoImpl @Inject constructor(
         val secretKey: String,
         val baseUrl: String
     )
+
+    companion object {
+        private const val TAG = "RankingRepoImpl"
+    }
 }

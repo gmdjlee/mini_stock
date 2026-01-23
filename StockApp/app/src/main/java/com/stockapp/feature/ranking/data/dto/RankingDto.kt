@@ -66,13 +66,14 @@ data class VolumeSurgeResponse(
 
 /**
  * Response for ka10030 (당일거래량상위요청).
- * API returns data wrapped in "today_trde_qty_top" field as array of objects.
+ * API returns data wrapped in "tdy_trde_qty_top" field as array of objects.
+ * Note: Field name uses "tdy" abbreviation for "today" per Kiwoom API convention.
  */
 @Serializable
 data class DailyVolumeTopResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("today_trde_qty_top") val items: List<RankingItemDto>? = null
+    @SerialName("tdy_trde_qty_top") val items: List<RankingItemDto>? = null
 )
 
 /**
