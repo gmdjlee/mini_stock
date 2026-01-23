@@ -3,7 +3,6 @@ package com.stockapp.feature.ranking.data.repo
 import android.util.Log
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
-import com.stockapp.feature.ranking.data.dto.ForeignInstitutionItemDto
 import com.stockapp.feature.ranking.data.dto.ForeignInstitutionTopResponse
 import com.stockapp.feature.ranking.data.dto.RankingItemDto
 import com.stockapp.feature.ranking.domain.model.CreditRatioTopParams
@@ -11,12 +10,7 @@ import com.stockapp.feature.ranking.domain.model.DailyVolumeTopParams
 import com.stockapp.feature.ranking.domain.model.ForeignInstitutionTopParams
 import com.stockapp.feature.ranking.domain.model.OrderBookDirection
 import com.stockapp.feature.ranking.domain.model.OrderBookSurgeParams
-import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
-import com.stockapp.feature.ranking.domain.model.RankingType
-import com.stockapp.feature.ranking.domain.model.InvestorType
-import com.stockapp.feature.ranking.domain.model.TradeDirection
-import com.stockapp.feature.ranking.domain.model.ValueType
 import com.stockapp.feature.ranking.domain.model.VolumeSurgeParams
 import com.stockapp.feature.ranking.domain.repo.RankingRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
@@ -27,10 +21,13 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
-import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Repository implementation for ranking data.
+ * Uses Kotlin REST API client to fetch ranking data from Kiwoom API.
+ */
 @Singleton
 class RankingRepoImpl @Inject constructor(
     private val apiClient: KiwoomApiClient,
@@ -67,9 +64,8 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                // Use dynamic parsing to find the data array field
                 val items = findAndParseItemsArray(responseJson)
-                parseOrderBookSurgeItems(items, params, orderBookDirection)
+                RankingParsers.parseOrderBookSurgeItems(items, params, orderBookDirection)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -88,9 +84,8 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                // Use dynamic parsing to find the data array field
                 val items = findAndParseItemsArray(responseJson)
-                parseVolumeSurgeItems(items, params)
+                RankingParsers.parseVolumeSurgeItems(items, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -109,9 +104,8 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                // Use dynamic parsing to find the data array field
                 val items = findAndParseItemsArray(responseJson)
-                parseDailyVolumeTopItems(items, params)
+                RankingParsers.parseDailyVolumeTopItems(items, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -130,9 +124,8 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                // Use dynamic parsing to find the data array field
                 val items = findAndParseItemsArray(responseJson)
-                parseCreditRatioTopItems(items, params)
+                RankingParsers.parseCreditRatioTopItems(items, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -152,7 +145,7 @@ class RankingRepoImpl @Inject constructor(
                 baseUrl = config.baseUrl
             ) { responseJson ->
                 val response = json.decodeFromString<ForeignInstitutionTopResponse>(responseJson)
-                parseForeignInstitutionTopResponse(response, params)
+                RankingParsers.parseForeignInstitutionTopResponse(response, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -200,336 +193,6 @@ class RankingRepoImpl @Inject constructor(
             return emptyList()
         }
     }
-
-    // Parsing helpers
-
-    private fun parseOrderBookSurgeItems(
-        dtoItems: List<RankingItemDto>,
-        params: OrderBookSurgeParams,
-        orderBookDirection: OrderBookDirection
-    ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = parseLong(dto.curPrc),
-                    priceChange = parseLong(dto.predPre),
-                    priceChangeSign = parseSign(dto.predPreSig),
-                    changeRate = 0.0, // Not provided in this API
-                    surgeQuantity = parseLong(dto.sdninQty),
-                    surgeRate = parseDouble(dto.sdninRt),
-                    totalBuyQuantity = parseLong(dto.totBuyQty)
-                )
-            )
-        }
-
-        return RankingResult(
-            rankingType = RankingType.ORDER_BOOK_SURGE,
-            marketType = params.marketType,
-            exchangeType = params.exchangeType,
-            items = items,
-            fetchedAt = LocalDateTime.now(),
-            orderBookDirection = orderBookDirection
-        )
-    }
-
-    private fun parseVolumeSurgeItems(
-        dtoItems: List<RankingItemDto>,
-        params: VolumeSurgeParams
-    ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = parseLong(dto.curPrc),
-                    priceChange = parseLong(dto.predPre),
-                    priceChangeSign = parseSign(dto.predPreSig),
-                    changeRate = parseDouble(dto.fluRt),
-                    volume = parseLong(dto.nowTrdeQty),
-                    surgeQuantity = parseLong(dto.sdninQty),
-                    surgeRate = parseDouble(dto.sdninRt)
-                )
-            )
-        }
-
-        return RankingResult(
-            rankingType = RankingType.VOLUME_SURGE,
-            marketType = params.marketType,
-            exchangeType = params.exchangeType,
-            items = items,
-            fetchedAt = LocalDateTime.now()
-        )
-    }
-
-    private fun parseDailyVolumeTopItems(
-        dtoItems: List<RankingItemDto>,
-        params: DailyVolumeTopParams
-    ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = parseLong(dto.curPrc),
-                    priceChange = parseLong(dto.predPre),
-                    priceChangeSign = parseSign(dto.predPreSig),
-                    changeRate = parseDouble(dto.fluRt),
-                    volume = parseLong(dto.trdeQty)
-                )
-            )
-        }
-
-        return RankingResult(
-            rankingType = RankingType.DAILY_VOLUME_TOP,
-            marketType = params.marketType,
-            exchangeType = params.exchangeType,
-            items = items,
-            fetchedAt = LocalDateTime.now()
-        )
-    }
-
-    private fun parseCreditRatioTopItems(
-        dtoItems: List<RankingItemDto>,
-        params: CreditRatioTopParams
-    ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = parseLong(dto.curPrc),
-                    priceChange = parseLong(dto.predPre),
-                    priceChangeSign = parseSign(dto.predPreSig),
-                    changeRate = parseDouble(dto.fluRt),
-                    creditRatio = parseDouble(dto.crdRt),
-                    volume = parseLong(dto.nowTrdeQty)
-                )
-            )
-        }
-
-        return RankingResult(
-            rankingType = RankingType.CREDIT_RATIO_TOP,
-            marketType = params.marketType,
-            exchangeType = params.exchangeType,
-            items = items,
-            fetchedAt = LocalDateTime.now()
-        )
-    }
-
-    private fun parseForeignInstitutionTopResponse(
-        response: ForeignInstitutionTopResponse,
-        params: ForeignInstitutionTopParams
-    ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-        val dtoItems = response.items ?: emptyList()
-        val isAmount = params.amountQtyType == "1"
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            val item = when (params.investorType) {
-                InvestorType.FOREIGN -> extractForeignData(dto, index, isAmount, params.tradeDirection)
-                InvestorType.INSTITUTION -> extractInstitutionData(dto, index, isAmount, params.tradeDirection)
-                InvestorType.ALL -> extractAllInvestorsData(dto, index, isAmount, params.tradeDirection)
-            }
-            item?.let { items.add(it) }
-        }
-
-        return RankingResult(
-            rankingType = RankingType.FOREIGN_INSTITUTION_TOP,
-            marketType = params.marketType,
-            exchangeType = params.exchangeType,
-            items = items.filter { it.ticker.isNotEmpty() },
-            fetchedAt = LocalDateTime.now(),
-            investorType = params.investorType,
-            tradeDirection = params.tradeDirection,
-            valueType = if (isAmount) ValueType.AMOUNT else ValueType.QUANTITY
-        )
-    }
-
-    /**
-     * Extract foreign investor data (순매수 or 순매도).
-     */
-    private fun extractForeignData(
-        dto: ForeignInstitutionItemDto,
-        index: Int,
-        isAmount: Boolean,
-        direction: TradeDirection
-    ): RankingItem? {
-        return if (direction == TradeDirection.NET_BUY) {
-            val ticker = dto.forNetprpsStkCd ?: return null
-            val value = parseLong(if (isAmount) dto.forNetprpsAmt else dto.forNetprpsQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = cleanTicker(ticker),
-                name = dto.forNetprpsStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetBuy = value,
-                netValue = value
-            )
-        } else {
-            val ticker = dto.forNetslmtStkCd ?: return null
-            val value = parseLong(if (isAmount) dto.forNetslmtAmt else dto.forNetslmtQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = cleanTicker(ticker),
-                name = dto.forNetslmtStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetSell = value,
-                netValue = value
-            )
-        }
-    }
-
-    /**
-     * Extract institution investor data (순매수 or 순매도).
-     * Uses institution-specific ticker and name fields from the API response.
-     * Falls back to foreign ticker/name if institution fields are empty (mock API compatibility).
-     */
-    private fun extractInstitutionData(
-        dto: ForeignInstitutionItemDto,
-        index: Int,
-        isAmount: Boolean,
-        direction: TradeDirection
-    ): RankingItem? {
-        return if (direction == TradeDirection.NET_BUY) {
-            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
-            val ticker = dto.orgnNetprpsStkCd?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetprpsStkCd
-                ?: return null
-            val name = dto.orgnNetprpsStkNm?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetprpsStkNm
-                ?: ""
-            val value = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = cleanTicker(ticker),
-                name = name,
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                institutionNetBuy = value,
-                netValue = value
-            )
-        } else {
-            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
-            val ticker = dto.orgnNetslmtStkCd?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetslmtStkCd
-                ?: return null
-            val name = dto.orgnNetslmtStkNm?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetslmtStkNm
-                ?: ""
-            val value = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = cleanTicker(ticker),
-                name = name,
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                institutionNetSell = value,
-                netValue = value
-            )
-        }
-    }
-
-    /**
-     * Extract all investors data (foreign + institution combined).
-     * Uses foreign ticker/name as reference and combines both investor values.
-     * netValue shows the combined total (foreign + institution).
-     */
-    private fun extractAllInvestorsData(
-        dto: ForeignInstitutionItemDto,
-        index: Int,
-        isAmount: Boolean,
-        direction: TradeDirection
-    ): RankingItem? {
-        return if (direction == TradeDirection.NET_BUY) {
-            val ticker = dto.forNetprpsStkCd ?: return null
-            val foreignValue = parseLong(if (isAmount) dto.forNetprpsAmt else dto.forNetprpsQty)
-            val institutionValue = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = cleanTicker(ticker),
-                name = dto.forNetprpsStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetBuy = foreignValue,
-                institutionNetBuy = institutionValue,
-                netValue = foreignValue + institutionValue  // Combined total
-            )
-        } else {
-            val ticker = dto.forNetslmtStkCd ?: return null
-            val foreignValue = parseLong(if (isAmount) dto.forNetslmtAmt else dto.forNetslmtQty)
-            val institutionValue = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = cleanTicker(ticker),
-                name = dto.forNetslmtStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetSell = foreignValue,
-                institutionNetSell = institutionValue,
-                netValue = foreignValue + institutionValue  // Combined total
-            )
-        }
-    }
-
-    // Utility functions
-
-    private fun cleanTicker(value: String?): String {
-        if (value == null) return ""
-        // Remove "_AL" suffix and any other common suffixes from ticker codes
-        return value.replace("_AL", "").replace("_KS", "").replace("_KQ", "").trim()
-    }
-
-    private fun parseLong(value: String?): Long {
-        if (value == null) return 0
-        return value.replace(",", "").replace("+", "").trim().toLongOrNull() ?: 0
-    }
-
-    private fun parseDouble(value: String?): Double {
-        if (value == null) return 0.0
-        return value.replace(",", "").replace("+", "").replace("%", "").trim().toDoubleOrNull() ?: 0.0
-    }
-
-    private fun parseSign(value: String?): String {
-        return when (value?.trim()) {
-            "1", "2", "+" -> "+"
-            "4", "5", "-" -> "-"
-            else -> ""
-        }
-    }
-
-    private data class ApiConfig(
-        val appKey: String,
-        val secretKey: String,
-        val baseUrl: String
-    )
 
     companion object {
         private const val TAG = "RankingRepoImpl"

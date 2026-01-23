@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.interfaces.datasets.IScatterDataSet
 import com.github.mikephil.charting.renderer.scatter.IShapeRenderer
 import com.github.mikephil.charting.utils.ViewPortHandler
@@ -287,4 +288,18 @@ fun getChartTextColor(): Int {
     } else {
         Color.Black.toArgb()
     }
+}
+
+/**
+ * Common chart properties configuration.
+ * Consolidated from IndicatorCharts, AnalysisCharts, and UtilityCharts.
+ */
+fun CombinedChart.setupCommonChartProperties() {
+    description.isEnabled = false
+    setTouchEnabled(true)
+    isDragEnabled = true
+    setScaleEnabled(true)
+    setPinchZoom(true)
+    setDrawGridBackground(false)
+    setExtraBottomOffset(10f)
 }
