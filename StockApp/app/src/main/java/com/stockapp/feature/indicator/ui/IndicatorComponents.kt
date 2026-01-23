@@ -231,11 +231,13 @@ internal fun <T> List<T>.prepareForChart(maxDays: Int = IndicatorChartConfig.CHA
 /**
  * Prepare nullable Double list for chart display with null filtering.
  */
+@JvmName("prepareNullableDoubleForChart")
 internal fun List<Double?>.prepareNullableForChart(maxDays: Int = IndicatorChartConfig.CHART_MAX_DAYS): List<Double> =
     take(minOf(maxDays, size)).mapNotNull { it }.reversed()
 
 /**
  * Prepare nullable Int list for chart display with null filtering and conversion to Double.
  */
+@JvmName("prepareNullableIntForChart")
 internal fun List<Int?>.prepareNullableForChart(maxDays: Int = IndicatorChartConfig.CHART_MAX_DAYS): List<Double> =
     take(minOf(maxDays, size)).mapNotNull { it?.toDouble() }.reversed()
