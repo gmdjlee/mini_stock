@@ -58,6 +58,7 @@ import com.stockapp.feature.ranking.domain.model.ExchangeType
 import com.stockapp.feature.ranking.domain.model.InvestorType
 import com.stockapp.feature.ranking.domain.model.ItemCount
 import com.stockapp.feature.ranking.domain.model.MarketType
+import com.stockapp.feature.ranking.domain.model.OrderBookDirection
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
 import com.stockapp.feature.ranking.domain.model.RankingType
@@ -80,6 +81,8 @@ fun RankingScreen(
     val itemCount by viewModel.itemCount.collectAsState()
     val investmentMode by viewModel.investmentMode.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    // ka10021 filter
+    val orderBookDirection by viewModel.orderBookDirection.collectAsState()
     // ka90009 filters
     val investorType by viewModel.investorType.collectAsState()
     val tradeDirection by viewModel.tradeDirection.collectAsState()
@@ -125,22 +128,20 @@ fun RankingScreen(
                 )
             }
 
-            // ka90009 specific filters
-            if (viewModel.isForeignInstitutionType()) {
-                ForeignInstitutionFilters(
-                    investorType = investorType,
-                    tradeDirection = tradeDirection,
-                    valueType = valueType,
-                    onInvestorTypeChange = viewModel::onInvestorTypeChange,
-                    onTradeDirectionChange = viewModel::onTradeDirectionChange,
-                    onValueTypeChange = viewModel::onValueTypeChange
-                )
-            }
-
-            // Item count selector
-            ItemCountSelector(
+            // Filter row with item count and type-specific filters
+            FilterRow(
                 selectedCount = itemCount,
-                onCountSelected = viewModel::onItemCountChange
+                onCountSelected = viewModel::onItemCountChange,
+                isOrderBookSurgeType = viewModel.isOrderBookSurgeType(),
+                orderBookDirection = orderBookDirection,
+                onOrderBookDirectionChange = viewModel::onOrderBookDirectionChange,
+                isForeignInstitutionType = viewModel.isForeignInstitutionType(),
+                investorType = investorType,
+                tradeDirection = tradeDirection,
+                valueType = valueType,
+                onInvestorTypeChange = viewModel::onInvestorTypeChange,
+                onTradeDirectionChange = viewModel::onTradeDirectionChange,
+                onValueTypeChange = viewModel::onValueTypeChange
             )
 
             // Content
@@ -259,33 +260,17 @@ private fun ExchangeTypeTabs(
     }
 }
 
-@Composable
-private fun ItemCountSelector(
-    selectedCount: ItemCount,
-    onCountSelected: (ItemCount) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ItemCount.entries.forEach { count ->
-            FilterChip(
-                selected = selectedCount == count,
-                onClick = { onCountSelected(count) },
-                label = { Text("${count.value}개") }
-            )
-        }
-    }
-}
-
 /**
- * Filter options for Foreign/Institution Top (ka90009).
+ * Combined filter row with item count and type-specific filters.
  */
 @Composable
-private fun ForeignInstitutionFilters(
+private fun FilterRow(
+    selectedCount: ItemCount,
+    onCountSelected: (ItemCount) -> Unit,
+    isOrderBookSurgeType: Boolean,
+    orderBookDirection: OrderBookDirection,
+    onOrderBookDirectionChange: (OrderBookDirection) -> Unit,
+    isForeignInstitutionType: Boolean,
     investorType: InvestorType,
     tradeDirection: TradeDirection,
     valueType: ValueType,
@@ -293,85 +278,63 @@ private fun ForeignInstitutionFilters(
     onTradeDirectionChange: (TradeDirection) -> Unit,
     onValueTypeChange: (ValueType) -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Row 1: Labels
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "투자자유형",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1.2f)
-            )
-            Text(
-                text = "매매방향",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "표시단위",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
+        // Item count chips
+        ItemCount.entries.forEach { count ->
+            FilterChip(
+                selected = selectedCount == count,
+                onClick = { onCountSelected(count) },
+                label = { Text("${count.value}개") }
             )
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        // Order Book Surge direction filter (ka10021)
+        if (isOrderBookSurgeType) {
+            Spacer(modifier = Modifier.width(8.dp))
+            OrderBookDirection.entries.forEach { direction ->
+                FilterChip(
+                    selected = orderBookDirection == direction,
+                    onClick = { onOrderBookDirectionChange(direction) },
+                    label = { Text(direction.displayName) }
+                )
+            }
+        }
 
-        // Row 2: Filter Chips
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        // Foreign/Institution filters (ka90009) - without labels
+        if (isForeignInstitutionType) {
+            Spacer(modifier = Modifier.width(8.dp))
             // Investor Type chips
-            Row(
-                modifier = Modifier.weight(1.2f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                InvestorType.entries.forEach { type ->
-                    FilterChip(
-                        selected = investorType == type,
-                        onClick = { onInvestorTypeChange(type) },
-                        label = { Text(type.displayName, style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
+            InvestorType.entries.forEach { type ->
+                FilterChip(
+                    selected = investorType == type,
+                    onClick = { onInvestorTypeChange(type) },
+                    label = { Text(type.displayName) }
+                )
             }
-
+            Spacer(modifier = Modifier.width(8.dp))
             // Trade Direction chips
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                TradeDirection.entries.forEach { direction ->
-                    FilterChip(
-                        selected = tradeDirection == direction,
-                        onClick = { onTradeDirectionChange(direction) },
-                        label = { Text(direction.displayName, style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
+            TradeDirection.entries.forEach { direction ->
+                FilterChip(
+                    selected = tradeDirection == direction,
+                    onClick = { onTradeDirectionChange(direction) },
+                    label = { Text(direction.displayName) }
+                )
             }
-
+            Spacer(modifier = Modifier.width(8.dp))
             // Value Type chips
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ValueType.entries.forEach { type ->
-                    FilterChip(
-                        selected = valueType == type,
-                        onClick = { onValueTypeChange(type) },
-                        label = { Text(type.displayName, style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
+            ValueType.entries.forEach { type ->
+                FilterChip(
+                    selected = valueType == type,
+                    onClick = { onValueTypeChange(type) },
+                    label = { Text(type.displayName) }
+                )
             }
         }
     }
@@ -466,8 +429,7 @@ private fun RankingTableHeader(result: RankingResult) {
 
 private fun getTypeSpecificHeader(result: RankingResult): String {
     return when (result.rankingType) {
-        RankingType.ORDER_BOOK_SURGE_BUY,
-        RankingType.ORDER_BOOK_SURGE_SELL -> "급증률"
+        RankingType.ORDER_BOOK_SURGE -> "급증률"
         RankingType.VOLUME_SURGE -> "급증률"
         RankingType.DAILY_VOLUME_TOP -> "거래량"
         RankingType.CREDIT_RATIO_TOP -> "신용비율"
@@ -564,8 +526,7 @@ private fun RankingTableRow(
 
 private fun formatTypeSpecificValue(item: RankingItem, result: RankingResult): String {
     return when (result.rankingType) {
-        RankingType.ORDER_BOOK_SURGE_BUY,
-        RankingType.ORDER_BOOK_SURGE_SELL -> {
+        RankingType.ORDER_BOOK_SURGE -> {
             item.surgeRate?.let { "%.1f%%".format(it) } ?: "-"
         }
         RankingType.VOLUME_SURGE -> {

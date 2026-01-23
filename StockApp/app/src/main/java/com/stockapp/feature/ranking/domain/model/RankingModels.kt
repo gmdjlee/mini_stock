@@ -25,12 +25,19 @@ enum class ExchangeType(val code: String, val displayName: String) {
  * Ranking type identifiers.
  */
 enum class RankingType(val displayName: String, val apiId: String) {
-    ORDER_BOOK_SURGE_BUY("호가잔량급증(매수)", "ka10021"),
-    ORDER_BOOK_SURGE_SELL("호가잔량급증(매도)", "ka10021"),
+    ORDER_BOOK_SURGE("호가잔량급증", "ka10021"),
     VOLUME_SURGE("거래량급증", "ka10023"),
     DAILY_VOLUME_TOP("당일거래량상위", "ka10030"),
     CREDIT_RATIO_TOP("신용비율상위", "ka10033"),
     FOREIGN_INSTITUTION_TOP("외국인/기관상위", "ka90009")
+}
+
+/**
+ * Order book direction filter for Order Book Surge (ka10021).
+ */
+enum class OrderBookDirection(val code: String, val displayName: String) {
+    BUY("1", "매수"),
+    SELL("2", "매도")
 }
 
 /**
@@ -104,6 +111,8 @@ data class RankingResult(
     val exchangeType: ExchangeType,
     val items: List<RankingItem>,
     val fetchedAt: java.time.LocalDateTime = java.time.LocalDateTime.now(),
+    // Filter context for ka10021 (Order Book Surge)
+    val orderBookDirection: OrderBookDirection? = null,
     // Filter context for ka90009 (Foreign/Institution Top)
     val investorType: InvestorType? = null,
     val tradeDirection: TradeDirection? = null,

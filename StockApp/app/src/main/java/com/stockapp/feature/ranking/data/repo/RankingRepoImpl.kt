@@ -5,12 +5,11 @@ import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
 import com.stockapp.feature.ranking.data.dto.ForeignInstitutionItemDto
 import com.stockapp.feature.ranking.data.dto.ForeignInstitutionTopResponse
-import com.stockapp.feature.ranking.data.dto.OrderBookSurgeResponse
 import com.stockapp.feature.ranking.data.dto.RankingItemDto
-import com.stockapp.feature.ranking.data.dto.VolumeSurgeResponse
 import com.stockapp.feature.ranking.domain.model.CreditRatioTopParams
 import com.stockapp.feature.ranking.domain.model.DailyVolumeTopParams
 import com.stockapp.feature.ranking.domain.model.ForeignInstitutionTopParams
+import com.stockapp.feature.ranking.domain.model.OrderBookDirection
 import com.stockapp.feature.ranking.domain.model.OrderBookSurgeParams
 import com.stockapp.feature.ranking.domain.model.RankingItem
 import com.stockapp.feature.ranking.domain.model.RankingResult
@@ -54,10 +53,10 @@ class RankingRepoImpl @Inject constructor(
     override suspend fun getOrderBookSurge(params: OrderBookSurgeParams): Result<RankingResult> {
         return try {
             val config = getApiConfig()
-            val rankingType = if (params.tradeType == "1") {
-                RankingType.ORDER_BOOK_SURGE_BUY
+            val orderBookDirection = if (params.tradeType == "1") {
+                OrderBookDirection.BUY
             } else {
-                RankingType.ORDER_BOOK_SURGE_SELL
+                OrderBookDirection.SELL
             }
 
             apiClient.call(
@@ -68,8 +67,9 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                val response = json.decodeFromString<OrderBookSurgeResponse>(responseJson)
-                parseOrderBookSurgeResponse(response, params, rankingType)
+                // Use dynamic parsing to find the data array field
+                val items = findAndParseItemsArray(responseJson)
+                parseOrderBookSurgeItems(items, params, orderBookDirection)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -88,8 +88,9 @@ class RankingRepoImpl @Inject constructor(
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl
             ) { responseJson ->
-                val response = json.decodeFromString<VolumeSurgeResponse>(responseJson)
-                parseVolumeSurgeResponse(response, params)
+                // Use dynamic parsing to find the data array field
+                val items = findAndParseItemsArray(responseJson)
+                parseVolumeSurgeItems(items, params)
             }
         } catch (e: ApiError) {
             Result.failure(e)
@@ -194,13 +195,12 @@ class RankingRepoImpl @Inject constructor(
 
     // Parsing helpers
 
-    private fun parseOrderBookSurgeResponse(
-        response: OrderBookSurgeResponse,
+    private fun parseOrderBookSurgeItems(
+        dtoItems: List<RankingItemDto>,
         params: OrderBookSurgeParams,
-        rankingType: RankingType
+        orderBookDirection: OrderBookDirection
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val dtoItems = response.items ?: emptyList()
 
         for ((index, dto) in dtoItems.withIndex()) {
             items.add(
@@ -220,20 +220,20 @@ class RankingRepoImpl @Inject constructor(
         }
 
         return RankingResult(
-            rankingType = rankingType,
+            rankingType = RankingType.ORDER_BOOK_SURGE,
             marketType = params.marketType,
             exchangeType = params.exchangeType,
             items = items,
-            fetchedAt = LocalDateTime.now()
+            fetchedAt = LocalDateTime.now(),
+            orderBookDirection = orderBookDirection
         )
     }
 
-    private fun parseVolumeSurgeResponse(
-        response: VolumeSurgeResponse,
+    private fun parseVolumeSurgeItems(
+        dtoItems: List<RankingItemDto>,
         params: VolumeSurgeParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val dtoItems = response.items ?: emptyList()
 
         for ((index, dto) in dtoItems.withIndex()) {
             items.add(
