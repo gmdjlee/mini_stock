@@ -1643,7 +1643,7 @@ chaquopy = "15.0.1"
 
 ## 13. 마일스톤
 
-### Python 패키지 (완료)
+### Python 패키지 (완료 - FROZEN)
 
 | Phase | 목표 | 상태 |
 |-------|------|------|
@@ -1654,17 +1654,28 @@ chaquopy = "15.0.1"
 | P4 | 조건검색 + 시장 지표 | ✅ 완료 |
 | P5 | 수급 오실레이터 | ✅ 완료 |
 
+> 🔒 **Python 패키지는 FROZEN 상태입니다.** 더 이상 수정하지 않습니다.
+
 ### Android 앱
 
 | Phase | 목표 | 산출물 | 상태 |
 |-------|------|--------|------|
-| App P0 | Android 프로젝트 설정 | Chaquopy, Hilt, Room, Vico 설정 | 📋 Ready |
-| App P1 | 종목 검색 + 수급 분석 | SearchScreen, AnalysisScreen | 📋 Pending |
-| App P2 | 기술적 지표 + 차트 | IndicatorScreen, Vico Charts | 📋 Pending |
-| App P3 | 시장 지표 + 조건검색 | MarketScreen, ConditionScreen | 📋 Pending |
-| App P4 | 최적화 | 캐싱, 성능 개선 | 📋 Pending |
+| App P0 | Android 프로젝트 설정 | Chaquopy, Hilt, Room, Vico 설정 | ✅ 완료 |
+| App P1 | 종목 검색 + 수급 분석 | SearchScreen, AnalysisScreen | ✅ 완료 |
+| App P2 | 기술적 지표 + 차트 | IndicatorScreen, Vico Charts | ✅ 완료 |
+| App P3 | ~~시장 지표 + 조건검색~~ | ~~MarketScreen, ConditionScreen~~ | ⛔ 제거됨 |
+| App P4 | **설정 화면** | SettingsScreen (API 키, 투자 모드) | ✅ 완료 |
+| App P5 | **자동 스케줄링** | SchedulingTab, WorkManager | ✅ 완료 |
 
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
+
+### 현재 앱 구조
+
+**네비게이션 (Bottom Nav - 4탭)**:
+1. 🔍 **Search** - 종목 검색, 검색 히스토리
+2. 📊 **Analysis** - 수급 분석, 매매 신호
+3. 📈 **Indicator** - 기술적 지표 (Trend, Elder, DeMark)
+4. ⚙️ **Settings** - API 키 설정, 자동 스케줄링
 
 ---
 
@@ -1716,6 +1727,332 @@ chaquopy = "15.0.1"
 - **Jetpack Compose**: https://developer.android.com/jetpack/compose
 - **Vico Charts**: https://github.com/patrykandpatrick/vico
 - **Chaquopy**: https://chaquo.com/chaquopy/
+
+---
+
+## 15. App Phase 4: 설정 화면 (Settings)
+
+### 15.1 개요
+
+API 키 관리 및 투자 모드 설정을 위한 화면. EncryptedSharedPreferences를 사용하여 민감한 정보를 안전하게 저장.
+
+### 15.2 SettingsScreen 구조
+
+```
+SettingsScreen
+├── TabRow
+│   ├── API Key 탭
+│   └── Scheduling 탭
+├── API Key 탭 내용
+│   ├── App Key 입력 필드
+│   ├── Secret Key 입력 필드
+│   ├── 투자 모드 선택 (MOCK / PRODUCTION)
+│   ├── 연결 테스트 버튼
+│   └── 저장 버튼
+└── Scheduling 탭 → SchedulingTab (Phase 5)
+```
+
+### 15.3 도메인 모델
+
+```kotlin
+// 투자 모드
+enum class InvestmentMode {
+    MOCK,       // 모의투자 서버 (mockapi.kiwoom.com)
+    PRODUCTION  // 실전투자 서버 (api.kiwoom.com)
+}
+
+// API 키 설정
+data class ApiKeyConfig(
+    val appKey: String,
+    val secretKey: String,
+    val investmentMode: InvestmentMode
+)
+```
+
+### 15.4 Repository
+
+```kotlin
+interface SettingsRepo {
+    suspend fun getApiKeyConfig(): ApiKeyConfig?
+    suspend fun saveApiKeyConfig(config: ApiKeyConfig)
+    suspend fun clearApiKeyConfig()
+    suspend fun testApiConnection(): Result<Boolean>
+}
+
+// 구현: EncryptedSharedPreferences 사용
+class SettingsRepoImpl @Inject constructor(
+    @ApplicationContext private val context: Context
+) : SettingsRepo {
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    private val prefs = EncryptedSharedPreferences.create(
+        context,
+        "settings_prefs",
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
+    // ...
+}
+```
+
+### 15.5 Use Cases
+
+```kotlin
+// API 키 설정 조회
+class GetApiKeyConfigUC @Inject constructor(
+    private val repo: SettingsRepo
+) {
+    suspend operator fun invoke(): ApiKeyConfig?
+}
+
+// API 키 설정 저장
+class SaveApiKeyConfigUC @Inject constructor(
+    private val repo: SettingsRepo
+) {
+    suspend operator fun invoke(config: ApiKeyConfig)
+}
+
+// API 연결 테스트
+class TestApiKeyUC @Inject constructor(
+    private val repo: SettingsRepo
+) {
+    suspend operator fun invoke(): Result<Boolean>
+}
+```
+
+---
+
+## 16. App Phase 5: 자동 스케줄링 (Scheduling)
+
+### 16.1 개요
+
+WorkManager를 사용하여 매일 지정된 시간에 자동으로 주식 데이터를 동기화. 등록된 종목의 수급 분석 및 기술적 지표 데이터를 백그라운드에서 갱신.
+
+### 16.2 SchedulingTab 구조
+
+```
+SchedulingTab
+├── 자동 동기화 토글 스위치
+├── 동기화 시간 설정 (TimePicker)
+├── 마지막 동기화 정보
+│   ├── 시간
+│   └── 상태 (성공/실패)
+├── 수동 동기화 버튼
+└── 동기화 히스토리 목록
+```
+
+### 16.3 도메인 모델
+
+```kotlin
+// 동기화 상태
+enum class SyncStatus {
+    NEVER,       // 한 번도 실행 안 됨
+    SUCCESS,     // 성공
+    FAILED,      // 실패
+    IN_PROGRESS  // 진행 중
+}
+
+// 동기화 유형
+enum class SyncType {
+    SCHEDULED,   // 예약된 자동 동기화
+    MANUAL       // 사용자 수동 동기화
+}
+
+// 스케줄링 설정
+data class SchedulingConfig(
+    val isEnabled: Boolean,          // 자동 동기화 활성화 여부
+    val syncHour: Int,               // 동기화 시각 (시, 0-23)
+    val syncMinute: Int,             // 동기화 시각 (분, 0-59)
+    val lastSyncAt: Long?,           // 마지막 동기화 Unix timestamp
+    val lastSyncStatus: SyncStatus   // 마지막 동기화 상태
+)
+
+// 동기화 히스토리
+data class SyncHistory(
+    val id: Long,
+    val syncType: SyncType,
+    val startedAt: Long,
+    val completedAt: Long?,
+    val status: SyncStatus,
+    val syncedStocksCount: Int,
+    val errorMessage: String?
+)
+
+// 동기화 결과
+data class SyncResult(
+    val success: Boolean,
+    val syncedCount: Int,
+    val failedCount: Int,
+    val errorMessage: String?
+)
+```
+
+### 16.4 WorkManager Worker
+
+```kotlin
+class StockSyncWorker(
+    context: Context,
+    params: WorkerParameters
+) : CoroutineWorker(context, params) {
+
+    @Inject lateinit var analysisRepo: AnalysisRepo
+    @Inject lateinit var indicatorRepo: IndicatorRepo
+    @Inject lateinit var schedulingRepo: SchedulingRepo
+
+    override suspend fun doWork(): Result {
+        return try {
+            // 1. 등록된 종목 목록 조회
+            val stocks = schedulingRepo.getRegisteredStocks()
+
+            // 2. 각 종목 데이터 동기화
+            var syncedCount = 0
+            for (stock in stocks) {
+                // 수급 분석 데이터 갱신
+                analysisRepo.refreshAnalysis(stock.ticker)
+                // 기술적 지표 데이터 갱신
+                indicatorRepo.refreshIndicators(stock.ticker)
+                syncedCount++
+            }
+
+            // 3. 결과 저장
+            schedulingRepo.recordSyncHistory(
+                SyncHistory(
+                    syncType = SyncType.SCHEDULED,
+                    status = SyncStatus.SUCCESS,
+                    syncedStocksCount = syncedCount
+                )
+            )
+
+            Result.success()
+        } catch (e: Exception) {
+            schedulingRepo.recordSyncHistory(
+                SyncHistory(
+                    syncType = SyncType.SCHEDULED,
+                    status = SyncStatus.FAILED,
+                    errorMessage = e.message
+                )
+            )
+            Result.retry()  // 최대 5회 재시도
+        }
+    }
+}
+```
+
+### 16.5 SchedulingManager
+
+```kotlin
+class SchedulingManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val workManager: WorkManager
+) {
+    private val _syncState = MutableStateFlow(SyncWorkState.IDLE)
+    val syncState: StateFlow<SyncWorkState> = _syncState.asStateFlow()
+
+    // 매일 자동 동기화 스케줄 등록
+    fun scheduleDaily(hour: Int, minute: Int) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<StockSyncWorker>(
+            1, TimeUnit.DAYS
+        )
+            .setConstraints(constraints)
+            .setInitialDelay(calculateInitialDelay(hour, minute), TimeUnit.MILLISECONDS)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            "stock_sync",
+            ExistingPeriodicWorkPolicy.UPDATE,
+            request
+        )
+    }
+
+    // 수동 동기화 즉시 실행
+    fun syncNow() {
+        val request = OneTimeWorkRequestBuilder<StockSyncWorker>()
+            .setConstraints(Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build())
+            .build()
+
+        workManager.enqueue(request)
+
+        // 작업 상태 관찰
+        workManager.getWorkInfoByIdLiveData(request.id)
+            .observeForever { info ->
+                _syncState.value = when (info?.state) {
+                    WorkInfo.State.RUNNING -> SyncWorkState.RUNNING
+                    WorkInfo.State.SUCCEEDED -> SyncWorkState.SUCCEEDED
+                    WorkInfo.State.FAILED -> SyncWorkState.FAILED
+                    else -> SyncWorkState.IDLE
+                }
+            }
+    }
+
+    // 스케줄 취소
+    fun cancelSchedule() {
+        workManager.cancelUniqueWork("stock_sync")
+    }
+}
+
+// 동기화 작업 상태
+enum class SyncWorkState {
+    IDLE,       // 대기 중
+    ENQUEUED,   // 큐에 등록됨
+    RUNNING,    // 실행 중
+    SUCCEEDED,  // 성공
+    FAILED,     // 실패
+    CANCELLED   // 취소됨
+}
+```
+
+### 16.6 Database Entity
+
+```kotlin
+@Entity(tableName = "scheduling")
+data class SchedulingEntity(
+    @PrimaryKey val id: Int = 1,  // 싱글톤
+    val isEnabled: Boolean,
+    val syncHour: Int,
+    val syncMinute: Int,
+    val lastSyncAt: Long?,
+    val lastSyncStatus: String  // SyncStatus.name
+)
+
+@Entity(tableName = "sync_history")
+data class SyncHistoryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val syncType: String,  // SyncType.name
+    val startedAt: Long,
+    val completedAt: Long?,
+    val status: String,    // SyncStatus.name
+    val syncedStocksCount: Int,
+    val errorMessage: String?
+)
+```
+
+### 16.7 DAO
+
+```kotlin
+@Dao
+interface SchedulingDao {
+    @Query("SELECT * FROM scheduling WHERE id = 1")
+    fun getConfig(): Flow<SchedulingEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveConfig(config: SchedulingEntity)
+
+    @Query("SELECT * FROM sync_history ORDER BY startedAt DESC LIMIT 20")
+    fun getHistory(): Flow<List<SyncHistoryEntity>>
+
+    @Insert
+    suspend fun insertHistory(history: SyncHistoryEntity)
+}
+```
 
 ---
 

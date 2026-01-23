@@ -1,8 +1,24 @@
 # Android App 개발 사전 준비 가이드
 
-**Version**: 1.0
+**Version**: 2.0
 **Created**: 2026-01-16
+**Updated**: 2026-01-23
 **Based on**: STOCK_APP_SPEC.md
+
+---
+
+## 현재 개발 상태
+
+| Phase | 상태 | 설명 |
+|-------|------|------|
+| App P0 | ✅ 완료 | Android 프로젝트 설정, Chaquopy 통합 |
+| App P1 | ✅ 완료 | 종목 검색 + 수급 분석 화면 |
+| App P2 | ✅ 완료 | 기술적 지표 화면 (Vico Charts) |
+| App P3 | ⛔ 제거됨 | ~~시장 지표 + 조건검색~~ |
+| App P4 | ✅ 완료 | 설정 화면 (API 키, 투자 모드) |
+| App P5 | ✅ 완료 | 자동 스케줄링 (WorkManager) |
+
+> 🚀 **Android 앱은 현재 활성 개발 중입니다.** 모든 기능 추가, 버그 수정, 개선 작업은 StockApp에 적용됩니다.
 
 ---
 
@@ -492,36 +508,60 @@ python {
 ## 8. 체크리스트 요약
 
 ### 개발 시작 전
-- [ ] Android Studio 최신 버전 설치
-- [ ] JDK 17+ 설치
-- [ ] 키움 API 키 발급 확인
+- [x] Android Studio 최신 버전 설치
+- [x] JDK 17+ 설치
+- [x] 키움 API 키 발급 확인
 
 ### 프로젝트 설정
-- [ ] Android 프로젝트 생성 (Compose)
-- [ ] Chaquopy 플러그인 설정
-- [ ] 의존성 추가 (Hilt, Room, Vico)
-- [ ] Python 패키지 복사 (차트 제외)
+- [x] Android 프로젝트 생성 (Compose)
+- [x] Chaquopy 플러그인 설정
+- [x] 의존성 추가 (Hilt, Room, Vico)
+- [x] Python 패키지 복사 (차트 제외)
 
 ### 핵심 구현
-- [ ] PyClient 브릿지 구현
-- [ ] Room DB 설정
-- [ ] Hilt DI 모듈 설정
-- [ ] Material 3 테마 적용
+- [x] PyClient 브릿지 구현
+- [x] Room DB 설정
+- [x] Hilt DI 모듈 설정
+- [x] Material 3 테마 적용
 
 ### Feature 구현
-- [ ] 종목 검색 화면
-- [ ] 수급 분석 화면
-- [ ] OHLCV 차트 (Vico)
-- [ ] 기술적 지표 화면
-- [ ] 시장 지표 화면
-- [ ] 조건검색 화면
+- [x] 종목 검색 화면 (SearchScreen)
+- [x] 수급 분석 화면 (AnalysisScreen)
+- [x] 기술적 지표 화면 (IndicatorScreen)
+- [x] 설정 화면 (SettingsScreen) ⭐ NEW
+- [x] 자동 스케줄링 (SchedulingTab) ⭐ NEW
+- [ ] ~~시장 지표 화면~~ (제거됨)
+- [ ] ~~조건검색 화면~~ (제거됨)
 
 ### 테스트 및 배포
-- [ ] 단위 테스트 작성
-- [ ] UI 테스트 작성
-- [ ] ProGuard 규칙 설정
+- [ ] 단위 테스트 작성 (진행 중)
+- [ ] UI 테스트 작성 (진행 중)
+- [x] ProGuard 규칙 설정
 - [ ] 릴리스 빌드 테스트
 
 ---
 
-**다음 단계**: Android Studio에서 프로젝트 생성 후 Step-by-Step으로 진행
+## 9. Claude Code Agent 활용
+
+개발 작업 시 다음 Agent들을 적극 활용하세요:
+
+| Agent | 용도 | 활용 시점 |
+|-------|------|----------|
+| **Explore** | 코드베이스 탐색 | 코드 구조 파악, 기능 위치 찾기 |
+| **Plan** | 구현 계획 수립 | 새 기능 개발 전, 리팩토링 전 |
+| **code-simplifier** | 코드 단순화 | 코드 작성 완료 후 |
+| **verify-app** | 앱 검증 | 코드 변경 후 |
+
+### Agent 활용 워크플로우
+
+```
+1. Explore → 관련 코드 위치 파악
+2. Plan → 구현 전략 수립 (복잡한 작업 시)
+3. 구현 → 코드 작성
+4. code-simplifier → 코드 정리
+5. verify-app → 동작 확인
+```
+
+---
+
+**현재 상태**: 대부분의 핵심 기능이 구현되었습니다. 테스트 작성 및 품질 개선 단계입니다.
