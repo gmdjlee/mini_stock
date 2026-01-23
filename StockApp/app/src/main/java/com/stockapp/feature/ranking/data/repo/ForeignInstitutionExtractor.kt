@@ -10,7 +10,7 @@ import com.stockapp.feature.ranking.domain.model.TradeDirection
 internal object ForeignInstitutionExtractor {
 
     /**
-     * Extract foreign investor data (순매수 or 순매도).
+     * Extract foreign investor data.
      */
     fun extractForeignData(
         dto: ForeignInstitutionItemDto,
@@ -18,40 +18,21 @@ internal object ForeignInstitutionExtractor {
         isAmount: Boolean,
         direction: TradeDirection
     ): RankingItem? {
-        return if (direction == TradeDirection.NET_BUY) {
-            val ticker = dto.forNetprpsStkCd ?: return null
-            val value = RankingParseUtils.parseLong(if (isAmount) dto.forNetprpsAmt else dto.forNetprpsQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = RankingParseUtils.cleanTicker(ticker),
-                name = dto.forNetprpsStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetBuy = value,
-                netValue = value
-            )
-        } else {
-            val ticker = dto.forNetslmtStkCd ?: return null
-            val value = RankingParseUtils.parseLong(if (isAmount) dto.forNetslmtAmt else dto.forNetslmtQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = RankingParseUtils.cleanTicker(ticker),
-                name = dto.forNetslmtStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetSell = value,
-                netValue = value
-            )
+        val fields = dto.getFieldsForDirection(direction)
+        val ticker = fields.forTicker ?: return null
+        val value = RankingParseUtils.parseLong(if (isAmount) fields.forAmt else fields.forQty)
+
+        return createBaseItem(index, ticker, fields.forName).let {
+            if (direction == TradeDirection.NET_BUY) {
+                it.copy(foreignNetBuy = value, netValue = value)
+            } else {
+                it.copy(foreignNetSell = value, netValue = value)
+            }
         }
     }
 
     /**
-     * Extract institution investor data (순매수 or 순매도).
-     * Uses institution-specific ticker and name fields from the API response.
+     * Extract institution investor data.
      * Falls back to foreign ticker/name if institution fields are empty (mock API compatibility).
      */
     fun extractInstitutionData(
@@ -60,53 +41,26 @@ internal object ForeignInstitutionExtractor {
         isAmount: Boolean,
         direction: TradeDirection
     ): RankingItem? {
-        return if (direction == TradeDirection.NET_BUY) {
-            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
-            val ticker = dto.orgnNetprpsStkCd?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetprpsStkCd
-                ?: return null
-            val name = dto.orgnNetprpsStkNm?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetprpsStkNm
-                ?: ""
-            val value = RankingParseUtils.parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = RankingParseUtils.cleanTicker(ticker),
-                name = name,
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                institutionNetBuy = value,
-                netValue = value
-            )
-        } else {
-            // Use institution ticker/name, fallback to foreign if empty (mock API returns empty institution data)
-            val ticker = dto.orgnNetslmtStkCd?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetslmtStkCd
-                ?: return null
-            val name = dto.orgnNetslmtStkNm?.takeIf { it.isNotEmpty() }
-                ?: dto.forNetslmtStkNm
-                ?: ""
-            val value = RankingParseUtils.parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = RankingParseUtils.cleanTicker(ticker),
-                name = name,
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                institutionNetSell = value,
-                netValue = value
-            )
+        val fields = dto.getFieldsForDirection(direction)
+        val ticker = fields.orgnTicker?.takeIf { it.isNotEmpty() }
+            ?: fields.forTicker
+            ?: return null
+        val name = fields.orgnName?.takeIf { it.isNotEmpty() }
+            ?: fields.forName
+            ?: ""
+        val value = RankingParseUtils.parseLong(if (isAmount) fields.orgnAmt else fields.orgnQty)
+
+        return createBaseItem(index, ticker, name).let {
+            if (direction == TradeDirection.NET_BUY) {
+                it.copy(institutionNetBuy = value, netValue = value)
+            } else {
+                it.copy(institutionNetSell = value, netValue = value)
+            }
         }
     }
 
     /**
      * Extract all investors data (foreign + institution combined).
-     * Uses foreign ticker/name as reference and combines both investor values.
-     * netValue shows the combined total (foreign + institution).
      */
     fun extractAllInvestorsData(
         dto: ForeignInstitutionItemDto,
@@ -114,38 +68,74 @@ internal object ForeignInstitutionExtractor {
         isAmount: Boolean,
         direction: TradeDirection
     ): RankingItem? {
-        return if (direction == TradeDirection.NET_BUY) {
-            val ticker = dto.forNetprpsStkCd ?: return null
-            val foreignValue = RankingParseUtils.parseLong(if (isAmount) dto.forNetprpsAmt else dto.forNetprpsQty)
-            val institutionValue = RankingParseUtils.parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = RankingParseUtils.cleanTicker(ticker),
-                name = dto.forNetprpsStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetBuy = foreignValue,
-                institutionNetBuy = institutionValue,
-                netValue = foreignValue + institutionValue  // Combined total
-            )
-        } else {
-            val ticker = dto.forNetslmtStkCd ?: return null
-            val foreignValue = RankingParseUtils.parseLong(if (isAmount) dto.forNetslmtAmt else dto.forNetslmtQty)
-            val institutionValue = RankingParseUtils.parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
-            RankingItem(
-                rank = index + 1,
-                ticker = RankingParseUtils.cleanTicker(ticker),
-                name = dto.forNetslmtStkNm ?: "",
-                currentPrice = 0,
-                priceChange = 0,
-                priceChangeSign = "",
-                changeRate = 0.0,
-                foreignNetSell = foreignValue,
-                institutionNetSell = institutionValue,
-                netValue = foreignValue + institutionValue  // Combined total
-            )
+        val fields = dto.getFieldsForDirection(direction)
+        val ticker = fields.forTicker ?: return null
+        val foreignValue = RankingParseUtils.parseLong(if (isAmount) fields.forAmt else fields.forQty)
+        val institutionValue = RankingParseUtils.parseLong(if (isAmount) fields.orgnAmt else fields.orgnQty)
+
+        return createBaseItem(index, ticker, fields.forName).let {
+            if (direction == TradeDirection.NET_BUY) {
+                it.copy(
+                    foreignNetBuy = foreignValue,
+                    institutionNetBuy = institutionValue,
+                    netValue = foreignValue + institutionValue
+                )
+            } else {
+                it.copy(
+                    foreignNetSell = foreignValue,
+                    institutionNetSell = institutionValue,
+                    netValue = foreignValue + institutionValue
+                )
+            }
         }
     }
+
+    private fun createBaseItem(index: Int, ticker: String, name: String?) = RankingItem(
+        rank = index + 1,
+        ticker = RankingParseUtils.cleanTicker(ticker),
+        name = name ?: "",
+        currentPrice = 0,
+        priceChange = 0,
+        priceChangeSign = "",
+        changeRate = 0.0
+    )
+
+    /**
+     * Helper class to hold direction-specific field values.
+     */
+    private data class DirectionFields(
+        val forTicker: String?,
+        val forName: String?,
+        val forAmt: String?,
+        val forQty: String?,
+        val orgnTicker: String?,
+        val orgnName: String?,
+        val orgnAmt: String?,
+        val orgnQty: String?
+    )
+
+    private fun ForeignInstitutionItemDto.getFieldsForDirection(direction: TradeDirection) =
+        if (direction == TradeDirection.NET_BUY) {
+            DirectionFields(
+                forTicker = forNetprpsStkCd,
+                forName = forNetprpsStkNm,
+                forAmt = forNetprpsAmt,
+                forQty = forNetprpsQty,
+                orgnTicker = orgnNetprpsStkCd,
+                orgnName = orgnNetprpsStkNm,
+                orgnAmt = orgnNetprpsAmt,
+                orgnQty = orgnNetprpsQty
+            )
+        } else {
+            DirectionFields(
+                forTicker = forNetslmtStkCd,
+                forName = forNetslmtStkNm,
+                forAmt = forNetslmtAmt,
+                forQty = forNetslmtQty,
+                orgnTicker = orgnNetslmtStkCd,
+                orgnName = orgnNetslmtStkNm,
+                orgnAmt = orgnNetslmtAmt,
+                orgnQty = orgnNetslmtQty
+            )
+        }
 }

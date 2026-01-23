@@ -22,27 +22,13 @@ import com.stockapp.feature.indicator.domain.model.TrendSummary
  */
 @Composable
 internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
-    // Python returns data in reverse chronological order (newest first)
-    // take(N) gets newest N days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(IndicatorChartConfig.CHART_MAX_DAYS, summary.dates.size)
-    val dates = summary.dates.take(displayCount).reversed()
-    val priceHistory = summary.priceHistory.take(displayCount).reversed()
-    val fearGreedHistory = summary.fearGreedHistory.take(displayCount).reversed()
-    val cmfHistory = summary.cmfHistory.take(displayCount).reversed()
-
-    // MA10 for overlay line (using ma10History if available, otherwise ma20)
-    val ma10History = summary.ma10History.take(displayCount)
-        .mapNotNull { it?.toDouble() }
-        .reversed()
-
-    // MA20 for MA overlay line - use ma20 to avoid overlap with priceHistory (which uses ma10)
-    val ma20History = summary.ma20History.take(displayCount)
-        .mapNotNull { it?.toDouble() }
-        .reversed()
-
-    // Calculate signal indices for the displayed data range
-    // Signals are calculated on reversed data (chronological order)
-    val maSignalHistory = summary.maSignalHistory.take(displayCount).reversed()
+    // Prepare data for chart display (newest N days in chronological order)
+    val dates = summary.dates.prepareForChart()
+    val priceHistory = summary.priceHistory.prepareForChart()
+    val fearGreedHistory = summary.fearGreedHistory.prepareForChart()
+    val cmfHistory = summary.cmfHistory.prepareForChart()
+    val ma20History = summary.ma20History.prepareNullableForChart()
+    val maSignalHistory = summary.maSignalHistory.prepareForChart()
 
     // Generate signal indices based on TREND_SIGNAL_CHART.md spec:
     // - Primary Buy: maSignal == 1 (3 conditions: High>Prev_High, Close>MA, CMF>0)

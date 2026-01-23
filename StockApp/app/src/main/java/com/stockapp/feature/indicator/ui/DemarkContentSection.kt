@@ -27,13 +27,11 @@ import com.stockapp.feature.indicator.domain.model.DemarkSummary
  */
 @Composable
 internal fun DemarkContent(summary: DemarkSummary, timeframe: Timeframe) {
-    // Python returns data in reverse chronological order (newest first)
-    // take(N) gets newest N days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(IndicatorChartConfig.CHART_MAX_DAYS, summary.dates.size)
-    val dates = summary.dates.take(displayCount).reversed()
-    val sellSetupHistory = summary.sellSetupHistory.take(displayCount).reversed()
-    val buySetupHistory = summary.buySetupHistory.take(displayCount).reversed()
-    val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
+    // Prepare data for chart display (newest N days in chronological order)
+    val dates = summary.dates.prepareForChart()
+    val sellSetupHistory = summary.sellSetupHistory.prepareForChart()
+    val buySetupHistory = summary.buySetupHistory.prepareForChart()
+    val mcapHistory = summary.mcapHistory.prepareForChart()
 
     // Title
     Text(

@@ -29,25 +29,14 @@ internal object RankingParsers {
         params: OrderBookSurgeParams,
         orderBookDirection: OrderBookDirection
     ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = RankingParseUtils.cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = RankingParseUtils.parseLong(dto.curPrc),
-                    priceChange = RankingParseUtils.parseLong(dto.predPre),
-                    priceChangeSign = RankingParseUtils.parseSign(dto.predPreSig),
-                    changeRate = 0.0, // Not provided in this API
-                    surgeQuantity = RankingParseUtils.parseLong(dto.sdninQty),
-                    surgeRate = RankingParseUtils.parseDouble(dto.sdninRt),
-                    totalBuyQuantity = RankingParseUtils.parseLong(dto.totBuyQty)
-                )
+        val items = dtoItems.mapIndexed { index, dto ->
+            dto.toBaseRankingItem(index).copy(
+                changeRate = 0.0,
+                surgeQuantity = RankingParseUtils.parseLong(dto.sdninQty),
+                surgeRate = RankingParseUtils.parseDouble(dto.sdninRt),
+                totalBuyQuantity = RankingParseUtils.parseLong(dto.totBuyQty)
             )
         }
-
         return RankingResult(
             rankingType = RankingType.ORDER_BOOK_SURGE,
             marketType = params.marketType,
@@ -65,25 +54,14 @@ internal object RankingParsers {
         dtoItems: List<RankingItemDto>,
         params: VolumeSurgeParams
     ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = RankingParseUtils.cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = RankingParseUtils.parseLong(dto.curPrc),
-                    priceChange = RankingParseUtils.parseLong(dto.predPre),
-                    priceChangeSign = RankingParseUtils.parseSign(dto.predPreSig),
-                    changeRate = RankingParseUtils.parseDouble(dto.fluRt),
-                    volume = RankingParseUtils.parseLong(dto.nowTrdeQty),
-                    surgeQuantity = RankingParseUtils.parseLong(dto.sdninQty),
-                    surgeRate = RankingParseUtils.parseDouble(dto.sdninRt)
-                )
+        val items = dtoItems.mapIndexed { index, dto ->
+            dto.toBaseRankingItem(index).copy(
+                changeRate = RankingParseUtils.parseDouble(dto.fluRt),
+                volume = RankingParseUtils.parseLong(dto.nowTrdeQty),
+                surgeQuantity = RankingParseUtils.parseLong(dto.sdninQty),
+                surgeRate = RankingParseUtils.parseDouble(dto.sdninRt)
             )
         }
-
         return RankingResult(
             rankingType = RankingType.VOLUME_SURGE,
             marketType = params.marketType,
@@ -100,23 +78,12 @@ internal object RankingParsers {
         dtoItems: List<RankingItemDto>,
         params: DailyVolumeTopParams
     ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = RankingParseUtils.cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = RankingParseUtils.parseLong(dto.curPrc),
-                    priceChange = RankingParseUtils.parseLong(dto.predPre),
-                    priceChangeSign = RankingParseUtils.parseSign(dto.predPreSig),
-                    changeRate = RankingParseUtils.parseDouble(dto.fluRt),
-                    volume = RankingParseUtils.parseLong(dto.trdeQty)
-                )
+        val items = dtoItems.mapIndexed { index, dto ->
+            dto.toBaseRankingItem(index).copy(
+                changeRate = RankingParseUtils.parseDouble(dto.fluRt),
+                volume = RankingParseUtils.parseLong(dto.trdeQty)
             )
         }
-
         return RankingResult(
             rankingType = RankingType.DAILY_VOLUME_TOP,
             marketType = params.marketType,
@@ -133,24 +100,13 @@ internal object RankingParsers {
         dtoItems: List<RankingItemDto>,
         params: CreditRatioTopParams
     ): RankingResult {
-        val items = mutableListOf<RankingItem>()
-
-        for ((index, dto) in dtoItems.withIndex()) {
-            items.add(
-                RankingItem(
-                    rank = index + 1,
-                    ticker = RankingParseUtils.cleanTicker(dto.stkCd),
-                    name = dto.stkNm ?: "",
-                    currentPrice = RankingParseUtils.parseLong(dto.curPrc),
-                    priceChange = RankingParseUtils.parseLong(dto.predPre),
-                    priceChangeSign = RankingParseUtils.parseSign(dto.predPreSig),
-                    changeRate = RankingParseUtils.parseDouble(dto.fluRt),
-                    creditRatio = RankingParseUtils.parseDouble(dto.crdRt),
-                    volume = RankingParseUtils.parseLong(dto.nowTrdeQty)
-                )
+        val items = dtoItems.mapIndexed { index, dto ->
+            dto.toBaseRankingItem(index).copy(
+                changeRate = RankingParseUtils.parseDouble(dto.fluRt),
+                creditRatio = RankingParseUtils.parseDouble(dto.crdRt),
+                volume = RankingParseUtils.parseLong(dto.nowTrdeQty)
             )
         }
-
         return RankingResult(
             rankingType = RankingType.CREDIT_RATIO_TOP,
             marketType = params.marketType,
@@ -159,6 +115,19 @@ internal object RankingParsers {
             fetchedAt = LocalDateTime.now()
         )
     }
+
+    /**
+     * Convert DTO to base RankingItem with common fields.
+     */
+    private fun RankingItemDto.toBaseRankingItem(index: Int) = RankingItem(
+        rank = index + 1,
+        ticker = RankingParseUtils.cleanTicker(stkCd),
+        name = stkNm ?: "",
+        currentPrice = RankingParseUtils.parseLong(curPrc),
+        priceChange = RankingParseUtils.parseLong(predPre),
+        priceChangeSign = RankingParseUtils.parseSign(predPreSig),
+        changeRate = 0.0
+    )
 
     /**
      * Parse Foreign/Institution Top (ka90009) response.

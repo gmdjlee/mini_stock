@@ -25,16 +25,14 @@ import com.stockapp.feature.indicator.domain.model.ElderSummary
  */
 @Composable
 internal fun ElderContent(summary: ElderSummary, timeframe: Timeframe) {
-    // Python returns data in reverse chronological order (newest first)
-    // take(N) gets newest N days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(IndicatorChartConfig.CHART_MAX_DAYS, summary.dates.size)
-    val dates = summary.dates.take(displayCount).reversed()
-    val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
-    val ema13History = summary.ema13History.take(displayCount).reversed()
-    val impulseStates = summary.impulseStates.take(displayCount).reversed()
-    val macdLineHistory = summary.macdLineHistory.take(displayCount).reversed()
-    val signalLineHistory = summary.signalLineHistory.take(displayCount).reversed()
-    val macdHistHistory = summary.macdHistHistory.take(displayCount).reversed()
+    // Prepare data for chart display (newest N days in chronological order)
+    val dates = summary.dates.prepareForChart()
+    val mcapHistory = summary.mcapHistory.prepareForChart()
+    val ema13History = summary.ema13History.prepareForChart()
+    val impulseStates = summary.impulseStates.prepareForChart()
+    val macdLineHistory = summary.macdLineHistory.prepareForChart()
+    val signalLineHistory = summary.signalLineHistory.prepareForChart()
+    val macdHistHistory = summary.macdHistHistory.prepareForChart()
 
     // Title with current status
     Text(

@@ -148,14 +148,7 @@ internal fun SignalCard(
 
 @Composable
 internal fun DataNotLoaded() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
-    }
+    LoadingContent(modifier = Modifier.fillMaxWidth().height(200.dp))
 }
 
 @Composable
@@ -226,3 +219,17 @@ internal fun getElderColor(color: String): Color = when (color) {
     "red" -> ElderRed
     else -> ElderBlue
 }
+
+/**
+ * Prepare data for chart display by taking most recent N items and reversing to chronological order.
+ * Python returns data in reverse chronological order (newest first).
+ * take(N) gets newest N days, reversed() converts to chronological order for chart display.
+ */
+internal fun <T> List<T>.prepareForChart(maxDays: Int = IndicatorChartConfig.CHART_MAX_DAYS): List<T> =
+    take(minOf(maxDays, size)).reversed()
+
+/**
+ * Prepare nullable Double list for chart display with null filtering.
+ */
+internal fun List<Double?>.prepareNullableForChart(maxDays: Int = IndicatorChartConfig.CHART_MAX_DAYS): List<Double> =
+    take(minOf(maxDays, size)).mapNotNull { it }.reversed()
