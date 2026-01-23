@@ -70,7 +70,8 @@ fun MacdHistogramChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     AndroidView(
         factory = { ctx ->
@@ -131,7 +132,8 @@ fun SimpleLineChart(
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    // All axis labels in black for dark theme support
+    val textColor = Color.BLACK
 
     AndroidView(
         factory = { ctx ->
@@ -141,7 +143,7 @@ fun SimpleLineChart(
                 // X Axis - date range based formatting for weekly/monthly charts
                 xAxis.setupDateRangeAxis(dates, gridColor, textColor)
 
-                // Left Y Axis
+                // Left Y Axis - black text for dark theme support
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.gridColor = gridColor
