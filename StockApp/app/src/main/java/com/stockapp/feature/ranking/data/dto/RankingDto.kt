@@ -44,78 +44,46 @@ data class RankingItemDto(
 
 /**
  * Response for ka10021 (호가잔량급증요청).
+ * API returns data wrapped in "bid_req_sdnin" field as array of objects.
  */
 @Serializable
 data class OrderBookSurgeResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("stk_cd") val stkCdList: List<String>? = null,
-    @SerialName("stk_nm") val stkNmList: List<String>? = null,
-    @SerialName("cur_prc") val curPrcList: List<String>? = null,
-    @SerialName("pred_pre_sig") val predPreSigList: List<String>? = null,
-    @SerialName("pred_pre") val predPreList: List<String>? = null,
-    @SerialName("int") val baseRateList: List<String>? = null,
-    @SerialName("now") val nowList: List<String>? = null,
-    @SerialName("sdnin_qty") val sdninQtyList: List<String>? = null,
-    @SerialName("sdnin_rt") val sdninRtList: List<String>? = null,
-    @SerialName("tot_buy_qty") val totBuyQtyList: List<String>? = null
+    @SerialName("bid_req_sdnin") val items: List<RankingItemDto>? = null
 )
 
 /**
  * Response for ka10023 (거래량급증요청).
+ * API returns data wrapped in "trde_qty_sdnin" field as array of objects.
  */
 @Serializable
 data class VolumeSurgeResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("stk_cd") val stkCdList: List<String>? = null,
-    @SerialName("stk_nm") val stkNmList: List<String>? = null,
-    @SerialName("cur_prc") val curPrcList: List<String>? = null,
-    @SerialName("pred_pre_sig") val predPreSigList: List<String>? = null,
-    @SerialName("pred_pre") val predPreList: List<String>? = null,
-    @SerialName("flu_rt") val fluRtList: List<String>? = null,
-    @SerialName("prev_trde_qty") val prevTrdeQtyList: List<String>? = null,
-    @SerialName("now_trde_qty") val nowTrdeQtyList: List<String>? = null,
-    @SerialName("sdnin_qty") val sdninQtyList: List<String>? = null,
-    @SerialName("sdnin_rt") val sdninRtList: List<String>? = null
+    @SerialName("trde_qty_sdnin") val items: List<RankingItemDto>? = null
 )
 
 /**
  * Response for ka10030 (당일거래량상위요청).
+ * API returns data wrapped in "today_trde_qty_top" field as array of objects.
  */
 @Serializable
 data class DailyVolumeTopResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("stk_cd") val stkCdList: List<String>? = null,
-    @SerialName("stk_nm") val stkNmList: List<String>? = null,
-    @SerialName("cur_prc") val curPrcList: List<String>? = null,
-    @SerialName("pred_pre_sig") val predPreSigList: List<String>? = null,
-    @SerialName("pred_pre") val predPreList: List<String>? = null,
-    @SerialName("flu_rt") val fluRtList: List<String>? = null,
-    @SerialName("trde_qty") val trdeQtyList: List<String>? = null,
-    @SerialName("pred_rt") val predRtList: List<String>? = null,
-    @SerialName("trde_tern_rt") val trdeTernRtList: List<String>? = null,
-    @SerialName("trde_amt") val trdeAmtList: List<String>? = null
+    @SerialName("today_trde_qty_top") val items: List<RankingItemDto>? = null
 )
 
 /**
  * Response for ka10033 (신용비율상위요청).
+ * API returns data wrapped in "crd_rt_top" field as array of objects.
  */
 @Serializable
 data class CreditRatioTopResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("stk_cd") val stkCdList: List<String>? = null,
-    @SerialName("stk_nm") val stkNmList: List<String>? = null,
-    @SerialName("cur_prc") val curPrcList: List<String>? = null,
-    @SerialName("pred_pre_sig") val predPreSigList: List<String>? = null,
-    @SerialName("pred_pre") val predPreList: List<String>? = null,
-    @SerialName("flu_rt") val fluRtList: List<String>? = null,
-    @SerialName("crd_rt") val crdRtList: List<String>? = null,
-    @SerialName("sel_req") val selReqList: List<String>? = null,
-    @SerialName("buy_req") val buyReqList: List<String>? = null,
-    @SerialName("now_trde_qty") val nowTrdeQtyList: List<String>? = null
+    @SerialName("crd_rt_top") val items: List<RankingItemDto>? = null
 )
 
 /**

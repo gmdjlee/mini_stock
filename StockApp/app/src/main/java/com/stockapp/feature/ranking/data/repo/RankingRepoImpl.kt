@@ -156,29 +156,21 @@ class RankingRepoImpl @Inject constructor(
         rankingType: RankingType
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val tickers = response.stkCdList ?: emptyList()
-        val names = response.stkNmList ?: emptyList()
-        val prices = response.curPrcList ?: emptyList()
-        val signs = response.predPreSigList ?: emptyList()
-        val changes = response.predPreList ?: emptyList()
-        val surgeQty = response.sdninQtyList ?: emptyList()
-        val surgeRt = response.sdninRtList ?: emptyList()
-        val buyQty = response.totBuyQtyList ?: emptyList()
+        val dtoItems = response.items ?: emptyList()
 
-        val count = minOf(tickers.size, names.size, prices.size)
-        for (i in 0 until count) {
+        for ((index, dto) in dtoItems.withIndex()) {
             items.add(
                 RankingItem(
-                    rank = i + 1,
-                    ticker = tickers.getOrNull(i) ?: "",
-                    name = names.getOrNull(i) ?: "",
-                    currentPrice = parseLong(prices.getOrNull(i)),
-                    priceChange = parseLong(changes.getOrNull(i)),
-                    priceChangeSign = parseSign(signs.getOrNull(i)),
+                    rank = index + 1,
+                    ticker = cleanTicker(dto.stkCd),
+                    name = dto.stkNm ?: "",
+                    currentPrice = parseLong(dto.curPrc),
+                    priceChange = parseLong(dto.predPre),
+                    priceChangeSign = parseSign(dto.predPreSig),
                     changeRate = 0.0, // Not provided in this API
-                    surgeQuantity = parseLong(surgeQty.getOrNull(i)),
-                    surgeRate = parseDouble(surgeRt.getOrNull(i)),
-                    totalBuyQuantity = parseLong(buyQty.getOrNull(i))
+                    surgeQuantity = parseLong(dto.sdninQty),
+                    surgeRate = parseDouble(dto.sdninRt),
+                    totalBuyQuantity = parseLong(dto.totBuyQty)
                 )
             )
         }
@@ -197,30 +189,21 @@ class RankingRepoImpl @Inject constructor(
         params: VolumeSurgeParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val tickers = response.stkCdList ?: emptyList()
-        val names = response.stkNmList ?: emptyList()
-        val prices = response.curPrcList ?: emptyList()
-        val signs = response.predPreSigList ?: emptyList()
-        val changes = response.predPreList ?: emptyList()
-        val rates = response.fluRtList ?: emptyList()
-        val nowVol = response.nowTrdeQtyList ?: emptyList()
-        val surgeQty = response.sdninQtyList ?: emptyList()
-        val surgeRt = response.sdninRtList ?: emptyList()
+        val dtoItems = response.items ?: emptyList()
 
-        val count = minOf(tickers.size, names.size, prices.size)
-        for (i in 0 until count) {
+        for ((index, dto) in dtoItems.withIndex()) {
             items.add(
                 RankingItem(
-                    rank = i + 1,
-                    ticker = tickers.getOrNull(i) ?: "",
-                    name = names.getOrNull(i) ?: "",
-                    currentPrice = parseLong(prices.getOrNull(i)),
-                    priceChange = parseLong(changes.getOrNull(i)),
-                    priceChangeSign = parseSign(signs.getOrNull(i)),
-                    changeRate = parseDouble(rates.getOrNull(i)),
-                    volume = parseLong(nowVol.getOrNull(i)),
-                    surgeQuantity = parseLong(surgeQty.getOrNull(i)),
-                    surgeRate = parseDouble(surgeRt.getOrNull(i))
+                    rank = index + 1,
+                    ticker = cleanTicker(dto.stkCd),
+                    name = dto.stkNm ?: "",
+                    currentPrice = parseLong(dto.curPrc),
+                    priceChange = parseLong(dto.predPre),
+                    priceChangeSign = parseSign(dto.predPreSig),
+                    changeRate = parseDouble(dto.fluRt),
+                    volume = parseLong(dto.nowTrdeQty),
+                    surgeQuantity = parseLong(dto.sdninQty),
+                    surgeRate = parseDouble(dto.sdninRt)
                 )
             )
         }
@@ -239,26 +222,19 @@ class RankingRepoImpl @Inject constructor(
         params: DailyVolumeTopParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val tickers = response.stkCdList ?: emptyList()
-        val names = response.stkNmList ?: emptyList()
-        val prices = response.curPrcList ?: emptyList()
-        val signs = response.predPreSigList ?: emptyList()
-        val changes = response.predPreList ?: emptyList()
-        val rates = response.fluRtList ?: emptyList()
-        val volumes = response.trdeQtyList ?: emptyList()
+        val dtoItems = response.items ?: emptyList()
 
-        val count = minOf(tickers.size, names.size, prices.size)
-        for (i in 0 until count) {
+        for ((index, dto) in dtoItems.withIndex()) {
             items.add(
                 RankingItem(
-                    rank = i + 1,
-                    ticker = tickers.getOrNull(i) ?: "",
-                    name = names.getOrNull(i) ?: "",
-                    currentPrice = parseLong(prices.getOrNull(i)),
-                    priceChange = parseLong(changes.getOrNull(i)),
-                    priceChangeSign = parseSign(signs.getOrNull(i)),
-                    changeRate = parseDouble(rates.getOrNull(i)),
-                    volume = parseLong(volumes.getOrNull(i))
+                    rank = index + 1,
+                    ticker = cleanTicker(dto.stkCd),
+                    name = dto.stkNm ?: "",
+                    currentPrice = parseLong(dto.curPrc),
+                    priceChange = parseLong(dto.predPre),
+                    priceChangeSign = parseSign(dto.predPreSig),
+                    changeRate = parseDouble(dto.fluRt),
+                    volume = parseLong(dto.trdeQty)
                 )
             )
         }
@@ -277,28 +253,20 @@ class RankingRepoImpl @Inject constructor(
         params: CreditRatioTopParams
     ): RankingResult {
         val items = mutableListOf<RankingItem>()
-        val tickers = response.stkCdList ?: emptyList()
-        val names = response.stkNmList ?: emptyList()
-        val prices = response.curPrcList ?: emptyList()
-        val signs = response.predPreSigList ?: emptyList()
-        val changes = response.predPreList ?: emptyList()
-        val rates = response.fluRtList ?: emptyList()
-        val creditRatios = response.crdRtList ?: emptyList()
-        val volumes = response.nowTrdeQtyList ?: emptyList()
+        val dtoItems = response.items ?: emptyList()
 
-        val count = minOf(tickers.size, names.size, prices.size)
-        for (i in 0 until count) {
+        for ((index, dto) in dtoItems.withIndex()) {
             items.add(
                 RankingItem(
-                    rank = i + 1,
-                    ticker = tickers.getOrNull(i) ?: "",
-                    name = names.getOrNull(i) ?: "",
-                    currentPrice = parseLong(prices.getOrNull(i)),
-                    priceChange = parseLong(changes.getOrNull(i)),
-                    priceChangeSign = parseSign(signs.getOrNull(i)),
-                    changeRate = parseDouble(rates.getOrNull(i)),
-                    creditRatio = parseDouble(creditRatios.getOrNull(i)),
-                    volume = parseLong(volumes.getOrNull(i))
+                    rank = index + 1,
+                    ticker = cleanTicker(dto.stkCd),
+                    name = dto.stkNm ?: "",
+                    currentPrice = parseLong(dto.curPrc),
+                    priceChange = parseLong(dto.predPre),
+                    priceChangeSign = parseSign(dto.predPreSig),
+                    changeRate = parseDouble(dto.fluRt),
+                    creditRatio = parseDouble(dto.crdRt),
+                    volume = parseLong(dto.nowTrdeQty)
                 )
             )
         }
@@ -362,6 +330,12 @@ class RankingRepoImpl @Inject constructor(
     }
 
     // Utility functions
+
+    private fun cleanTicker(value: String?): String {
+        if (value == null) return ""
+        // Remove "_AL" suffix and any other common suffixes from ticker codes
+        return value.replace("_AL", "").replace("_KS", "").replace("_KQ", "").trim()
+    }
 
     private fun parseLong(value: String?): Long {
         if (value == null) return 0
