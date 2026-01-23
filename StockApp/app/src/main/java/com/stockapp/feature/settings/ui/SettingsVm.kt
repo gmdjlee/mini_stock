@@ -18,7 +18,8 @@ import javax.inject.Inject
  * Settings tab types.
  */
 enum class SettingsTab(val title: String) {
-    API_KEY("API Key")
+    API_KEY("API Key"),
+    SCHEDULING("스케줄링")
 }
 
 /**

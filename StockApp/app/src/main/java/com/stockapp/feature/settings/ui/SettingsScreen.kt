@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.theme.ThemeToggleButton
+import com.stockapp.feature.scheduling.ui.SchedulingTab
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,6 +93,7 @@ fun SettingsScreen(
             // Tab content
             when (selectedTab) {
                 SettingsTab.API_KEY -> ApiKeyTab(viewModel)
+                SettingsTab.SCHEDULING -> SchedulingTab()
             }
         }
     }

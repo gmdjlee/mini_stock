@@ -101,6 +101,11 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // WorkManager
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.compiler)
+
     // Security Crypto (for encrypted API key storage)
     implementation(libs.security.crypto)
 
