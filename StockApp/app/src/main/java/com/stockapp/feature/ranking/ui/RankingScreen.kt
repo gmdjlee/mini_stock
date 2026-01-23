@@ -52,7 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.stockapp.core.theme.ThemeToggle
+import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.ranking.domain.model.ExchangeType
 import com.stockapp.feature.ranking.domain.model.ItemCount
@@ -86,7 +86,7 @@ fun RankingScreen(
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "새로고침")
                     }
-                    ThemeToggle()
+                    ThemeToggleButton()
                 }
             )
         }
