@@ -7,13 +7,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stockapp.core.ui.component.chart.ChartCard
 import com.stockapp.core.ui.component.chart.SimpleLineChart
 import com.stockapp.core.ui.component.chart.TrendSignalChart
 import com.stockapp.core.ui.theme.ChartPurple
+import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.indicator.domain.model.TrendSummary
 
 /**
@@ -110,6 +110,7 @@ internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
     }
 
     // Metrics Row
+    val extendedColors = LocalExtendedColors.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -118,7 +119,7 @@ internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
             title = "CMF",
             value = String.format("%.3f", summary.currentCmf),
             label = summary.cmfLabel,
-            color = if (summary.currentCmf > 0) Color(0xFF4CAF50) else Color(0xFFF44336),
+            color = if (summary.currentCmf > 0) extendedColors.chartGreen else extendedColors.chartRed,
             modifier = Modifier.weight(1f)
         )
         MetricCard(
@@ -126,9 +127,9 @@ internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
             value = String.format("%.3f", summary.currentFearGreed),
             label = summary.fearGreedLabel,
             color = when {
-                summary.currentFearGreed > 0.5 -> Color(0xFFF44336)
-                summary.currentFearGreed < -0.5 -> Color(0xFF2196F3)
-                else -> Color(0xFF9E9E9E)
+                summary.currentFearGreed > 0.5 -> extendedColors.statusUp
+                summary.currentFearGreed < -0.5 -> extendedColors.statusDown
+                else -> extendedColors.statusNeutral
             },
             modifier = Modifier.weight(1f)
         )
@@ -140,7 +141,7 @@ internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
             SimpleLineChart(
                 dates = dates,
                 values = cmfHistory,
-                lineColor = Color(0xFF2196F3),
+                lineColor = extendedColors.info,
                 label = "CMF"
             )
         }
