@@ -63,6 +63,9 @@ class RankingVm @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    // Store the full (unfiltered) result for local filtering
+    private var _fullResult: RankingResult? = null
+
     // ka10021 (Order Book Surge) specific filter
     private val _orderBookDirection = MutableStateFlow(OrderBookDirection.BUY)
     val orderBookDirection: StateFlow<OrderBookDirection> = _orderBookDirection.asStateFlow()
@@ -142,13 +145,19 @@ class RankingVm @Inject constructor(
 
     fun onItemCountChange(count: ItemCount) {
         _itemCount.value = count
-        // If we already have data, just filter it locally
-        val currentState = _state.value
-        if (currentState is RankingState.Success) {
-            val filteredItems = currentState.result.items.take(count.value)
-            _state.value = RankingState.Success(
-                currentState.result.copy(items = filteredItems)
-            )
+        // If we have full result data, filter locally from the original
+        val fullResult = _fullResult
+        if (fullResult != null) {
+            // If requested count exceeds available data, reload from API
+            if (count.value > fullResult.items.size) {
+                loadRanking()
+            } else {
+                // Filter from the full (unfiltered) result
+                val filteredItems = fullResult.items.take(count.value)
+                _state.value = RankingState.Success(
+                    fullResult.copy(items = filteredItems)
+                )
+            }
         } else {
             loadRanking()
         }
@@ -166,11 +175,12 @@ class RankingVm @Inject constructor(
         viewModelScope.launch {
             _state.value = RankingState.Loading
 
+            // Always fetch with max item count to enable local filtering
             val result = getRankingUC(
                 rankingType = _rankingType.value,
                 marketType = _marketType.value,
                 exchangeType = _exchangeType.value,
-                itemCount = _itemCount.value,
+                itemCount = ItemCount.THIRTY, // Fetch max items
                 orderBookDirection = _orderBookDirection.value,
                 investorType = _investorType.value,
                 tradeDirection = _tradeDirection.value,
@@ -179,9 +189,14 @@ class RankingVm @Inject constructor(
 
             result.fold(
                 onSuccess = { data ->
-                    _state.value = RankingState.Success(data)
+                    // Store full result for local filtering
+                    _fullResult = data
+                    // Apply current item count filter
+                    val filteredItems = data.items.take(_itemCount.value.value)
+                    _state.value = RankingState.Success(data.copy(items = filteredItems))
                 },
                 onFailure = { error ->
+                    _fullResult = null
                     val message = when (error) {
                         is ApiError.NoApiKeyError -> {
                             _state.value = RankingState.NoApiKey
