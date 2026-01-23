@@ -393,10 +393,7 @@ class RankingRepoImpl @Inject constructor(
 
     /**
      * Extract institution investor data (순매수 or 순매도).
-     * Note: The API does not provide separate ticker/name for institution data.
-     * Institution data shares the same stock as foreign data in each row.
-     * - 순매수: Uses for_netprps_stk_cd/nm as reference, with orgn_netprps values
-     * - 순매도: Uses for_netslmt_stk_cd/nm as reference, with orgn_netslmt values
+     * Uses institution-specific ticker and name fields from the API response.
      */
     private fun extractInstitutionData(
         dto: ForeignInstitutionItemDto,
@@ -405,13 +402,13 @@ class RankingRepoImpl @Inject constructor(
         direction: TradeDirection
     ): RankingItem? {
         return if (direction == TradeDirection.NET_BUY) {
-            // Use foreign net buy ticker as reference (same stock for institution)
-            val ticker = dto.forNetprpsStkCd ?: return null
+            // Use institution net buy ticker and name
+            val ticker = dto.orgnNetprpsStkCd ?: return null
             val value = parseLong(if (isAmount) dto.orgnNetprpsAmt else dto.orgnNetprpsQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.forNetprpsStkNm ?: "",
+                name = dto.orgnNetprpsStkNm ?: "",
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
@@ -420,13 +417,13 @@ class RankingRepoImpl @Inject constructor(
                 netValue = value
             )
         } else {
-            // Use foreign net sell ticker as reference (same stock for institution)
-            val ticker = dto.forNetslmtStkCd ?: return null
+            // Use institution net sell ticker and name
+            val ticker = dto.orgnNetslmtStkCd ?: return null
             val value = parseLong(if (isAmount) dto.orgnNetslmtAmt else dto.orgnNetslmtQty)
             RankingItem(
                 rank = index + 1,
                 ticker = cleanTicker(ticker),
-                name = dto.forNetslmtStkNm ?: "",
+                name = dto.orgnNetslmtStkNm ?: "",
                 currentPrice = 0,
                 priceChange = 0,
                 priceChangeSign = "",
