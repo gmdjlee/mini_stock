@@ -83,6 +83,7 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | App Phase 3 | ⛔ Removed | ~~시장 지표, 조건검색 화면~~ (제거됨) |
 | App Phase 4 | ✅ Done | **설정 화면 (API 키 관리, 투자 모드)** |
 | App Phase 5 | ✅ Done | **자동 스케줄링 (WorkManager 기반)** |
+| App Phase 6 | ✅ Done | **순위정보 (Ranking) - Kotlin REST API 직접 호출** |
 
 **코드**: ~79 files, ~11,100 lines (Kotlin)
 **코드 품질**: 7.4/10 (테스트 부재로 감점)
@@ -97,6 +98,7 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | 🔍 Search | SearchScreen | 종목 검색, 검색 히스토리 |
 | 📊 Analysis | AnalysisScreen | 수급 분석, 매매 신호 |
 | 📈 Indicator | IndicatorScreen | 기술적 지표 (Trend, Elder, DeMark) |
+| 🏆 Ranking | RankingScreen | 순위정보 (호가잔량, 거래량, 신용비율 등) |
 | ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정 |
 
 ## Quick Commands
@@ -249,6 +251,11 @@ result = osc_chart.plot(osc_data)                       # 오실레이터 차트
 | ka10172 | 조건검색 실행 | search/condition.py | `stk_list` |
 | kt00001 | 예탁금 추이 | market/deposit.py | `deposit_list` |
 | ka10013 | 신용잔고 추이 | market/deposit.py | `credit_list` |
+| ka10021 | 호가잔량급증 | ranking (Kotlin) | `stk_cd_list`, `stk_nm_list` 등 |
+| ka10023 | 거래량급증 | ranking (Kotlin) | `stk_cd_list`, `stk_nm_list` 등 |
+| ka10030 | 당일거래량상위 | ranking (Kotlin) | `stk_cd_list`, `stk_nm_list` 등 |
+| ka10033 | 신용비율상위 | ranking (Kotlin) | `stk_cd_list`, `stk_nm_list` 등 |
+| ka90009 | 외국인기관상위 | ranking (Kotlin) | `for_netprps_*`, `orgn_netprps_*` |
 
 ### API 응답 필드명 (실제 API 기준)
 
@@ -549,6 +556,10 @@ StockApp/
 │   │   │   └── component/          # ErrorCard, LoadingIndicator, Charts
 │   │   │       ├── chart/          # TechnicalCharts, ChartUtils
 │   │   │       └── stockinput/     # StockInputField 컴포넌트
+│   │   ├── api/                    # Kiwoom REST API (Kotlin 직접 호출)
+│   │   │   ├── ApiModels.kt        # API 응답/에러 모델
+│   │   │   ├── TokenManager.kt     # OAuth 토큰 관리
+│   │   │   └── KiwoomApiClient.kt  # REST API 클라이언트
 │   │   └── di/                     # DI Modules
 │   │       ├── AppModule.kt
 │   │       ├── DbModule.kt
@@ -578,20 +589,31 @@ StockApp/
 │   │   │   │   └── repo/SettingsRepoImpl.kt  # EncryptedSharedPreferences
 │   │   │   ├── ui/SettingsScreen.kt, SettingsVm.kt
 │   │   │   └── di/SettingsModule.kt
-│   │   └── scheduling/             # 자동 스케줄링 (Phase 5) ⭐ NEW
-│   │       ├── SchedulingManager.kt       # WorkManager 오케스트레이션
-│   │       ├── SyncWorkState.kt           # 동기화 상태 enum
+│   │   ├── scheduling/             # 자동 스케줄링 (Phase 5)
+│   │   │   ├── SchedulingManager.kt       # WorkManager 오케스트레이션
+│   │   │   ├── SyncWorkState.kt           # 동기화 상태 enum
+│   │   │   ├── domain/
+│   │   │   │   ├── model/SchedulingModels.kt  # SchedulingConfig, SyncStatus
+│   │   │   │   └── repo/SchedulingRepo.kt
+│   │   │   ├── data/
+│   │   │   │   └── repo/SchedulingRepoImpl.kt
+│   │   │   ├── worker/
+│   │   │   │   └── StockSyncWorker.kt     # WorkManager Worker
+│   │   │   ├── ui/SchedulingTab.kt, SchedulingVm.kt
+│   │   │   └── di/SchedulingModule.kt
+│   │   └── ranking/                # 순위정보 (Phase 6) ⭐ NEW
 │   │       ├── domain/
-│   │       │   ├── model/SchedulingModels.kt  # SchedulingConfig, SyncStatus
-│   │       │   └── repo/SchedulingRepo.kt
+│   │       │   ├── model/RankingModels.kt    # RankingType, RankingItem, RankingResult
+│   │       │   ├── model/RankingParams.kt    # API 요청 파라미터
+│   │       │   ├── repo/RankingRepo.kt
+│   │       │   └── usecase/GetRankingUC.kt
 │   │       ├── data/
-│   │       │   └── repo/SchedulingRepoImpl.kt
-│   │       ├── worker/
-│   │       │   └── StockSyncWorker.kt     # WorkManager Worker
-│   │       ├── ui/SchedulingTab.kt, SchedulingVm.kt
-│   │       └── di/SchedulingModule.kt
+│   │       │   ├── dto/RankingDto.kt         # API 응답 DTO
+│   │       │   └── repo/RankingRepoImpl.kt
+│   │       ├── ui/RankingScreen.kt, RankingVm.kt
+│   │       └── di/RankingModule.kt
 │   └── nav/
-│       ├── Nav.kt                  # Screen 정의 (4개 탭)
+│       ├── Nav.kt                  # Screen 정의 (5개 탭)
 │       └── NavGraph.kt             # Navigation
 │
 └── app/src/main/python/            # Python 패키지 (chart/ 제외)
@@ -901,6 +923,120 @@ schedulingManager.syncState.collect { state ->
 }
 ```
 
+---
+
+### App Phase 6: 순위정보 (Ranking)
+
+#### RankingScreen (순위정보 조회)
+
+**기능**:
+- 5가지 순위 유형: 호가잔량급증(매수/매도), 거래량급증, 당일거래량상위, 신용비율상위, 외국인기관상위
+- 시장 필터: KOSPI (001), KOSDAQ (101)
+- 거래소 필터: KRX (실전), NXT (실전), KRX (모의)
+- 표시 개수 선택: 5, 10, 20, 30개
+- 종목 클릭 시 Analysis 화면으로 이동
+
+**기술 스택**: OkHttp (Kotlin REST API 직접 호출)
+
+> ⚠️ **중요**: Python 패키지가 FROZEN 상태이므로, Ranking 기능은 Kotlin에서 직접 Kiwoom REST API를 호출합니다.
+
+#### 순위 유형
+| 유형 | API ID | 설명 |
+|------|--------|------|
+| ORDER_BOOK_SURGE_BUY | ka10021 | 호가잔량급증 (매수) |
+| ORDER_BOOK_SURGE_SELL | ka10021 | 호가잔량급증 (매도) |
+| VOLUME_SURGE | ka10023 | 거래량급증 |
+| DAILY_VOLUME_TOP | ka10030 | 당일거래량상위 |
+| CREDIT_RATIO_TOP | ka10033 | 신용비율상위 |
+| FOREIGN_INSTITUTION_TOP | ka90009 | 외국인기관상위 |
+
+#### 거래소 필터 (투자 모드별)
+| 투자 모드 | 거래소 옵션 | 코드 |
+|-----------|-------------|------|
+| MOCK (모의) | KRX만 | stex_tp: 3 |
+| PRODUCTION (실전) | KRX, NXT | stex_tp: 1, 2 |
+
+#### 핵심 모델
+```kotlin
+// 순위 유형
+enum class RankingType(val displayName: String, val apiId: String) {
+    ORDER_BOOK_SURGE_BUY("호가잔량급증(매수)", "ka10021"),
+    ORDER_BOOK_SURGE_SELL("호가잔량급증(매도)", "ka10021"),
+    VOLUME_SURGE("거래량급증", "ka10023"),
+    DAILY_VOLUME_TOP("당일거래량상위", "ka10030"),
+    CREDIT_RATIO_TOP("신용비율상위", "ka10033"),
+    FOREIGN_INSTITUTION_TOP("외국인기관상위", "ka90009")
+}
+
+// 순위 아이템
+data class RankingItem(
+    val rank: Int,
+    val ticker: String,
+    val name: String,
+    val currentPrice: Long,
+    val priceChange: Long,
+    val priceChangeSign: String,  // "+", "-", ""
+    val changeRate: Double,
+    val volume: Long? = null,
+    val surgeQuantity: Long? = null,
+    val surgeRate: Double? = null,
+    val creditRatio: Double? = null,
+    val foreignNetBuy: Long? = null,
+    val institutionNetBuy: Long? = null,
+    val totalBuyQuantity: Long? = null
+)
+
+// 순위 결과
+data class RankingResult(
+    val rankingType: RankingType,
+    val marketType: String,
+    val exchangeType: String,
+    val items: List<RankingItem>,
+    val fetchedAt: LocalDateTime
+)
+```
+
+#### Kotlin REST API 클라이언트
+```kotlin
+// KiwoomApiClient.kt - Python 없이 직접 API 호출
+@Singleton
+class KiwoomApiClient @Inject constructor(
+    private val tokenManager: TokenManager
+) {
+    suspend fun <T> call(
+        apiId: String,
+        url: String,
+        body: Map<String, String>,
+        appKey: String,
+        secretKey: String,
+        baseUrl: String,
+        parser: (String) -> T
+    ): Result<T>
+}
+
+// 사용 예시
+val result = apiClient.call(
+    apiId = "ka10021",
+    url = "/api/dostk/rkinfo",
+    body = params.toRequestBody(),
+    appKey = config.appKey,
+    secretKey = config.secretKey,
+    baseUrl = config.baseUrl
+) { json ->
+    json.decodeFromString<OrderBookSurgeResponse>(json)
+}
+```
+
+#### ViewModel 상태
+```kotlin
+sealed class RankingState {
+    data object Loading : RankingState()
+    data object NoApiKey : RankingState()
+    data class Success(val result: RankingResult) : RankingState()
+    data class Error(val message: String) : RankingState()
+}
+```
+
 ### 참고 문서
 
 - Android 사전 준비: `docs/ANDROID_PREPARATION.md`
@@ -955,3 +1091,4 @@ schedulingManager.syncState.collect { state ->
 | Chaquopy | 15.0.1+ | Python 통합 |
 | DataStore | Latest | 설정 저장 |
 | Security Crypto | Latest | 암호화 저장소 |
+| OkHttp | 4.12.0 | Kotlin REST API 클라이언트 (순위정보) |
