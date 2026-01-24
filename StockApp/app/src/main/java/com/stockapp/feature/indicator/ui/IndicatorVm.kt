@@ -76,15 +76,15 @@ class IndicatorVm @Inject constructor(
     init {
         // Observe selected stock changes
         viewModelScope.launch {
-            selectedStockManager.selectedTicker.collect { ticker ->
-                if (ticker != null && ticker != currentTicker) {
-                    currentTicker = ticker
+            selectedStockManager.selectedStock.collect { stock ->
+                if (stock != null && stock.ticker != currentTicker) {
+                    currentTicker = stock.ticker
                     // Update stock name from selected stock
-                    stockName = selectedStockManager.selectedStock.value?.name ?: ""
+                    stockName = stock.name
                     // Clear cached data for new stock
                     clearCachedData()
-                    loadInitialData(ticker)
-                } else if (ticker == null) {
+                    loadInitialData(stock.ticker)
+                } else if (stock == null) {
                     currentTicker = null
                     clearCachedData()
                     _state.value = IndicatorState.NoStock
