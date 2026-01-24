@@ -1,0 +1,1 @@
+"""ETF Collector tests."""
