@@ -57,9 +57,12 @@ class TestEtfListCollector:
         self.mock_limiter = Mock()
         self.mock_limiter.wait_if_needed = Mock()
 
+        # Test ETF codes matching the mock fixture
+        self.test_etf_codes = ["069500", "278530", "379800", "123456", "234567"]
+
     @patch("etf_collector.collector.etf_list.requests.get")
     def test_get_all_etfs_success(self, mock_get, mock_etf_list_response):
-        """Test successful ETF list fetch."""
+        """Test successful ETF list fetch with specific codes."""
         mock_resp = Mock()
         mock_resp.json.return_value = mock_etf_list_response
         mock_resp.raise_for_status = Mock()
@@ -68,7 +71,8 @@ class TestEtfListCollector:
         collector = EtfListCollector(
             self.mock_auth, self.mock_limiter, "https://api.test.com"
         )
-        result = collector.get_all_etfs()
+        # Pass specific ETF codes to test
+        result = collector.get_all_etfs(etf_codes=self.test_etf_codes)
 
         assert result["ok"] is True
         assert len(result["data"]) == 5
@@ -79,17 +83,35 @@ class TestEtfListCollector:
         assert etf.etf_name == "KODEX 200"
 
     @patch("etf_collector.collector.etf_list.requests.get")
-    def test_get_all_etfs_determines_active_type(self, mock_get, mock_etf_list_response):
-        """Test ETF type is correctly determined."""
-        mock_resp = Mock()
-        mock_resp.json.return_value = mock_etf_list_response
-        mock_resp.raise_for_status = Mock()
-        mock_get.return_value = mock_resp
+    def test_get_all_etfs_determines_active_type(self, mock_get):
+        """Test ETF type is correctly determined based on name."""
+        # Create individual responses for each ETF code
+        responses = [
+            {"output": [{"pdno": "069500", "prdt_abrv_name": "KODEX 200", "lstg_dt": ""}],
+             "rt_cd": "0", "msg_cd": "0000", "msg1": "정상처리"},
+            {"output": [{"pdno": "278530", "prdt_abrv_name": "KODEX 200 액티브", "lstg_dt": ""}],
+             "rt_cd": "0", "msg_cd": "0000", "msg1": "정상처리"},
+            {"output": [{"pdno": "379800", "prdt_abrv_name": "KODEX 미국S&P500TR", "lstg_dt": ""}],
+             "rt_cd": "0", "msg_cd": "0000", "msg1": "정상처리"},
+            {"output": [{"pdno": "123456", "prdt_abrv_name": "TIGER Active AI", "lstg_dt": ""}],
+             "rt_cd": "0", "msg_cd": "0000", "msg1": "정상처리"},
+            {"output": [{"pdno": "234567", "prdt_abrv_name": "KODEX 200 레버리지", "lstg_dt": ""}],
+             "rt_cd": "0", "msg_cd": "0000", "msg1": "정상처리"},
+        ]
+
+        def create_response(idx):
+            resp = Mock()
+            resp.json.return_value = responses[idx]
+            resp.raise_for_status = Mock()
+            return resp
+
+        mock_get.side_effect = [create_response(i) for i in range(5)]
 
         collector = EtfListCollector(
             self.mock_auth, self.mock_limiter, "https://api.test.com"
         )
-        result = collector.get_all_etfs()
+        # Pass specific ETF codes to test
+        result = collector.get_all_etfs(etf_codes=self.test_etf_codes)
 
         etfs = result["data"]
         active_etfs = [e for e in etfs if e.etf_type == "Active"]
@@ -100,7 +122,7 @@ class TestEtfListCollector:
 
     @patch("etf_collector.collector.etf_list.requests.get")
     def test_get_all_etfs_api_error(self, mock_get, mock_error_response):
-        """Test API error handling."""
+        """Test API error handling returns ALL_FAILED when all codes fail."""
         mock_resp = Mock()
         mock_resp.json.return_value = mock_error_response
         mock_resp.raise_for_status = Mock()
@@ -109,14 +131,16 @@ class TestEtfListCollector:
         collector = EtfListCollector(
             self.mock_auth, self.mock_limiter, "https://api.test.com"
         )
-        result = collector.get_all_etfs()
+        # Pass specific ETF codes to test
+        result = collector.get_all_etfs(etf_codes=self.test_etf_codes)
 
         assert result["ok"] is False
         assert "error" in result
+        assert result["error"]["code"] == "ALL_FAILED"
 
     @patch("etf_collector.collector.etf_list.requests.get")
     def test_get_all_etfs_timeout(self, mock_get):
-        """Test timeout handling."""
+        """Test timeout handling returns ALL_FAILED when all codes timeout."""
         import requests
 
         mock_get.side_effect = requests.exceptions.Timeout()
@@ -124,7 +148,23 @@ class TestEtfListCollector:
         collector = EtfListCollector(
             self.mock_auth, self.mock_limiter, "https://api.test.com"
         )
-        result = collector.get_all_etfs()
+        # Pass specific ETF codes to test
+        result = collector.get_all_etfs(etf_codes=self.test_etf_codes)
+
+        assert result["ok"] is False
+        assert result["error"]["code"] == "ALL_FAILED"
+
+    @patch("etf_collector.collector.etf_list.requests.get")
+    def test_get_etf_by_code_timeout(self, mock_get):
+        """Test single ETF fetch timeout returns TIMEOUT error."""
+        import requests
+
+        mock_get.side_effect = requests.exceptions.Timeout()
+
+        collector = EtfListCollector(
+            self.mock_auth, self.mock_limiter, "https://api.test.com"
+        )
+        result = collector.get_etf_by_code("069500")
 
         assert result["ok"] is False
         assert result["error"]["code"] == "TIMEOUT"

@@ -1,16 +1,26 @@
-"""ETF list collector using KIS API."""
+"""ETF list collector using KIS API.
+
+Note: This module uses KIS API (Korea Investment & Securities),
+NOT Kiwoom API. The two are different API providers.
+
+The KIS API search-info endpoint (CTPF1604R) does not support
+bulk ETF listing with empty PDNO parameter. Therefore, this module
+uses a predefined list of Active ETF codes and fetches each one
+individually.
+"""
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
 from ..auth.kis_auth import KisAuthClient
 from ..config import ENDPOINTS, DEFAULT_TIMEOUT
+from ..data.active_etf_codes import ACTIVE_ETF_CODES, get_active_etf_codes
 from ..limiter.rate_limiter import SlidingWindowRateLimiter
 from ..utils.helpers import to_float, now_iso
-from ..utils.logger import log_info, log_err, log_debug
+from ..utils.logger import log_info, log_err, log_debug, log_warn
 
 MODULE = "etf_list"
 
@@ -58,33 +68,81 @@ class EtfListCollector:
         self.limiter = rate_limiter
         self.base_url = base_url
 
-    def get_all_etfs(self) -> Dict[str, Any]:
-        """Fetch all ETFs from KIS API.
+    def get_all_etfs(
+        self,
+        etf_codes: Optional[List[str]] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> Dict[str, Any]:
+        """Fetch ETFs from predefined list using KIS API.
+
+        Note: KIS API (CTPF1604R) does not support bulk ETF listing with
+        empty PDNO parameter. This method uses a predefined list of Active
+        ETF codes and fetches each one individually.
+
+        Args:
+            etf_codes: Optional list of ETF codes to fetch. If None,
+                      uses the predefined ACTIVE_ETF_CODES list.
+            progress_callback: Optional callback (current, total, etf_name)
 
         Returns:
             {"ok": True, "data": List[EtfInfo]} on success
             {"ok": False, "error": {"code": str, "msg": str}} on failure
         """
-        log_info(MODULE, "Fetching all ETFs")
+        codes_to_fetch = etf_codes if etf_codes else get_active_etf_codes()
+        code_name_map = {code: name for code, name in ACTIVE_ETF_CODES}
 
-        # For ETF list, we use the search-info API with ETF filter
-        # Note: KIS API requires specific parameters for ETF list
-        params = {
-            "PDNO": "",  # Empty for all
-            "PRDT_TYPE_CD": "300",  # ETF type code
+        log_info(MODULE, f"Fetching {len(codes_to_fetch)} ETFs from predefined list")
+
+        etfs: List[EtfInfo] = []
+        errors: List[Dict[str, Any]] = []
+
+        for idx, etf_code in enumerate(codes_to_fetch, 1):
+            etf_name = code_name_map.get(etf_code, "")
+            if progress_callback:
+                progress_callback(idx, len(codes_to_fetch), etf_name or etf_code)
+
+            result = self.get_etf_by_code(etf_code)
+
+            if result.get("ok"):
+                etf = result["data"]
+                # Update name from predefined list if API doesn't return it
+                if not etf.etf_name and etf_name:
+                    etf.etf_name = etf_name
+                etfs.append(etf)
+            else:
+                error_info = {
+                    "etf_code": etf_code,
+                    "etf_name": etf_name,
+                    "error": result.get("error", {}),
+                }
+                errors.append(error_info)
+                log_warn(
+                    MODULE,
+                    f"Failed to fetch ETF {etf_code}",
+                    {"error": result.get("error", {})},
+                )
+
+        log_info(
+            MODULE,
+            f"Fetched {len(etfs)} ETFs",
+            {"success": len(etfs), "failed": len(errors)},
+        )
+
+        if not etfs and errors:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "ALL_FAILED",
+                    "msg": f"All {len(errors)} ETFs failed to fetch",
+                    "details": errors,
+                },
+            }
+
+        return {
+            "ok": True,
+            "data": etfs,
+            "errors": errors if errors else None,
         }
-
-        result = self._call_api(params)
-        if not result.get("ok"):
-            return result
-
-        try:
-            etfs = self._parse_etf_list(result["data"])
-            log_info(MODULE, f"Fetched {len(etfs)} ETFs")
-            return {"ok": True, "data": etfs}
-        except Exception as e:
-            log_err(MODULE, f"Failed to parse ETF list: {e}")
-            return {"ok": False, "error": {"code": "PARSE_ERROR", "msg": str(e)}}
 
     def get_etf_by_code(self, etf_code: str) -> Dict[str, Any]:
         """Fetch a specific ETF by code.

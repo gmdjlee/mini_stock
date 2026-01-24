@@ -197,16 +197,25 @@ def run_collect(args) -> int:
                 args.output,
             )
 
-        # Collect ETF list
+        # Collect ETF list from predefined Active ETF codes
+        # Note: KIS API does not support bulk ETF listing, so we use predefined codes
         etf_collector = EtfListCollector(auth_client, rate_limiter, config.base_url)
-        result = etf_collector.get_all_etfs()
+
+        def etf_list_progress(current: int, total: int, name: str):
+            print(f"[{current}/{total}] Fetching ETF: {name}")
+
+        result = etf_collector.get_all_etfs(progress_callback=etf_list_progress)
 
         if not result.get("ok"):
             log_err("cli", f"Failed to fetch ETF list: {result.get('error', {})}")
             return 1
 
         etfs = result["data"]
+        etf_list_errors = result.get("errors")
+
         print(f"Fetched {len(etfs)} ETFs")
+        if etf_list_errors:
+            print(f"Warning: {len(etf_list_errors)} ETFs failed to fetch")
 
         # Apply filters
         if combined_filter.filters:
