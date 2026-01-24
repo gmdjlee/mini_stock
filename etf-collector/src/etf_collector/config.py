@@ -1,4 +1,10 @@
-"""Configuration management for ETF Collector."""
+"""Configuration management for ETF Collector.
+
+Note: This module uses KIS API (Korea Investment & Securities),
+NOT Kiwoom API. The two are different API providers.
+
+KIS API Portal: https://apiportal.koreainvestment.com
+"""
 
 import os
 from dataclasses import dataclass
