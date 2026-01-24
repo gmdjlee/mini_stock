@@ -179,8 +179,10 @@ class TestConfigFromEnv:
         assert config.account_no == "12345678"
         assert config.environment == "real"
 
-    def test_from_env_missing_app_key(self):
+    def test_from_env_missing_app_key(self, monkeypatch):
         """Test error when app_key is missing."""
+        # Prevent load_dotenv from loading .env file
+        monkeypatch.setattr("etf_collector.config.load_dotenv", lambda *args, **kwargs: None)
         os.environ["KIS_APP_SECRET"] = "test_secret"
 
         with pytest.raises(ConfigError) as exc_info:
@@ -188,8 +190,10 @@ class TestConfigFromEnv:
 
         assert "KIS_APP_KEY" in str(exc_info.value)
 
-    def test_from_env_missing_app_secret(self):
+    def test_from_env_missing_app_secret(self, monkeypatch):
         """Test error when app_secret is missing."""
+        # Prevent load_dotenv from loading .env file
+        monkeypatch.setattr("etf_collector.config.load_dotenv", lambda *args, **kwargs: None)
         os.environ["KIS_APP_KEY"] = "test_key"
 
         with pytest.raises(ConfigError) as exc_info:

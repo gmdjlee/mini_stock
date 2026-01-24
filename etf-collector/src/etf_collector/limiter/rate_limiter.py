@@ -19,6 +19,9 @@ class RateLimiterConfig:
         retry_on_limit: Whether to retry on rate limit
         max_retries: Maximum retry attempts
         retry_delay: Base delay between retries (seconds)
+        min_interval: Minimum interval between requests (seconds)
+            This helps prevent server-side rate limiting even when
+            requests_per_second would allow faster calls.
     """
 
     requests_per_second: float = 15.0
@@ -26,6 +29,7 @@ class RateLimiterConfig:
     retry_on_limit: bool = True
     max_retries: int = 3
     retry_delay: float = 1.0
+    min_interval: float = 0.0  # Minimum interval between requests
 
 
 class SlidingWindowRateLimiter:
@@ -45,7 +49,11 @@ class SlidingWindowRateLimiter:
         self.window_size = 1.0  # 1 second window
         self.request_times: deque = deque()
         self.lock = threading.Lock()
+        # min_interval for acquire() sleep, based on requests_per_second
         self.min_interval = 1.0 / self.config.requests_per_second
+        # Configured minimum interval between requests (only if > 0)
+        self._enforced_min_interval = self.config.min_interval
+        self._last_request_time: float = 0.0
 
     def acquire(self, timeout: Optional[float] = None) -> bool:
         """Blocking acquire - waits until request is allowed.
@@ -71,8 +79,15 @@ class SlidingWindowRateLimiter:
                 )
                 return False
 
-            # Wait before retry
-            time.sleep(self.min_interval)
+            # Wait for the appropriate amount of time before retry
+            # Use wait_time() which accounts for both enforced min interval
+            # and sliding window rate limiting
+            wait = self.wait_time()
+            if wait > 0:
+                time.sleep(wait)
+            else:
+                # Minimum sleep to avoid busy waiting
+                time.sleep(self.min_interval)
 
     def try_acquire(self) -> bool:
         """Non-blocking acquire - returns immediately.
@@ -83,6 +98,17 @@ class SlidingWindowRateLimiter:
         with self.lock:
             current_time = time.time()
 
+            # Check enforced minimum interval since last request (only if > 0)
+            if self._enforced_min_interval > 0:
+                time_since_last = current_time - self._last_request_time
+                if time_since_last < self._enforced_min_interval:
+                    log_debug(
+                        "rate_limiter",
+                        "Min interval not reached",
+                        {"time_since_last": time_since_last, "min_interval": self._enforced_min_interval},
+                    )
+                    return False
+
             # Remove timestamps outside the window
             while self.request_times and current_time - self.request_times[0] > self.window_size:
                 self.request_times.popleft()
@@ -90,6 +116,7 @@ class SlidingWindowRateLimiter:
             # Check if we can make a request
             if len(self.request_times) < self.config.requests_per_second:
                 self.request_times.append(current_time)
+                self._last_request_time = current_time
                 log_debug(
                     "rate_limiter",
                     "Request acquired",
@@ -112,6 +139,7 @@ class SlidingWindowRateLimiter:
         """Reset the rate limiter state."""
         with self.lock:
             self.request_times.clear()
+            self._last_request_time = 0.0
         log_debug("rate_limiter", "Rate limiter reset")
 
     @property
@@ -134,15 +162,21 @@ class SlidingWindowRateLimiter:
             Estimated wait time in seconds (0 if no wait needed)
         """
         with self.lock:
-            if len(self.request_times) < self.config.requests_per_second:
-                return 0.0
-
             current_time = time.time()
-            oldest_time = self.request_times[0] if self.request_times else current_time
 
-            # Time until oldest request falls out of window
-            wait = (oldest_time + self.window_size) - current_time
-            return max(0.0, wait)
+            # Check enforced minimum interval wait time (only if > 0)
+            min_interval_wait = 0.0
+            if self._enforced_min_interval > 0:
+                min_interval_wait = self._enforced_min_interval - (current_time - self._last_request_time)
+
+            # Check sliding window wait time
+            window_wait = 0.0
+            if len(self.request_times) >= self.config.requests_per_second:
+                oldest_time = self.request_times[0] if self.request_times else current_time
+                window_wait = (oldest_time + self.window_size) - current_time
+
+            # Return the maximum of both wait times
+            return max(0.0, min_interval_wait, window_wait)
 
 
 def create_rate_limiter(environment: str = "real") -> SlidingWindowRateLimiter:
@@ -155,8 +189,12 @@ def create_rate_limiter(environment: str = "real") -> SlidingWindowRateLimiter:
         Configured SlidingWindowRateLimiter
     """
     if environment == "virtual":
-        config = RateLimiterConfig(requests_per_second=4.0)
+        # Virtual environment: 4 req/s, min 0.5s interval
+        config = RateLimiterConfig(requests_per_second=4.0, min_interval=0.5)
     else:
-        config = RateLimiterConfig(requests_per_second=15.0)
+        # Real environment: 15 req/s, but KIS API may have stricter limits
+        # on certain endpoints (like ETF constituents), so we add a minimum
+        # interval of 0.5s to prevent server-side rate limiting (500 errors)
+        config = RateLimiterConfig(requests_per_second=15.0, min_interval=0.5)
 
     return SlidingWindowRateLimiter(config)

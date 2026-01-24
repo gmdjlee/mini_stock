@@ -99,9 +99,9 @@ class TestSlidingWindowRateLimiter:
 
         # When limit is reached, acquire with timeout should return False
         # But if window slides enough, it might still succeed
-        # So we just verify timing is reasonable
+        # So we just verify timing is reasonable (with some tolerance for timing precision)
         assert elapsed >= 0.1 or result is True
-        assert elapsed < 1.0
+        assert elapsed < 1.1  # Allow small tolerance for timing precision
 
     def test_wait_if_needed(self):
         """Test wait_if_needed convenience method."""

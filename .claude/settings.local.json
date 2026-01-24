@@ -13,7 +13,10 @@
       "Bash(python scripts/test_indicators.py:*)",
       "Bash(uv run:*)",
       "Skill(sc:analyze)",
-      "Skill(sc:analyze:*)"
+      "Skill(sc:analyze:*)",
+      "mcp__claude_ai_KIS_API__search_etfetn_api",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

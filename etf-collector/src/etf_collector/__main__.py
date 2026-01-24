@@ -165,8 +165,15 @@ def run_collect(args) -> int:
 
         # Initialize components
         auth_client = KisAuthClient(config.app_key, config.app_secret, config.base_url)
+        # Use min_interval to prevent server-side rate limiting (500 errors)
+        # Real: 0.5s, Virtual: 0.5s minimum interval between requests
+        # Higher interval needed to avoid 500 errors from KIS API
+        min_interval = 0.5
         rate_limiter = SlidingWindowRateLimiter(
-            RateLimiterConfig(requests_per_second=float(config.rate_limit))
+            RateLimiterConfig(
+                requests_per_second=float(config.rate_limit),
+                min_interval=min_interval,
+            )
         )
         storage = DataStorage(output_dir="./data")
 
@@ -351,9 +358,13 @@ def run_test_rate_limit(args) -> int:
     duration = args.duration
 
     rate = 15.0 if env == "real" else 4.0
-    print(f"Testing rate limiter: {rate} requests/second for {duration} seconds")
+    min_interval = 0.5  # Higher interval needed to avoid 500 errors
+    print(f"Testing rate limiter: {rate} requests/second, min_interval={min_interval}s for {duration} seconds")
 
-    limiter = SlidingWindowRateLimiter(RateLimiterConfig(requests_per_second=rate))
+    limiter = SlidingWindowRateLimiter(RateLimiterConfig(
+        requests_per_second=rate,
+        min_interval=min_interval,
+    ))
 
     request_count = 0
     start_time = time.time()
