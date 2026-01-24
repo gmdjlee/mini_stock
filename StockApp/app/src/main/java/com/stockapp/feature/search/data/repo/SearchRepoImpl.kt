@@ -30,13 +30,24 @@ class SearchRepoImpl @Inject constructor(
     override suspend fun search(query: String): Result<List<Stock>> {
         Log.d(TAG, "search() called with query: $query")
 
-        // First try local cache
-        val cached = stockDao.search(query)
-        Log.d(TAG, "search() cached results: ${cached.size}")
+        // First try local cache with Kotlin filtering (SQLite LIKE has issues with Korean text)
+        val cacheCount = stockDao.count()
+        Log.d(TAG, "search() cache count: $cacheCount")
 
-        if (cached.isNotEmpty()) {
-            Log.d(TAG, "search() returning cached results")
-            return Result.success(cached.map { it.toDomain() })
+        if (cacheCount > 0) {
+            val allStocks = stockDao.getAllOnce()
+            val queryLower = query.lowercase()
+            val filtered = allStocks.filter { stock ->
+                stock.name.lowercase().contains(queryLower) ||
+                stock.ticker.lowercase().contains(queryLower)
+            }.take(50)  // Limit results
+
+            Log.d(TAG, "search() filtered results: ${filtered.size}")
+
+            if (filtered.isNotEmpty()) {
+                Log.d(TAG, "search() returning filtered cache results")
+                return Result.success(filtered.map { it.toDomain() })
+            }
         }
 
         Log.d(TAG, "search() calling Python API")
