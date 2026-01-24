@@ -79,10 +79,10 @@ class IndicatorVm @Inject constructor(
             selectedStockManager.selectedStock.collect { stock ->
                 if (stock != null && stock.ticker != currentTicker) {
                     currentTicker = stock.ticker
-                    // Update stock name from selected stock
-                    stockName = stock.name
-                    // Clear cached data for new stock
+                    // Clear cached data for new stock (before setting stockName)
                     clearCachedData()
+                    // Update stock name from selected stock (after clearCachedData)
+                    stockName = stock.name
                     loadInitialData(stock.ticker)
                 } else if (stock == null) {
                     currentTicker = null
