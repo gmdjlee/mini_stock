@@ -15,8 +15,6 @@ MODULE = "kis_auth"
 class AuthError(Exception):
     """Authentication error."""
 
-    pass
-
 
 @dataclass
 class TokenInfo:

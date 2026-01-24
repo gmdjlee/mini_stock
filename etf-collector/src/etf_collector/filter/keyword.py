@@ -49,17 +49,14 @@ class KeywordFilter:
             else [kw.lower() for kw in self.keywords]
         )
 
-        if self.mode == FilterMode.INCLUDE:
+        if self.mode in (FilterMode.INCLUDE, FilterMode.INCLUDE_OR):
             return any(kw in target for kw in search_keywords)
 
-        elif self.mode == FilterMode.EXCLUDE:
+        if self.mode == FilterMode.EXCLUDE:
             return not any(kw in target for kw in search_keywords)
 
-        elif self.mode == FilterMode.INCLUDE_AND:
+        if self.mode == FilterMode.INCLUDE_AND:
             return all(kw in target for kw in search_keywords)
-
-        elif self.mode == FilterMode.INCLUDE_OR:
-            return any(kw in target for kw in search_keywords)
 
         return False
 

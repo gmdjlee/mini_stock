@@ -1,5 +1,6 @@
 """ETF constituent stock collector using KIS API (FHKST121600C0)."""
 
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -191,8 +192,6 @@ class ConstituentCollector:
         Returns:
             API response or error
         """
-        import time
-
         for attempt in range(self.max_retries + 1):
             result = self._call_api(params)
 
