@@ -82,7 +82,7 @@ data class EtfSettingsConfig(
     val isAutoCollectionEnabled: Boolean = false,
     val collectionHour: Int = 6,
     val collectionMinute: Int = 0,
-    val activeOnly: Boolean = true,
+    val activeOnly: Boolean = false,
     val dataRetentionDays: Int = 30,
     val includeKeywords: List<EtfKeyword> = emptyList(),
     val excludeKeywords: List<EtfKeyword> = emptyList()

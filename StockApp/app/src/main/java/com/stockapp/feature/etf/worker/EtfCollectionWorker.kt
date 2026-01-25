@@ -55,7 +55,7 @@ class EtfCollectionWorker @AssistedInject constructor(
         }
 
         // Get filter config from input data
-        val activeOnly = inputData.getBoolean(KEY_ACTIVE_ONLY, true)
+        val activeOnly = inputData.getBoolean(KEY_ACTIVE_ONLY, false)
         val includeKeywords = inputData.getStringArray(KEY_INCLUDE_KEYWORDS)?.toList() ?: emptyList()
         val excludeKeywords = inputData.getStringArray(KEY_EXCLUDE_KEYWORDS)?.toList()
             ?: listOf("레버리지", "인버스", "2X", "3X")
