@@ -104,7 +104,7 @@ dependencies {
     // WorkManager
     implementation(libs.work.runtime.ktx)
     implementation(libs.hilt.work)
-    ksp(libs.hilt.compiler)
+    ksp(libs.hilt.work.compiler)
 
     // Security Crypto (for encrypted API key storage)
     implementation(libs.security.crypto)
