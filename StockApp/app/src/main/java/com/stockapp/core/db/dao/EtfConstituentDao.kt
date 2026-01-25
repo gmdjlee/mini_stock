@@ -73,6 +73,16 @@ interface EtfConstituentDao {
     suspend fun getByEtfAndDate(etfCode: String, date: String): List<EtfConstituentEntity>
 
     /**
+     * Get all constituents for a specific stock across all ETFs and dates.
+     */
+    @Query("""
+        SELECT * FROM etf_constituents
+        WHERE stockCode = :stockCode
+        ORDER BY collectedDate DESC, evaluationAmount DESC
+    """)
+    suspend fun getByStockCode(stockCode: String): List<EtfConstituentEntity>
+
+    /**
      * Get stock amount ranking aggregated across all ETFs for a specific date.
      */
     @Query("""

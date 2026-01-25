@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.dao.AnalysisCacheDao
+import com.stockapp.core.db.dao.DailyEtfStatisticsDao
 import com.stockapp.core.db.dao.EtfCollectionHistoryDao
 import com.stockapp.core.db.dao.EtfConstituentDao
 import com.stockapp.core.db.dao.EtfDao
@@ -18,6 +19,7 @@ import com.stockapp.core.db.dao.StockAnalysisDataDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.dao.SyncHistoryDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
+import com.stockapp.core.db.entity.DailyEtfStatisticsEntity
 import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
 import com.stockapp.core.db.entity.EtfConstituentEntity
 import com.stockapp.core.db.entity.EtfEntity
@@ -44,9 +46,11 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         EtfEntity::class,
         EtfConstituentEntity::class,
         EtfKeywordEntity::class,
-        EtfCollectionHistoryEntity::class
+        EtfCollectionHistoryEntity::class,
+        // ETF Statistics entity (Phase 2)
+        DailyEtfStatisticsEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -64,6 +68,9 @@ abstract class AppDb : RoomDatabase() {
     abstract fun etfConstituentDao(): EtfConstituentDao
     abstract fun etfKeywordDao(): EtfKeywordDao
     abstract fun etfCollectionHistoryDao(): EtfCollectionHistoryDao
+
+    // ETF Statistics DAO (Phase 2)
+    abstract fun dailyEtfStatisticsDao(): DailyEtfStatisticsDao
 
     companion object {
         const val DB_NAME = "stock_app.db"
@@ -149,6 +156,38 @@ abstract class AppDb : RoomDatabase() {
 
                 // Create index for etf_collection_history
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_etf_collection_history_collectedDate` ON `etf_collection_history` (`collectedDate`)")
+            }
+        }
+
+        /**
+         * Migration from version 6 to 7: Add daily_etf_statistics table
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create daily_etf_statistics table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `daily_etf_statistics` (
+                        `date` TEXT NOT NULL,
+                        `newStockCount` INTEGER NOT NULL,
+                        `newStockAmount` INTEGER NOT NULL,
+                        `removedStockCount` INTEGER NOT NULL,
+                        `removedStockAmount` INTEGER NOT NULL,
+                        `increasedStockCount` INTEGER NOT NULL,
+                        `increasedStockAmount` INTEGER NOT NULL,
+                        `decreasedStockCount` INTEGER NOT NULL,
+                        `decreasedStockAmount` INTEGER NOT NULL,
+                        `cashDepositAmount` INTEGER NOT NULL,
+                        `cashDepositChange` INTEGER NOT NULL,
+                        `cashDepositChangeRate` REAL NOT NULL,
+                        `totalEtfCount` INTEGER NOT NULL,
+                        `totalHoldingAmount` INTEGER NOT NULL,
+                        `calculatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`date`)
+                    )
+                """.trimIndent())
+
+                // Create unique index on date
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_etf_statistics_date` ON `daily_etf_statistics` (`date`)")
             }
         }
     }

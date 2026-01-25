@@ -6,6 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.AnalysisCacheDao
+import com.stockapp.core.db.dao.DailyEtfStatisticsDao
 import com.stockapp.core.db.dao.EtfCollectionHistoryDao
 import com.stockapp.core.db.dao.EtfConstituentDao
 import com.stockapp.core.db.dao.EtfDao
@@ -160,7 +161,7 @@ object DbModule {
             AppDb::class.java,
             AppDb.DB_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, AppDb.MIGRATION_5_6)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, AppDb.MIGRATION_5_6, AppDb.MIGRATION_6_7)
             // Note: Removed destructive fallback to prevent silent data loss.
             // All future schema changes should have explicit migrations.
             // If migration fails, the app will crash with a clear error message,
@@ -204,4 +205,8 @@ object DbModule {
 
     @Provides
     fun provideEtfCollectionHistoryDao(db: AppDb): EtfCollectionHistoryDao = db.etfCollectionHistoryDao()
+
+    // ETF Statistics DAO (Phase 2)
+    @Provides
+    fun provideDailyEtfStatisticsDao(db: AppDb): DailyEtfStatisticsDao = db.dailyEtfStatisticsDao()
 }
