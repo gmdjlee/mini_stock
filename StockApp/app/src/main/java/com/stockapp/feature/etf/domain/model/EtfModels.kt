@@ -257,3 +257,123 @@ data class EtfFilterConfig(
     val includeKeywords: List<String> = emptyList(),
     val excludeKeywords: List<String> = listOf("레버리지", "인버스", "2X", "3X")
 )
+
+// ==================== ETF Statistics Models (Phase 2) ====================
+
+/**
+ * Holding status for stock changes.
+ */
+enum class HoldingStatus(val displayName: String) {
+    NEW("신규"),
+    INCREASE("증가"),
+    DECREASE("감소"),
+    REMOVED("편출"),
+    MAINTAIN("유지")
+}
+
+/**
+ * Daily ETF statistics domain model.
+ */
+data class DailyEtfStatistics(
+    val date: String,
+    val newStockCount: Int,
+    val newStockAmount: Long,
+    val removedStockCount: Int,
+    val removedStockAmount: Long,
+    val increasedStockCount: Int,
+    val increasedStockAmount: Long,
+    val decreasedStockCount: Int,
+    val decreasedStockAmount: Long,
+    val cashDepositAmount: Long,
+    val cashDepositChange: Long,
+    val cashDepositChangeRate: Double,
+    val totalEtfCount: Int,
+    val totalHoldingAmount: Long,
+    val calculatedAt: Long
+)
+
+/**
+ * Comparison result for period-based analysis.
+ */
+data class ComparisonResult(
+    val currentDate: String,
+    val previousDate: String,
+    val items: List<HoldingWithComparison>,
+    val summary: ComparisonSummary
+)
+
+/**
+ * Holding comparison data with status.
+ */
+data class HoldingWithComparison(
+    val stockCode: String,
+    val stockName: String,
+    val currentWeight: Double,
+    val previousWeight: Double,
+    val currentAmount: Long,
+    val previousAmount: Long,
+    val status: HoldingStatus,
+    val etfNames: List<String>
+) {
+    val weightChange: Double
+        get() = currentWeight - previousWeight
+
+    val amountChange: Long
+        get() = currentAmount - previousAmount
+}
+
+/**
+ * Summary of comparison results.
+ */
+data class ComparisonSummary(
+    val newCount: Int,
+    val removedCount: Int,
+    val increasedCount: Int,
+    val decreasedCount: Int,
+    val maintainCount: Int
+)
+
+/**
+ * Cash deposit trend data point.
+ */
+data class CashDepositTrend(
+    val date: String,
+    val totalAmount: Long,
+    val changeAmount: Long,
+    val changeRate: Double
+)
+
+/**
+ * ETF cash detail for individual ETF.
+ */
+data class EtfCashDetail(
+    val etfCode: String,
+    val etfName: String,
+    val cashAmount: Long,
+    val cashWeight: Double,
+    val cashName: String
+)
+
+/**
+ * Stock analysis result for individual stock.
+ */
+data class StockAnalysisResult(
+    val stockCode: String,
+    val stockName: String,
+    val totalAmount: Long,
+    val etfCount: Int,
+    val amountHistory: List<AmountHistory>,
+    val weightHistory: List<WeightHistory>,
+    val containingEtfs: List<ContainingEtfInfo>
+)
+
+/**
+ * ETF information containing a specific stock.
+ */
+data class ContainingEtfInfo(
+    val etfCode: String,
+    val etfName: String,
+    val weight: Double,
+    val amount: Long,
+    val collectedDate: String
+)

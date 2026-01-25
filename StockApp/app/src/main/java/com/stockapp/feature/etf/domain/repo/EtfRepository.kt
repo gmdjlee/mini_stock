@@ -1,13 +1,18 @@
 package com.stockapp.feature.etf.domain.repo
 
 import com.stockapp.feature.etf.domain.model.AmountHistory
+import com.stockapp.feature.etf.domain.model.CashDepositTrend
 import com.stockapp.feature.etf.domain.model.CollectionHistory
 import com.stockapp.feature.etf.domain.model.CollectionStatus
+import com.stockapp.feature.etf.domain.model.ComparisonResult
+import com.stockapp.feature.etf.domain.model.DailyEtfStatistics
+import com.stockapp.feature.etf.domain.model.EtfCashDetail
 import com.stockapp.feature.etf.domain.model.EtfConstituent
 import com.stockapp.feature.etf.domain.model.EtfDateRange
 import com.stockapp.feature.etf.domain.model.EtfInfo
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.FilterType
+import com.stockapp.feature.etf.domain.model.StockAnalysisResult
 import com.stockapp.feature.etf.domain.model.StockChange
 import com.stockapp.feature.etf.domain.model.StockRanking
 import com.stockapp.feature.etf.domain.model.WeightHistory
@@ -262,4 +267,50 @@ interface EtfRepository {
      * Get stock average weight history for chart visualization.
      */
     suspend fun getStockWeightHistory(stockCode: String): Result<List<WeightHistory>>
+
+    // ==================== ETF Statistics (Phase 2) ====================
+
+    /**
+     * Get comparison results within date range.
+     */
+    suspend fun getComparisonInRange(
+        startDate: String,
+        endDate: String
+    ): Result<ComparisonResult>
+
+    /**
+     * Get cash deposit trend within date range.
+     */
+    suspend fun getCashDepositTrend(
+        startDate: String,
+        endDate: String
+    ): Result<List<CashDepositTrend>>
+
+    /**
+     * Get ETF cash details for a specific date.
+     */
+    suspend fun getEtfCashDetails(date: String): Result<List<EtfCashDetail>>
+
+    /**
+     * Get stock analysis result for a specific stock.
+     */
+    suspend fun getStockAnalysis(stockCode: String): Result<StockAnalysisResult>
+
+    /**
+     * Calculate and save daily statistics for a specific date.
+     */
+    suspend fun calculateDailyStatistics(date: String): Result<Unit>
+
+    /**
+     * Get daily statistics for a specific date.
+     */
+    suspend fun getDailyStatistics(date: String): Result<DailyEtfStatistics?>
+
+    /**
+     * Get daily statistics within date range.
+     */
+    suspend fun getDailyStatisticsInRange(
+        startDate: String,
+        endDate: String
+    ): Result<List<DailyEtfStatistics>>
 }

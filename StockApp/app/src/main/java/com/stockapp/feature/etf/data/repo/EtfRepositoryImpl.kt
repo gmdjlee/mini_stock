@@ -1,22 +1,33 @@
 package com.stockapp.feature.etf.data.repo
 
+import com.stockapp.core.db.dao.DailyEtfStatisticsDao
 import com.stockapp.core.db.dao.EtfCollectionHistoryDao
 import com.stockapp.core.db.dao.EtfConstituentDao
 import com.stockapp.core.db.dao.EtfDao
 import com.stockapp.core.db.dao.EtfKeywordDao
+import com.stockapp.core.db.entity.DailyEtfStatisticsEntity
 import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
 import com.stockapp.core.db.entity.EtfConstituentEntity
 import com.stockapp.core.db.entity.EtfEntity
 import com.stockapp.core.db.entity.EtfKeywordEntity
 import com.stockapp.feature.etf.domain.model.AmountHistory
+import com.stockapp.feature.etf.domain.model.CashDepositTrend
 import com.stockapp.feature.etf.domain.model.CollectionHistory
 import com.stockapp.feature.etf.domain.model.CollectionStatus
+import com.stockapp.feature.etf.domain.model.ComparisonResult
+import com.stockapp.feature.etf.domain.model.ComparisonSummary
+import com.stockapp.feature.etf.domain.model.ContainingEtfInfo
+import com.stockapp.feature.etf.domain.model.DailyEtfStatistics
+import com.stockapp.feature.etf.domain.model.EtfCashDetail
 import com.stockapp.feature.etf.domain.model.EtfConstituent
 import com.stockapp.feature.etf.domain.model.EtfDateRange
 import com.stockapp.feature.etf.domain.model.EtfInfo
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.EtfType
 import com.stockapp.feature.etf.domain.model.FilterType
+import com.stockapp.feature.etf.domain.model.HoldingStatus
+import com.stockapp.feature.etf.domain.model.HoldingWithComparison
+import com.stockapp.feature.etf.domain.model.StockAnalysisResult
 import com.stockapp.feature.etf.domain.model.StockChange
 import com.stockapp.feature.etf.domain.model.StockRanking
 import com.stockapp.feature.etf.domain.model.WeightHistory
@@ -34,7 +45,8 @@ class EtfRepositoryImpl @Inject constructor(
     private val etfDao: EtfDao,
     private val constituentDao: EtfConstituentDao,
     private val keywordDao: EtfKeywordDao,
-    private val historyDao: EtfCollectionHistoryDao
+    private val historyDao: EtfCollectionHistoryDao,
+    private val statisticsDao: DailyEtfStatisticsDao
 ) : EtfRepository {
 
     // ==================== ETF Info ====================
@@ -374,4 +386,285 @@ class EtfRepositoryImpl @Inject constructor(
         totalAmount = totalAmount,
         etfNames = etfNames.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     )
+
+    // ==================== ETF Statistics (Phase 2) ====================
+
+    override suspend fun getComparisonInRange(
+        startDate: String,
+        endDate: String
+    ): Result<ComparisonResult> = runCatching {
+        val currentConstituents = constituentDao.getByDate(endDate)
+        val previousConstituents = constituentDao.getByDate(startDate)
+
+        val currentMap = currentConstituents.groupBy { it.stockCode }
+        val previousMap = previousConstituents.groupBy { it.stockCode }
+
+        val allStockCodes = (currentMap.keys + previousMap.keys).distinct()
+
+        val items = allStockCodes.map { stockCode ->
+            val currentList = currentMap[stockCode] ?: emptyList()
+            val previousList = previousMap[stockCode] ?: emptyList()
+
+            val currentWeight = currentList.sumOf { it.weight }
+            val previousWeight = previousList.sumOf { it.weight }
+            val currentAmount = currentList.sumOf { it.evaluationAmount }
+            val previousAmount = previousList.sumOf { it.evaluationAmount }
+
+            val status = determineHoldingStatus(currentWeight, previousWeight)
+            val stockName = currentList.firstOrNull()?.stockName
+                ?: previousList.firstOrNull()?.stockName ?: ""
+            val etfNames = currentList.map { it.etfName }.distinct()
+
+            HoldingWithComparison(
+                stockCode = stockCode,
+                stockName = stockName,
+                currentWeight = currentWeight,
+                previousWeight = previousWeight,
+                currentAmount = currentAmount,
+                previousAmount = previousAmount,
+                status = status,
+                etfNames = etfNames
+            )
+        }
+
+        val summary = ComparisonSummary(
+            newCount = items.count { it.status == HoldingStatus.NEW },
+            removedCount = items.count { it.status == HoldingStatus.REMOVED },
+            increasedCount = items.count { it.status == HoldingStatus.INCREASE },
+            decreasedCount = items.count { it.status == HoldingStatus.DECREASE },
+            maintainCount = items.count { it.status == HoldingStatus.MAINTAIN }
+        )
+
+        ComparisonResult(
+            currentDate = endDate,
+            previousDate = startDate,
+            items = items,
+            summary = summary
+        )
+    }
+
+    override suspend fun getCashDepositTrend(
+        startDate: String,
+        endDate: String
+    ): Result<List<CashDepositTrend>> = runCatching {
+        val statistics = statisticsDao.getInRange(startDate, endDate)
+        statistics.map { entity ->
+            CashDepositTrend(
+                date = entity.date,
+                totalAmount = entity.cashDepositAmount,
+                changeAmount = entity.cashDepositChange,
+                changeRate = entity.cashDepositChangeRate
+            )
+        }
+    }
+
+    override suspend fun getEtfCashDetails(date: String): Result<List<EtfCashDetail>> = runCatching {
+        val constituents = constituentDao.getByDate(date)
+        constituents
+            .filter { isCashDeposit(it.stockName) }
+            .map { entity ->
+                EtfCashDetail(
+                    etfCode = entity.etfCode,
+                    etfName = entity.etfName,
+                    cashAmount = entity.evaluationAmount,
+                    cashWeight = entity.weight,
+                    cashName = entity.stockName
+                )
+            }
+    }
+
+    override suspend fun getStockAnalysis(stockCode: String): Result<StockAnalysisResult> = runCatching {
+        val latestDate = constituentDao.getLatestDate()
+            ?: throw IllegalStateException("No data available")
+
+        val constituents = constituentDao.getByStockCode(stockCode)
+        if (constituents.isEmpty()) {
+            throw IllegalStateException("Stock not found: $stockCode")
+        }
+
+        val latestConstituents = constituents.filter { it.collectedDate == latestDate }
+        val stockName = latestConstituents.firstOrNull()?.stockName ?: constituents.first().stockName
+        val totalAmount = latestConstituents.sumOf { it.evaluationAmount }
+        val etfCount = latestConstituents.map { it.etfCode }.distinct().size
+
+        val amountHistory = constituentDao.getStockAmountHistory(stockCode).map { dateAmount ->
+            AmountHistory(
+                date = dateAmount.collectedDate,
+                totalAmount = dateAmount.totalAmount
+            )
+        }
+
+        val weightHistory = constituentDao.getStockWeightHistory(stockCode).map { dateWeight ->
+            WeightHistory(
+                date = dateWeight.collectedDate,
+                avgWeight = dateWeight.avgWeight
+            )
+        }
+
+        val containingEtfs = latestConstituents.map { entity ->
+            ContainingEtfInfo(
+                etfCode = entity.etfCode,
+                etfName = entity.etfName,
+                weight = entity.weight,
+                amount = entity.evaluationAmount,
+                collectedDate = entity.collectedDate
+            )
+        }
+
+        StockAnalysisResult(
+            stockCode = stockCode,
+            stockName = stockName,
+            totalAmount = totalAmount,
+            etfCount = etfCount,
+            amountHistory = amountHistory,
+            weightHistory = weightHistory,
+            containingEtfs = containingEtfs
+        )
+    }
+
+    override suspend fun calculateDailyStatistics(date: String): Result<Unit> = runCatching {
+        val previousDate = constituentDao.getPreviousDate(date)
+        val currentConstituents = constituentDao.getByDate(date)
+
+        if (currentConstituents.isEmpty()) {
+            throw IllegalStateException("No data for date: $date")
+        }
+
+        val previousConstituents = previousDate?.let { constituentDao.getByDate(it) } ?: emptyList()
+
+        val currentMap = currentConstituents.groupBy { it.stockCode }
+        val previousMap = previousConstituents.groupBy { it.stockCode }
+
+        // Calculate new stocks
+        val newStocks = currentMap.keys - previousMap.keys
+        val newStockCount = newStocks.size
+        val newStockAmount = newStocks.sumOf { code ->
+            currentMap[code]?.sumOf { it.evaluationAmount } ?: 0L
+        }
+
+        // Calculate removed stocks
+        val removedStocks = previousMap.keys - currentMap.keys
+        val removedStockCount = removedStocks.size
+        val removedStockAmount = removedStocks.sumOf { code ->
+            previousMap[code]?.sumOf { it.evaluationAmount } ?: 0L
+        }
+
+        // Calculate weight changes
+        val commonStocks = currentMap.keys.intersect(previousMap.keys)
+        var increasedCount = 0
+        var increasedAmount = 0L
+        var decreasedCount = 0
+        var decreasedAmount = 0L
+
+        for (code in commonStocks) {
+            val currentWeight = currentMap[code]?.sumOf { it.weight } ?: 0.0
+            val previousWeight = previousMap[code]?.sumOf { it.weight } ?: 0.0
+            val currentAmt = currentMap[code]?.sumOf { it.evaluationAmount } ?: 0L
+
+            when {
+                currentWeight - previousWeight > WEIGHT_CHANGE_THRESHOLD -> {
+                    increasedCount++
+                    increasedAmount += currentAmt
+                }
+                previousWeight - currentWeight > WEIGHT_CHANGE_THRESHOLD -> {
+                    decreasedCount++
+                    decreasedAmount += currentAmt
+                }
+            }
+        }
+
+        // Calculate cash deposit
+        val currentCash = currentConstituents
+            .filter { isCashDeposit(it.stockName) }
+            .sumOf { it.evaluationAmount }
+
+        val previousCash = previousConstituents
+            .filter { isCashDeposit(it.stockName) }
+            .sumOf { it.evaluationAmount }
+
+        val cashChange = currentCash - previousCash
+        val cashChangeRate = if (previousCash > 0) {
+            (cashChange.toDouble() / previousCash) * 100
+        } else {
+            0.0
+        }
+
+        // Calculate totals
+        val totalEtfCount = currentConstituents.map { it.etfCode }.distinct().size
+        val totalHoldingAmount = currentConstituents.sumOf { it.evaluationAmount }
+
+        val entity = DailyEtfStatisticsEntity(
+            date = date,
+            newStockCount = newStockCount,
+            newStockAmount = newStockAmount,
+            removedStockCount = removedStockCount,
+            removedStockAmount = removedStockAmount,
+            increasedStockCount = increasedCount,
+            increasedStockAmount = increasedAmount,
+            decreasedStockCount = decreasedCount,
+            decreasedStockAmount = decreasedAmount,
+            cashDepositAmount = currentCash,
+            cashDepositChange = cashChange,
+            cashDepositChangeRate = cashChangeRate,
+            totalEtfCount = totalEtfCount,
+            totalHoldingAmount = totalHoldingAmount,
+            calculatedAt = System.currentTimeMillis()
+        )
+
+        statisticsDao.insert(entity)
+    }
+
+    override suspend fun getDailyStatistics(date: String): Result<DailyEtfStatistics?> = runCatching {
+        statisticsDao.getByDate(date)?.toDomain()
+    }
+
+    override suspend fun getDailyStatisticsInRange(
+        startDate: String,
+        endDate: String
+    ): Result<List<DailyEtfStatistics>> = runCatching {
+        statisticsDao.getInRange(startDate, endDate).map { it.toDomain() }
+    }
+
+    // ==================== Statistics Helper Methods ====================
+
+    private fun determineHoldingStatus(currentWeight: Double, previousWeight: Double): HoldingStatus {
+        return when {
+            previousWeight == 0.0 && currentWeight > 0.0 -> HoldingStatus.NEW
+            currentWeight == 0.0 && previousWeight > 0.0 -> HoldingStatus.REMOVED
+            currentWeight - previousWeight > WEIGHT_CHANGE_THRESHOLD -> HoldingStatus.INCREASE
+            previousWeight - currentWeight > WEIGHT_CHANGE_THRESHOLD -> HoldingStatus.DECREASE
+            else -> HoldingStatus.MAINTAIN
+        }
+    }
+
+    private fun isCashDeposit(stockName: String): Boolean {
+        val lowerName = stockName.lowercase()
+        return lowerName.contains("원화예금") ||
+            lowerName.contains("현금") ||
+            lowerName.contains("cash") ||
+            lowerName.contains("예금") ||
+            lowerName.contains("krw")
+    }
+
+    private fun DailyEtfStatisticsEntity.toDomain() = DailyEtfStatistics(
+        date = date,
+        newStockCount = newStockCount,
+        newStockAmount = newStockAmount,
+        removedStockCount = removedStockCount,
+        removedStockAmount = removedStockAmount,
+        increasedStockCount = increasedStockCount,
+        increasedStockAmount = increasedStockAmount,
+        decreasedStockCount = decreasedStockCount,
+        decreasedStockAmount = decreasedStockAmount,
+        cashDepositAmount = cashDepositAmount,
+        cashDepositChange = cashDepositChange,
+        cashDepositChangeRate = cashDepositChangeRate,
+        totalEtfCount = totalEtfCount,
+        totalHoldingAmount = totalHoldingAmount,
+        calculatedAt = calculatedAt
+    )
+
+    companion object {
+        private const val WEIGHT_CHANGE_THRESHOLD = 0.01
+    }
 }
