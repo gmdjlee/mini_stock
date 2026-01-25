@@ -2,8 +2,14 @@ package com.stockapp.core.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.dao.AnalysisCacheDao
+import com.stockapp.core.db.dao.EtfCollectionHistoryDao
+import com.stockapp.core.db.dao.EtfConstituentDao
+import com.stockapp.core.db.dao.EtfDao
+import com.stockapp.core.db.dao.EtfKeywordDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
 import com.stockapp.core.db.dao.SchedulingConfigDao
@@ -12,6 +18,10 @@ import com.stockapp.core.db.dao.StockAnalysisDataDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.dao.SyncHistoryDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
+import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
+import com.stockapp.core.db.entity.EtfConstituentEntity
+import com.stockapp.core.db.entity.EtfEntity
+import com.stockapp.core.db.entity.EtfKeywordEntity
 import com.stockapp.core.db.entity.IndicatorCacheEntity
 import com.stockapp.core.db.entity.IndicatorDataEntity
 import com.stockapp.core.db.entity.SchedulingConfigEntity
@@ -29,9 +39,14 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         SchedulingConfigEntity::class,
         SyncHistoryEntity::class,
         StockAnalysisDataEntity::class,
-        IndicatorDataEntity::class
+        IndicatorDataEntity::class,
+        // ETF Collector entities (Phase 1)
+        EtfEntity::class,
+        EtfConstituentEntity::class,
+        EtfKeywordEntity::class,
+        EtfCollectionHistoryEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -44,6 +59,12 @@ abstract class AppDb : RoomDatabase() {
     abstract fun stockAnalysisDataDao(): StockAnalysisDataDao
     abstract fun indicatorDataDao(): IndicatorDataDao
 
+    // ETF Collector DAOs (Phase 1)
+    abstract fun etfDao(): EtfDao
+    abstract fun etfConstituentDao(): EtfConstituentDao
+    abstract fun etfKeywordDao(): EtfKeywordDao
+    abstract fun etfCollectionHistoryDao(): EtfCollectionHistoryDao
+
     companion object {
         const val DB_NAME = "stock_app.db"
 
@@ -52,5 +73,83 @@ abstract class AppDb : RoomDatabase() {
         val ANALYSIS_CACHE_TTL = AppConfig.ANALYSIS_CACHE_TTL_MS
         val INDICATOR_CACHE_TTL = AppConfig.INDICATOR_CACHE_TTL_MS
         val MAX_HISTORY_COUNT = AppConfig.MAX_HISTORY_COUNT
+
+        /**
+         * Migration from version 5 to 6: Add ETF Collector tables
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create etfs table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `etfs` (
+                        `etfCode` TEXT NOT NULL,
+                        `etfName` TEXT NOT NULL,
+                        `etfType` TEXT NOT NULL,
+                        `managementCompany` TEXT NOT NULL,
+                        `trackingIndex` TEXT NOT NULL,
+                        `assetClass` TEXT NOT NULL,
+                        `totalAssets` REAL NOT NULL,
+                        `isFiltered` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`etfCode`)
+                    )
+                """.trimIndent())
+
+                // Create etf_constituents table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `etf_constituents` (
+                        `etfCode` TEXT NOT NULL,
+                        `etfName` TEXT NOT NULL,
+                        `stockCode` TEXT NOT NULL,
+                        `stockName` TEXT NOT NULL,
+                        `currentPrice` INTEGER NOT NULL,
+                        `priceChange` INTEGER NOT NULL,
+                        `priceChangeSign` TEXT NOT NULL,
+                        `priceChangeRate` REAL NOT NULL,
+                        `volume` INTEGER NOT NULL,
+                        `tradingValue` INTEGER NOT NULL,
+                        `marketCap` INTEGER NOT NULL,
+                        `weight` REAL NOT NULL,
+                        `evaluationAmount` INTEGER NOT NULL,
+                        `collectedDate` TEXT NOT NULL,
+                        `collectedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`etfCode`, `stockCode`, `collectedDate`)
+                    )
+                """.trimIndent())
+
+                // Create indices for etf_constituents
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_etf_constituents_stockCode` ON `etf_constituents` (`stockCode`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_etf_constituents_collectedDate` ON `etf_constituents` (`collectedDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_etf_constituents_etfCode_collectedDate` ON `etf_constituents` (`etfCode`, `collectedDate`)")
+
+                // Create etf_keywords table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `etf_keywords` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `keyword` TEXT NOT NULL,
+                        `filterType` TEXT NOT NULL,
+                        `isEnabled` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // Create etf_collection_history table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `etf_collection_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `collectedDate` TEXT NOT NULL,
+                        `totalEtfs` INTEGER NOT NULL,
+                        `totalConstituents` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `errorMessage` TEXT,
+                        `startedAt` INTEGER NOT NULL,
+                        `completedAt` INTEGER
+                    )
+                """.trimIndent())
+
+                // Create index for etf_collection_history
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_etf_collection_history_collectedDate` ON `etf_collection_history` (`collectedDate`)")
+            }
+        }
     }
 }
