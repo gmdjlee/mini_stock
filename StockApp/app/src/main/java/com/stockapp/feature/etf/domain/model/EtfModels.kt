@@ -1,5 +1,8 @@
 package com.stockapp.feature.etf.domain.model
 
+import java.time.LocalDate
+import java.time.LocalDateTime
+
 /**
  * ETF type enumeration.
  */
@@ -52,8 +55,12 @@ data class EtfInfo(
     val trackingIndex: String,
     val assetClass: String,
     val totalAssets: Double,
-    val isFiltered: Boolean,
-    val updatedAt: Long
+    val isFiltered: Boolean = false,
+    val updatedAt: Long = 0L,
+    val currentPrice: Long = 0L,
+    val priceChange: Long = 0L,
+    val priceChangeSign: String = "",
+    val priceChangeRate: Double = 0.0
 )
 
 /**
@@ -75,6 +82,23 @@ data class EtfConstituent(
     val evaluationAmount: Long,
     val collectedDate: String,
     val collectedAt: Long
+)
+
+/**
+ * Simplified constituent stock for collection result.
+ */
+data class ConstituentStock(
+    val stockCode: String,
+    val stockName: String,
+    val currentPrice: Int,
+    val priceChange: Int,
+    val priceChangeSign: String,
+    val priceChangeRate: Double,
+    val volume: Long,
+    val tradingValue: Long,
+    val marketCap: Long,
+    val weight: Double,
+    val evaluationAmount: Long
 )
 
 /**
@@ -103,6 +127,31 @@ data class CollectionHistory(
 )
 
 /**
+ * ETF collection result for single ETF.
+ */
+data class EtfCollectionResult(
+    val etfCode: String,
+    val etfName: String,
+    val constituents: List<ConstituentStock>,
+    val collectedAt: LocalDateTime
+)
+
+/**
+ * Full collection result for multiple ETFs.
+ */
+data class FullCollectionResult(
+    val collectedDate: LocalDate,
+    val totalEtfs: Int,
+    val totalConstituents: Int,
+    val successCount: Int,
+    val failedCount: Int,
+    val status: CollectionStatus,
+    val errorMessage: String?,
+    val startedAt: LocalDateTime,
+    val completedAt: LocalDateTime
+)
+
+/**
  * Stock ranking by total evaluation amount across ETFs.
  */
 data class StockRanking(
@@ -112,17 +161,34 @@ data class StockRanking(
     val totalAmount: Long,
     val etfCount: Int
 ) {
-    /**
-     * Get total amount in 억원 (hundred million KRW).
-     */
     val totalAmountInEok: Double
         get() = totalAmount / 100_000_000.0
 
-    /**
-     * Get total amount in 조원 (trillion KRW).
-     */
     val totalAmountInJo: Double
         get() = totalAmount / 1_000_000_000_000.0
+}
+
+/**
+ * Stock ranking item for display (with change data).
+ */
+data class StockRankingItem(
+    val rank: Int,
+    val stockCode: String,
+    val stockName: String,
+    val totalAmount: Long,
+    val etfCount: Int,
+    val previousDayAmount: Long?,
+    val amountChange: Long?
+)
+
+/**
+ * Stock change type.
+ */
+enum class StockChangeType {
+    NEWLY_INCLUDED,
+    REMOVED,
+    WEIGHT_INCREASED,
+    WEIGHT_DECREASED
 }
 
 /**
@@ -134,18 +200,24 @@ data class StockChange(
     val totalAmount: Long,
     val etfNames: List<String>
 ) {
-    /**
-     * Get total amount in 억원 (hundred million KRW).
-     */
     val totalAmountInEok: Double
         get() = totalAmount / 100_000_000.0
 
-    /**
-     * Get ETF names as comma-separated string.
-     */
     val etfNamesFormatted: String
         get() = etfNames.joinToString(", ")
 }
+
+/**
+ * Stock change info for display (with type).
+ */
+data class StockChangeItem(
+    val stockCode: String,
+    val stockName: String,
+    val changeType: StockChangeType,
+    val totalAmount: Long,
+    val etfNames: List<String>,
+    val weightChange: Double?
+)
 
 /**
  * Date range for data availability.
@@ -175,4 +247,13 @@ data class AmountHistory(
 data class WeightHistory(
     val date: String,
     val avgWeight: Double
+)
+
+/**
+ * ETF filter configuration.
+ */
+data class EtfFilterConfig(
+    val activeOnly: Boolean = true,
+    val includeKeywords: List<String> = emptyList(),
+    val excludeKeywords: List<String> = listOf("레버리지", "인버스", "2X", "3X")
 )
