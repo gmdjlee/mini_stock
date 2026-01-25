@@ -390,3 +390,43 @@ data class ContainingEtfInfo(
     val amount: Long,
     val collectedDate: String
 )
+
+// ==================== Theme List Models (Phase 3) ====================
+
+/**
+ * Active ETF summary for Theme List display.
+ */
+data class ActiveEtfSummary(
+    val etfCode: String,
+    val etfName: String,
+    val etfType: EtfType,
+    val managementCompany: String,
+    val constituentCount: Int,
+    val totalEvaluationAmount: Long,
+    val latestCollectedDate: String
+) {
+    val totalAmountInEok: Double
+        get() = totalEvaluationAmount / 100_000_000.0
+
+    val totalAmountInJo: Double
+        get() = totalEvaluationAmount / 1_000_000_000_000.0
+}
+
+/**
+ * ETF detail with constituent list for Theme List detail view.
+ */
+data class EtfDetailInfo(
+    val etfCode: String,
+    val etfName: String,
+    val etfType: EtfType,
+    val managementCompany: String,
+    val constituents: List<EtfConstituent>,
+    val totalEvaluationAmount: Long,
+    val collectedDate: String
+) {
+    val constituentCount: Int
+        get() = constituents.size
+
+    val totalAmountInEok: Double
+        get() = totalEvaluationAmount / 100_000_000.0
+}

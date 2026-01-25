@@ -50,6 +50,16 @@ data class DateRange(
     val endDate: String?
 )
 
+/**
+ * Query result model for active ETF summary.
+ */
+data class EtfSummaryInfo(
+    val etfCode: String,
+    val etfName: String,
+    val constituentCount: Int,
+    val totalAmount: Long
+)
+
 @Dao
 interface EtfConstituentDao {
     /**
@@ -270,4 +280,42 @@ interface EtfConstituentDao {
 
     @Query("SELECT COUNT(DISTINCT stockCode) FROM etf_constituents WHERE collectedDate = :date")
     suspend fun countDistinctStocksByDate(date: String): Int
+
+    // ==================== Theme List Queries ====================
+
+    /**
+     * Get distinct ETFs that have constituent data for a specific date.
+     * Returns summary info for each ETF.
+     */
+    @Query("""
+        SELECT etfCode, etfName,
+               COUNT(*) as constituentCount,
+               SUM(evaluationAmount) as totalAmount
+        FROM etf_constituents
+        WHERE collectedDate = :date
+        GROUP BY etfCode
+        ORDER BY totalAmount DESC
+    """)
+    suspend fun getActiveEtfSummaries(date: String): List<EtfSummaryInfo>
+
+    /**
+     * Search ETFs by name containing query for a specific date.
+     */
+    @Query("""
+        SELECT etfCode, etfName,
+               COUNT(*) as constituentCount,
+               SUM(evaluationAmount) as totalAmount
+        FROM etf_constituents
+        WHERE collectedDate = :date
+          AND etfName LIKE '%' || :query || '%'
+        GROUP BY etfCode
+        ORDER BY totalAmount DESC
+    """)
+    suspend fun searchActiveEtfs(date: String, query: String): List<EtfSummaryInfo>
+
+    /**
+     * Get distinct ETF codes for a specific date.
+     */
+    @Query("SELECT DISTINCT etfCode FROM etf_constituents WHERE collectedDate = :date")
+    suspend fun getDistinctEtfCodesByDate(date: String): List<String>
 }

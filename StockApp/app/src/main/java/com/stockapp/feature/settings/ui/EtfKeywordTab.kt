@@ -692,43 +692,81 @@ private fun DataManagementSection(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Data retention slider
+            // Data retention setting
             Text(
                 text = "데이터 보관 기간",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
-            Text(
-                text = "${dataRetentionDays}일 이상 지난 데이터는 자동으로 삭제됩니다",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Slider(
-                value = dataRetentionDays.toFloat(),
-                onValueChange = { onRetentionDaysChange(it.toInt()) },
-                valueRange = 7f..90f,
-                steps = 11
-            )
+
+            // Unlimited toggle
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "7일",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = if (dataRetentionDays == -1) "무제한 (데이터 자동 삭제 안함)" else "${dataRetentionDays}일 이상 지난 데이터는 자동으로 삭제됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = "${dataRetentionDays}일",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "90일",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "무제한",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (dataRetentionDays == -1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Switch(
+                        checked = dataRetentionDays == -1,
+                        onCheckedChange = { unlimited ->
+                            if (unlimited) {
+                                onRetentionDaysChange(-1)
+                            } else {
+                                onRetentionDaysChange(30) // default
+                            }
+                        }
+                    )
+                }
+            }
+
+            // Slider (only shown when not unlimited)
+            AnimatedVisibility(visible = dataRetentionDays != -1) {
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Slider(
+                        value = if (dataRetentionDays > 0) dataRetentionDays.toFloat() else 30f,
+                        onValueChange = { onRetentionDaysChange(it.toInt()) },
+                        valueRange = 7f..365f,
+                        steps = 0
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "7일",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${if (dataRetentionDays > 0) dataRetentionDays else 30}일",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "365일",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

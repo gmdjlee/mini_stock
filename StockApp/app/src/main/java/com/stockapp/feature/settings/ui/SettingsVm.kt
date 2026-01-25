@@ -23,7 +23,7 @@ enum class SettingsTab(val title: String) {
     API_KEY("키움 API"),
     KIS_API("KIS API"),
     SCHEDULING("스케줄링"),
-    ETF_FILTER("ETF 필터")
+    ETF_STATISTICS("ETF 통계")
 }
 
 /**

@@ -313,4 +313,21 @@ interface EtfRepository {
         startDate: String,
         endDate: String
     ): Result<List<DailyEtfStatistics>>
+
+    // ==================== Theme List (Phase 3) ====================
+
+    /**
+     * Get active ETFs (ETFs with constituent data) for the latest date.
+     */
+    suspend fun getActiveEtfSummaries(): Result<List<com.stockapp.feature.etf.domain.model.ActiveEtfSummary>>
+
+    /**
+     * Search active ETFs by name.
+     */
+    suspend fun searchActiveEtfs(query: String): Result<List<com.stockapp.feature.etf.domain.model.ActiveEtfSummary>>
+
+    /**
+     * Get ETF detail with constituents.
+     */
+    suspend fun getEtfDetail(etfCode: String): Result<com.stockapp.feature.etf.domain.model.EtfDetailInfo>
 }

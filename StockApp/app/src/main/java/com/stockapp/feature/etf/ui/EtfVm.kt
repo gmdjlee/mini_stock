@@ -12,8 +12,10 @@ import com.stockapp.feature.etf.domain.model.EtfConstituent
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.FilterType
+import com.stockapp.feature.etf.ui.detail.EtfDetailState
 import com.stockapp.feature.etf.ui.detail.StockDetailData
 import com.stockapp.feature.etf.ui.detail.StockDetailState
+import com.stockapp.feature.etf.ui.tabs.ThemeListState
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.etf.domain.repo.EtfRepository
 import com.stockapp.feature.etf.domain.model.DateRangeOption
@@ -46,9 +48,8 @@ import javax.inject.Inject
  * Tab definitions for ETF screen.
  */
 enum class EtfTab(val title: String) {
-    COLLECTION_STATUS("수집현황"),
     STATISTICS("통계"),
-    SETTINGS("설정")
+    THEME_LIST("테마 목록")
 }
 
 /**
@@ -131,7 +132,7 @@ class EtfVm @Inject constructor(
 ) : ViewModel() {
 
     // Tab selection
-    private val _selectedTab = MutableStateFlow(EtfTab.COLLECTION_STATUS)
+    private val _selectedTab = MutableStateFlow(EtfTab.STATISTICS)
     val selectedTab: StateFlow<EtfTab> = _selectedTab.asStateFlow()
 
     // Collection state
@@ -218,6 +219,23 @@ class EtfVm @Inject constructor(
     private val _stockSearchQuery = MutableStateFlow("")
     val stockSearchQuery: StateFlow<String> = _stockSearchQuery.asStateFlow()
 
+    // ==================== Theme List Tab States ====================
+
+    // Theme list state
+    private val _themeListState = MutableStateFlow<ThemeListState>(ThemeListState.Loading)
+    val themeListState: StateFlow<ThemeListState> = _themeListState.asStateFlow()
+
+    // ETF search query for theme list
+    private val _etfSearchQuery = MutableStateFlow("")
+    val etfSearchQuery: StateFlow<String> = _etfSearchQuery.asStateFlow()
+
+    // ETF detail bottom sheet state
+    private val _showEtfDetail = MutableStateFlow(false)
+    val showEtfDetail: StateFlow<Boolean> = _showEtfDetail.asStateFlow()
+
+    private val _etfDetailState = MutableStateFlow<EtfDetailState>(EtfDetailState.Loading)
+    val etfDetailState: StateFlow<EtfDetailState> = _etfDetailState.asStateFlow()
+
     init {
         loadInitialData()
         observeWorkProgress()
@@ -270,7 +288,9 @@ class EtfVm @Inject constructor(
                 // Load data based on current sub-tab
                 loadStatisticsData()
             }
-            else -> {}
+            EtfTab.THEME_LIST -> {
+                loadActiveEtfs()
+            }
         }
     }
 
@@ -674,6 +694,100 @@ class EtfVm @Inject constructor(
      */
     fun onRankingItemDetailClick(item: EnhancedStockRanking) {
         showStockDetail(item.stockCode, item.stockName)
+    }
+
+    // ==================== Theme List Tab ====================
+
+    /**
+     * Load active ETFs for theme list.
+     */
+    fun loadActiveEtfs() {
+        viewModelScope.launch {
+            _themeListState.value = ThemeListState.Loading
+
+            etfRepository.getActiveEtfSummaries().fold(
+                onSuccess = { etfs ->
+                    _themeListState.value = if (etfs.isEmpty()) {
+                        ThemeListState.NoData
+                    } else {
+                        ThemeListState.Success(etfs)
+                    }
+                },
+                onFailure = { error ->
+                    _themeListState.value = if (error.message?.contains("데이터가 없습니다") == true ||
+                        error.message?.contains("No data") == true) {
+                        ThemeListState.NoData
+                    } else {
+                        ThemeListState.Error(error.message ?: "ETF 목록 로드 실패")
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Update ETF search query for theme list.
+     */
+    fun updateEtfSearchQuery(query: String) {
+        _etfSearchQuery.value = query
+    }
+
+    /**
+     * Search ETFs by name for theme list.
+     */
+    fun searchEtfs(query: String) {
+        viewModelScope.launch {
+            _themeListState.value = ThemeListState.Loading
+
+            val result = if (query.trim().isEmpty()) {
+                etfRepository.getActiveEtfSummaries()
+            } else {
+                etfRepository.searchActiveEtfs(query.trim())
+            }
+
+            result.fold(
+                onSuccess = { etfs ->
+                    _themeListState.value = if (etfs.isEmpty()) {
+                        ThemeListState.NoData
+                    } else {
+                        ThemeListState.Success(etfs)
+                    }
+                },
+                onFailure = { error ->
+                    _themeListState.value = ThemeListState.Error(error.message ?: "검색 실패")
+                }
+            )
+        }
+    }
+
+    /**
+     * Show ETF detail bottom sheet and load data.
+     */
+    fun showEtfDetail(etfCode: String, etfName: String) {
+        _showEtfDetail.value = true
+        loadEtfDetailData(etfCode)
+    }
+
+    /**
+     * Hide ETF detail bottom sheet.
+     */
+    fun hideEtfDetail() {
+        _showEtfDetail.value = false
+    }
+
+    private fun loadEtfDetailData(etfCode: String) {
+        viewModelScope.launch {
+            _etfDetailState.value = EtfDetailState.Loading
+
+            etfRepository.getEtfDetail(etfCode).fold(
+                onSuccess = { detail ->
+                    _etfDetailState.value = EtfDetailState.Success(detail)
+                },
+                onFailure = { error ->
+                    _etfDetailState.value = EtfDetailState.Error(error.message ?: "ETF 상세 정보 로드 실패")
+                }
+            )
+        }
     }
 
     // ==================== Helper ====================
