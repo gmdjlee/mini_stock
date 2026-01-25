@@ -1,13 +1,20 @@
-"""CLI entry point for ETF Collector."""
+"""CLI entry point for ETF Collector.
+
+Supports two API providers:
+- KIS API: For ETF constituent data
+- Kiwoom API: For fetching complete ETF list dynamically
+"""
 
 import argparse
 import sys
 import time
 
 from .auth.kis_auth import KisAuthClient, AuthError
+from .auth.kiwoom_auth import KiwoomAuthClient, KiwoomAuthError
 from .collector.constituent import ConstituentCollector
 from .collector.etf_list import EtfListCollector
-from .config import Config, ConfigError
+from .collector.kiwoom_etf_list import KiwoomEtfListCollector, MarketType
+from .config import Config, ConfigError, EtfListSource
 from .filter.keyword import (
     ACTIVE_ETF_FILTER,
     EXCLUDE_LEVERAGE_FILTER,
@@ -21,18 +28,33 @@ from .utils.logger import log_info, log_err, set_level
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="ETF Collector - Collect Active ETF constituent stocks using KIS API",
+        description="ETF Collector - Collect ETF data using Kiwoom and KIS APIs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Collect all active ETFs and their constituents
-  python -m etf_collector collect --active-only --output ./data/active_etfs.csv
+  # Collect all ETFs from Kiwoom API and their constituents from KIS API
+  python -m etf_collector collect --output ./data/all_etfs.csv
+
+  # Collect only active ETFs
+  python -m etf_collector collect --active-only --format json
+
+  # Use Kiwoom API for ETF list (default if KIWOOM_* env vars are set)
+  python -m etf_collector collect --etf-source kiwoom --active-only
+
+  # Use predefined ETF list (fallback)
+  python -m etf_collector collect --etf-source predefined --active-only
 
   # Collect with keyword filter
   python -m etf_collector collect --include "반도체,AI" --format json
 
   # Exclude leverage/inverse ETFs
   python -m etf_collector collect --exclude "레버리지,인버스,2X"
+
+  # Collect only ETF list (no constituents)
+  python -m etf_collector collect --etf-list-only --format json
+
+  # Specify market type (KOSPI, KOSDAQ, ALL)
+  python -m etf_collector collect --market all --active-only
 
   # Test rate limiter
   python -m etf_collector test-rate-limit --env real --duration 10
@@ -60,6 +82,24 @@ Examples:
         "-o", "--output",
         default="./data/etf_data",
         help="Output path (without extension, default: ./data/etf_data)",
+    )
+    collect_parser.add_argument(
+        "--etf-source",
+        choices=["kiwoom", "predefined"],
+        default=None,
+        help="Source for ETF list: 'kiwoom' (API) or 'predefined' (hardcoded list)",
+    )
+    collect_parser.add_argument(
+        "--market",
+        choices=["all", "kospi", "kosdaq", "krx"],
+        default="all",
+        help="Market filter for Kiwoom API (default: all)",
+    )
+    collect_parser.add_argument(
+        "--kiwoom-env",
+        choices=["real", "mock"],
+        default=None,
+        help="Kiwoom API environment (overrides KIWOOM_ENVIRONMENT)",
     )
     collect_parser.add_argument(
         "--include",
@@ -163,13 +203,25 @@ def run_collect(args) -> int:
         config = Config.from_env(args.env_file)
         log_info("cli", "Configuration loaded", {"env": config.environment})
 
-        # Initialize components
-        auth_client = KisAuthClient(config.app_key, config.app_secret, config.base_url)
-        # Use min_interval to prevent server-side rate limiting (500 errors)
-        # Real: 0.5s, Virtual: 0.5s minimum interval between requests
-        # Higher interval needed to avoid 500 errors from KIS API
-        min_interval = 0.5
-        rate_limiter = SlidingWindowRateLimiter(
+        # Override Kiwoom environment if specified
+        if args.kiwoom_env:
+            config.kiwoom_environment = args.kiwoom_env
+
+        # Determine ETF list source
+        etf_source = config.etf_list_source
+        if args.etf_source:
+            etf_source = (
+                EtfListSource.KIWOOM
+                if args.etf_source == "kiwoom"
+                else EtfListSource.PREDEFINED
+            )
+
+        # Initialize KIS components (for constituent data)
+        kis_auth_client = KisAuthClient(
+            config.app_key, config.app_secret, config.base_url
+        )
+        min_interval = 0.5  # Prevent server-side rate limiting
+        kis_rate_limiter = SlidingWindowRateLimiter(
             RateLimiterConfig(
                 requests_per_second=float(config.rate_limit),
                 min_interval=min_interval,
@@ -193,25 +245,35 @@ def run_collect(args) -> int:
 
         output_format = OutputFormat.JSON if args.format == "json" else OutputFormat.CSV
 
-        # Specific ETF code
+        # Specific ETF code - use KIS constituent collector directly
         if args.etf_code:
             return collect_single_etf(
                 args.etf_code,
-                auth_client,
-                rate_limiter,
+                kis_auth_client,
+                kis_rate_limiter,
                 storage,
                 output_format,
                 args.output,
             )
 
-        # Collect ETF list from predefined Active ETF codes
-        # Note: KIS API does not support bulk ETF listing, so we use predefined codes
-        etf_collector = EtfListCollector(auth_client, rate_limiter, config.base_url)
-
-        def etf_list_progress(current: int, total: int, name: str):
-            print(f"[{current}/{total}] Fetching ETF: {name}")
-
-        result = etf_collector.get_all_etfs(progress_callback=etf_list_progress)
+        # Collect ETF list based on source
+        if etf_source == EtfListSource.KIWOOM and config.has_kiwoom_credentials:
+            # Use Kiwoom API for ETF list
+            result = collect_etf_list_from_kiwoom(config, args)
+            if not result.get("ok"):
+                log_err("cli", f"Kiwoom API failed: {result.get('error', {})}")
+                print(f"Kiwoom API failed: {result.get('error', {}).get('msg')}")
+                print("Falling back to predefined ETF list...")
+                result = collect_etf_list_from_predefined(
+                    kis_auth_client, kis_rate_limiter, config
+                )
+        else:
+            # Use predefined ETF list
+            if etf_source == EtfListSource.KIWOOM and not config.has_kiwoom_credentials:
+                print("Warning: Kiwoom credentials not configured. Using predefined list.")
+            result = collect_etf_list_from_predefined(
+                kis_auth_client, kis_rate_limiter, config
+            )
 
         if not result.get("ok"):
             log_err("cli", f"Failed to fetch ETF list: {result.get('error', {})}")
@@ -234,19 +296,19 @@ def run_collect(args) -> int:
             print("No ETFs match the filter criteria")
             return 0
 
-        # ETF list only
+        # ETF list only - save and exit
         if args.etf_list_only:
             filepath = storage.save_etf_list(etfs, "etf_list", output_format)
             print(f"ETF list saved to: {filepath}")
             return 0
 
-        # Collect constituents
+        # Collect constituents using KIS API
         constituent_collector = ConstituentCollector(
-            auth_client, rate_limiter, config.base_url
+            kis_auth_client, kis_rate_limiter, config.base_url
         )
 
         def progress_callback(current: int, total: int, name: str):
-            print(f"[{current}/{total}] Collecting: {name}")
+            print(f"[{current}/{total}] Collecting constituents: {name}")
 
         result = constituent_collector.get_all_constituents(etfs, progress_callback)
 
@@ -261,6 +323,7 @@ def run_collect(args) -> int:
         filter_info = None
         if combined_filter.filters:
             filter_info = {
+                "etf_source": etf_source.value,
                 "active_only": args.active_only,
                 "include_keywords": include_keywords,
                 "exclude_keywords": exclude_keywords,
@@ -289,7 +352,7 @@ def run_collect(args) -> int:
         print(f"Error: {e}")
         print("Please set KIS_APP_KEY and KIS_APP_SECRET environment variables")
         return 1
-    except AuthError as e:
+    except (AuthError, KiwoomAuthError) as e:
         log_err("cli", f"Authentication error: {e}")
         print(f"Authentication failed: {e}")
         return 1
@@ -297,6 +360,78 @@ def run_collect(args) -> int:
         log_err("cli", f"Unexpected error: {e}")
         print(f"Error: {e}")
         return 1
+
+
+def collect_etf_list_from_kiwoom(config: Config, args) -> dict:
+    """Collect ETF list from Kiwoom API.
+
+    Args:
+        config: Application configuration
+        args: CLI arguments
+
+    Returns:
+        Result dictionary with ETF list
+    """
+    print("Fetching ETF list from Kiwoom API...")
+
+    # Initialize Kiwoom components
+    kiwoom_auth = KiwoomAuthClient(
+        config.kiwoom_app_key,
+        config.kiwoom_secret_key,
+        config.kiwoom_base_url,
+    )
+    kiwoom_rate_limiter = SlidingWindowRateLimiter(
+        RateLimiterConfig(
+            requests_per_second=float(config.kiwoom_rate_limit),
+            min_interval=0.5,
+        )
+    )
+
+    # Determine market type
+    market_map = {
+        "all": MarketType.ALL,
+        "kospi": MarketType.KOSPI,
+        "kosdaq": MarketType.KOSDAQ,
+        "krx": MarketType.KRX,
+    }
+    market_type = market_map.get(args.market, MarketType.ALL)
+
+    kiwoom_etf_collector = KiwoomEtfListCollector(
+        kiwoom_auth, kiwoom_rate_limiter, config.kiwoom_base_url
+    )
+
+    def etf_list_progress(current: int, total: int, name: str):
+        print(f"[{current}/{total}] Processing ETF: {name}")
+
+    return kiwoom_etf_collector.get_all_etfs(
+        market_type=market_type,
+        progress_callback=etf_list_progress,
+    )
+
+
+def collect_etf_list_from_predefined(
+    auth_client: KisAuthClient,
+    rate_limiter: SlidingWindowRateLimiter,
+    config: Config,
+) -> dict:
+    """Collect ETF list from predefined codes.
+
+    Args:
+        auth_client: KIS auth client
+        rate_limiter: Rate limiter
+        config: Application configuration
+
+    Returns:
+        Result dictionary with ETF list
+    """
+    print("Using predefined Active ETF list...")
+
+    etf_collector = EtfListCollector(auth_client, rate_limiter, config.base_url)
+
+    def etf_list_progress(current: int, total: int, name: str):
+        print(f"[{current}/{total}] Loading ETF: {name}")
+
+    return etf_collector.get_all_etfs(progress_callback=etf_list_progress)
 
 
 def collect_single_etf(
@@ -404,22 +539,46 @@ def run_config(args) -> int:
     try:
         config = Config.from_env(args.env_file)
 
-        print("Current Configuration:")
+        print("=" * 50)
+        print("ETF Collector Configuration")
+        print("=" * 50)
+
+        print("\n[KIS API - Constituent Data]")
         print(f"  Environment: {config.environment}")
         print(f"  Base URL: {config.base_url}")
         print(f"  Rate Limit: {config.rate_limit} requests/second")
         print(f"  App Key: {'*' * 8}...{config.app_key[-4:] if len(config.app_key) > 4 else '****'}")
         print(f"  Account No: {config.account_no or '(not set)'}")
 
+        print("\n[Kiwoom API - ETF List]")
+        if config.has_kiwoom_credentials:
+            print(f"  Environment: {config.kiwoom_environment}")
+            print(f"  Base URL: {config.kiwoom_base_url}")
+            print(f"  Rate Limit: {config.kiwoom_rate_limit} requests/second")
+            print(f"  App Key: {'*' * 8}...{config.kiwoom_app_key[-4:] if len(config.kiwoom_app_key) > 4 else '****'}")
+        else:
+            print("  Status: Not configured")
+            print("  (Set KIWOOM_APP_KEY and KIWOOM_SECRET_KEY to enable)")
+
+        print("\n[ETF List Source]")
+        print(f"  Configured: {config.etf_list_source.value}")
+        print(f"  Effective: {'kiwoom' if config.use_kiwoom_for_etf_list else 'predefined'}")
+
+        print("=" * 50)
+
         return 0
 
     except ConfigError as e:
         print(f"Configuration error: {e}")
         print("\nRequired environment variables:")
-        print("  KIS_APP_KEY=your_app_key")
-        print("  KIS_APP_SECRET=your_app_secret")
+        print("  KIS_APP_KEY=your_kis_app_key")
+        print("  KIS_APP_SECRET=your_kis_app_secret")
         print("  KIS_ENVIRONMENT=real|virtual (optional, default: real)")
-        print("  KIS_ACCOUNT_NO=your_account (optional)")
+        print("\nOptional (for Kiwoom ETF list):")
+        print("  KIWOOM_APP_KEY=your_kiwoom_app_key")
+        print("  KIWOOM_SECRET_KEY=your_kiwoom_secret_key")
+        print("  KIWOOM_ENVIRONMENT=real|mock (optional, default: real)")
+        print("  ETF_LIST_SOURCE=kiwoom|predefined (optional, default: kiwoom)")
         return 1
 
 
