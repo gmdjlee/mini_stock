@@ -40,12 +40,15 @@ class EtfSettingsVm @Inject constructor(
     val showDeleteConfirmDialog: StateFlow<Boolean> = _showDeleteConfirmDialog.asStateFlow()
 
     init {
-        loadInitialData()
+        initializeKeywordsAndLoadData()
         observeKeywords()
     }
 
-    private fun loadInitialData() {
+    private fun initializeKeywordsAndLoadData() {
         viewModelScope.launch {
+            // Initialize default keywords if not exists
+            etfRepository.initializeDefaultKeywords()
+
             // Load data statistics
             loadDataStatistics()
 
