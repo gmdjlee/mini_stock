@@ -261,6 +261,19 @@ data class EtfFilterConfig(
 // ==================== ETF Statistics Models (Phase 2) ====================
 
 /**
+ * Date range option for statistics queries.
+ */
+enum class DateRangeOption(val days: Int, val label: String) {
+    DAY(1, "1일"),
+    WEEK(7, "1주"),
+    MONTH(30, "1개월"),
+    THREE_MONTHS(90, "3개월"),
+    SIX_MONTHS(180, "6개월"),
+    YEAR(365, "1년"),
+    ALL(-1, "전체")
+}
+
+/**
  * Holding status for stock changes.
  */
 enum class HoldingStatus(val displayName: String) {
