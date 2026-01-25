@@ -96,6 +96,10 @@ fun SettingsScreen(
                 SettingsTab.API_KEY -> ApiKeyTab(viewModel)
                 SettingsTab.KIS_API -> KisApiKeyTab(viewModel)
                 SettingsTab.SCHEDULING -> SchedulingTab()
+                SettingsTab.ETF_FILTER -> {
+                    val etfSettingsVm: EtfSettingsVm = hiltViewModel()
+                    EtfKeywordTab(viewModel = etfSettingsVm)
+                }
             }
         }
     }
