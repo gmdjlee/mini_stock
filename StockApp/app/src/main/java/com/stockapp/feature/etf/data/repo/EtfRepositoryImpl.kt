@@ -664,6 +664,75 @@ class EtfRepositoryImpl @Inject constructor(
         calculatedAt = calculatedAt
     )
 
+    // ==================== Theme List (Phase 3) ====================
+
+    override suspend fun getActiveEtfSummaries(): Result<List<com.stockapp.feature.etf.domain.model.ActiveEtfSummary>> =
+        runCatching {
+            val latestDate = constituentDao.getLatestDate()
+                ?: throw IllegalStateException("No data available")
+
+            val summaries = constituentDao.getActiveEtfSummaries(latestDate)
+
+            // Get ETF info for additional details
+            summaries.map { summary ->
+                val etfInfo = etfDao.getByCode(summary.etfCode)
+                com.stockapp.feature.etf.domain.model.ActiveEtfSummary(
+                    etfCode = summary.etfCode,
+                    etfName = summary.etfName,
+                    etfType = etfInfo?.let { EtfType.fromValue(it.etfType) } ?: EtfType.ACTIVE,
+                    managementCompany = etfInfo?.managementCompany ?: "",
+                    constituentCount = summary.constituentCount,
+                    totalEvaluationAmount = summary.totalAmount,
+                    latestCollectedDate = latestDate
+                )
+            }
+        }
+
+    override suspend fun searchActiveEtfs(query: String): Result<List<com.stockapp.feature.etf.domain.model.ActiveEtfSummary>> =
+        runCatching {
+            val latestDate = constituentDao.getLatestDate()
+                ?: throw IllegalStateException("No data available")
+
+            val summaries = constituentDao.searchActiveEtfs(latestDate, query)
+
+            summaries.map { summary ->
+                val etfInfo = etfDao.getByCode(summary.etfCode)
+                com.stockapp.feature.etf.domain.model.ActiveEtfSummary(
+                    etfCode = summary.etfCode,
+                    etfName = summary.etfName,
+                    etfType = etfInfo?.let { EtfType.fromValue(it.etfType) } ?: EtfType.ACTIVE,
+                    managementCompany = etfInfo?.managementCompany ?: "",
+                    constituentCount = summary.constituentCount,
+                    totalEvaluationAmount = summary.totalAmount,
+                    latestCollectedDate = latestDate
+                )
+            }
+        }
+
+    override suspend fun getEtfDetail(etfCode: String): Result<com.stockapp.feature.etf.domain.model.EtfDetailInfo> =
+        runCatching {
+            val latestDate = constituentDao.getLatestDate()
+                ?: throw IllegalStateException("No data available")
+
+            val constituents = constituentDao.getByEtfAndDate(etfCode, latestDate)
+            if (constituents.isEmpty()) {
+                throw IllegalStateException("ETF not found: $etfCode")
+            }
+
+            val etfInfo = etfDao.getByCode(etfCode)
+            val totalAmount = constituents.sumOf { it.evaluationAmount }
+
+            com.stockapp.feature.etf.domain.model.EtfDetailInfo(
+                etfCode = etfCode,
+                etfName = constituents.first().etfName,
+                etfType = etfInfo?.let { EtfType.fromValue(it.etfType) } ?: EtfType.ACTIVE,
+                managementCompany = etfInfo?.managementCompany ?: "",
+                constituents = constituents.map { it.toDomain() },
+                totalEvaluationAmount = totalAmount,
+                collectedDate = latestDate
+            )
+        }
+
     companion object {
         private const val WEIGHT_CHANGE_THRESHOLD = 0.01
     }

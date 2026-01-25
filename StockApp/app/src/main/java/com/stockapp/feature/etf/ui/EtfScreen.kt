@@ -16,9 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.theme.ThemeToggleButton
+import com.stockapp.feature.etf.ui.detail.EtfDetailBottomSheet
 import com.stockapp.feature.etf.ui.detail.StockDetailBottomSheet
-import com.stockapp.feature.etf.ui.tabs.CollectionStatusTab
-import com.stockapp.feature.etf.ui.tabs.EtfSettingsTab
+import com.stockapp.feature.etf.ui.tabs.ThemeListTab
 import com.stockapp.feature.etf.ui.tabs.statistics.StatisticsHubContent
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +40,21 @@ fun EtfScreen(
     val isCashDepositRefreshing by viewModel.isCashDepositRefreshing.collectAsState()
     val stockAnalysisState by viewModel.stockAnalysisState.collectAsState()
     val stockSearchQuery by viewModel.stockSearchQuery.collectAsState()
+
+    // Theme list tab states
+    val showEtfDetail by viewModel.showEtfDetail.collectAsState()
+    val etfDetailState by viewModel.etfDetailState.collectAsState()
+
+    // ETF detail bottom sheet
+    if (showEtfDetail) {
+        EtfDetailBottomSheet(
+            state = etfDetailState,
+            onDismiss = { viewModel.hideEtfDetail() },
+            onStockClick = { stockCode, stockName ->
+                viewModel.showStockDetail(stockCode, stockName)
+            }
+        )
+    }
 
     // Stock detail bottom sheet
     if (showStockDetail) {
@@ -93,9 +108,6 @@ fun EtfScreen(
 
             // Tab content
             when (selectedTab) {
-                EtfTab.COLLECTION_STATUS -> CollectionStatusTab(
-                    viewModel = viewModel
-                )
                 EtfTab.STATISTICS -> StatisticsHubContent(
                     viewModel = viewModel,
                     selectedSubTab = selectedSubTab,
@@ -117,8 +129,11 @@ fun EtfScreen(
                     onStockSearchQueryChange = { viewModel.updateStockSearchQuery(it) },
                     onStockSearch = { viewModel.searchStock() }
                 )
-                EtfTab.SETTINGS -> EtfSettingsTab(
-                    viewModel = viewModel
+                EtfTab.THEME_LIST -> ThemeListTab(
+                    viewModel = viewModel,
+                    onEtfClick = { etfCode, etfName ->
+                        viewModel.showEtfDetail(etfCode, etfName)
+                    }
                 )
             }
         }
