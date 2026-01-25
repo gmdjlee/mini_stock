@@ -309,7 +309,7 @@ class EtfCollectorRepoImpl @Inject constructor(
         // Update history
         historyDao.updateCompletion(
             id = historyId,
-            status = status.name,
+            status = status.value,
             totalEtfs = successCount,
             totalConstituents = totalConstituents,
             errorMessage = if (errors.isNotEmpty()) errors.joinToString("; ") else null,
@@ -412,9 +412,14 @@ class EtfCollectorRepoImpl @Inject constructor(
     }
 
     private suspend fun getKisApiConfig(): KisApiConfig? {
-        // TODO: Add KIS API config to settings
-        // For now, return null to indicate KIS API is not configured
-        return null
+        val config = settingsRepo.getKisApiKeyConfig().first()
+        if (!config.isValid()) {
+            return null
+        }
+        return KisApiConfig(
+            appKey = config.appKey,
+            appSecret = config.appSecret
+        )
     }
 
     private fun parsePrice(value: String?): Long {

@@ -113,6 +113,11 @@ class EtfCollectionWorker @AssistedInject constructor(
                         ))
                     }
                 }
+
+                CollectionStatus.IN_PROGRESS -> {
+                    Log.w(TAG, "Collection still in progress, retrying...")
+                    Result.retry()
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Collection exception: ${e.message}", e)

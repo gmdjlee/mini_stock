@@ -9,9 +9,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.stockapp.core.api.KisApiClient
+import com.stockapp.core.api.KisApiConfig
 import com.stockapp.core.py.PyClient
 import com.stockapp.feature.settings.domain.model.ApiKeyConfig
 import com.stockapp.feature.settings.domain.model.InvestmentMode
+import com.stockapp.feature.settings.domain.model.KisApiKeyConfig
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -30,16 +33,22 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 @Singleton
 class SettingsRepoImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val pyClient: PyClient
+    private val pyClient: PyClient,
+    private val kisApiClient: KisApiClient
 ) : SettingsRepo {
 
     private object Keys {
         // Non-sensitive settings in DataStore
         val IS_PRODUCTION = booleanPreferencesKey("is_production")
 
-        // Sensitive API keys stored in EncryptedSharedPreferences
+        // Sensitive Kiwoom API keys stored in EncryptedSharedPreferences
         const val APP_KEY = "api_app_key"
         const val SECRET_KEY = "api_secret_key"
+
+        // Sensitive KIS API keys stored in EncryptedSharedPreferences
+        const val KIS_APP_KEY = "kis_api_app_key"
+        const val KIS_APP_SECRET = "kis_api_app_secret"
+
         const val ENCRYPTED_PREFS_NAME = "secure_api_prefs"
     }
 
@@ -147,16 +156,68 @@ class SettingsRepoImpl @Inject constructor(
 
     override suspend fun clearAll() {
         withContext(Dispatchers.IO) {
-            // Clear encrypted API keys
+            // Clear encrypted API keys (both Kiwoom and KIS)
             encryptedPrefs.edit()
                 .remove(Keys.APP_KEY)
                 .remove(Keys.SECRET_KEY)
+                .remove(Keys.KIS_APP_KEY)
+                .remove(Keys.KIS_APP_SECRET)
                 .apply()
 
             // Clear non-sensitive settings
             context.dataStore.edit { prefs ->
                 prefs.clear()
             }
+
+            // Clear KIS token cache
+            kisApiClient.clearToken()
+        }
+    }
+
+    // ============================================================
+    // KIS API Key Configuration
+    // ============================================================
+
+    override fun getKisApiKeyConfig(): Flow<KisApiKeyConfig> = flow {
+        val appKey = encryptedPrefs.getString(Keys.KIS_APP_KEY, "") ?: ""
+        val appSecret = encryptedPrefs.getString(Keys.KIS_APP_SECRET, "") ?: ""
+
+        emit(KisApiKeyConfig(
+            appKey = appKey,
+            appSecret = appSecret
+        ))
+    }.flowOn(Dispatchers.IO)
+
+    override suspend fun saveKisApiKeyConfig(config: KisApiKeyConfig) {
+        withContext(Dispatchers.IO) {
+            encryptedPrefs.edit()
+                .putString(Keys.KIS_APP_KEY, config.appKey)
+                .putString(Keys.KIS_APP_SECRET, config.appSecret)
+                .apply()
+
+            // Clear token cache when config changes
+            kisApiClient.clearToken()
+        }
+    }
+
+    override suspend fun testKisApiKey(config: KisApiKeyConfig): Result<Boolean> {
+        return try {
+            if (!config.isValid()) {
+                return Result.failure(IllegalArgumentException("KIS API App Key와 App Secret을 입력해주세요"))
+            }
+
+            val kisConfig = KisApiConfig(
+                appKey = config.appKey,
+                appSecret = config.appSecret
+            )
+
+            // Test by fetching a token
+            kisApiClient.getToken(kisConfig).fold(
+                onSuccess = { Result.success(true) },
+                onFailure = { e -> Result.failure(e) }
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

@@ -9,7 +9,7 @@ enum class InvestmentMode(val displayName: String, val description: String) {
 }
 
 /**
- * API Key configuration data.
+ * Kiwoom API Key configuration data.
  */
 data class ApiKeyConfig(
     val appKey: String = "",
@@ -17,4 +17,15 @@ data class ApiKeyConfig(
     val investmentMode: InvestmentMode = InvestmentMode.MOCK
 ) {
     fun isValid(): Boolean = appKey.isNotBlank() && secretKey.isNotBlank()
+}
+
+/**
+ * KIS (Korea Investment & Securities) API Key configuration data.
+ * Used for ETF constituent data collection.
+ */
+data class KisApiKeyConfig(
+    val appKey: String = "",
+    val appSecret: String = ""
+) {
+    fun isValid(): Boolean = appKey.isNotBlank() && appSecret.isNotBlank()
 }
