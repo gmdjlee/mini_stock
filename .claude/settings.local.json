@@ -16,7 +16,8 @@
       "Skill(sc:analyze:*)",
       "mcp__claude_ai_KIS_API__search_etfetn_api",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(find:*)"
     ]
   }
 }

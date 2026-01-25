@@ -237,3 +237,64 @@ class Config:
         if self.kiwoom_environment not in ("real", "mock"):
             raise ConfigError("KIWOOM_ENVIRONMENT must be 'real' or 'mock'")
         return True
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Config":
+        """Create Config instance from dictionary.
+
+        This method is designed for Android/Chaquopy integration where
+        configuration is passed from Kotlin as a dictionary.
+
+        Args:
+            data: Configuration dictionary with keys:
+                - app_key (required): KIS API app key
+                - app_secret (required): KIS API secret key
+                - account_no (optional): KIS account number
+                - environment (optional): 'real' or 'virtual', default 'real'
+                - kiwoom_app_key (optional): Kiwoom API app key
+                - kiwoom_secret_key (optional): Kiwoom API secret key
+                - kiwoom_environment (optional): 'real' or 'mock', default 'real'
+                - etf_list_source (optional): 'kiwoom' or 'predefined', default 'kiwoom'
+
+        Returns:
+            Config instance
+
+        Raises:
+            ConfigError: If required fields are missing or invalid
+        """
+        # Validate required fields
+        app_key = data.get("app_key") or data.get("appKey")
+        app_secret = data.get("app_secret") or data.get("appSecret")
+
+        if not app_key:
+            raise ConfigError("app_key is required")
+        if not app_secret:
+            raise ConfigError("app_secret is required")
+
+        # Parse environment
+        environment = data.get("environment", "real")
+        if environment not in ("real", "virtual"):
+            raise ConfigError("environment must be 'real' or 'virtual'")
+
+        # Parse Kiwoom environment
+        kiwoom_environment = data.get("kiwoom_environment", "real")
+        if kiwoom_environment not in ("real", "mock"):
+            kiwoom_environment = "real"
+
+        # Parse ETF list source
+        etf_source_str = data.get("etf_list_source", "kiwoom").lower()
+        if etf_source_str == "predefined":
+            etf_list_source = EtfListSource.PREDEFINED
+        else:
+            etf_list_source = EtfListSource.KIWOOM
+
+        return cls(
+            app_key=app_key,
+            app_secret=app_secret,
+            account_no=data.get("account_no", ""),
+            environment=environment,
+            kiwoom_app_key=data.get("kiwoom_app_key"),
+            kiwoom_secret_key=data.get("kiwoom_secret_key"),
+            kiwoom_environment=kiwoom_environment,
+            etf_list_source=etf_list_source,
+        )

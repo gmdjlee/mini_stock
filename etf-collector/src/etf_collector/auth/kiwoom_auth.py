@@ -8,6 +8,7 @@ import requests
 
 from ..config import DEFAULT_TIMEOUT
 from ..utils.logger import log_info, log_err, log_debug
+from ..utils.validators import mask_credentials
 
 MODULE = "kiwoom_auth"
 
@@ -115,7 +116,8 @@ class KiwoomAuthClient:
         }
 
         try:
-            log_debug(MODULE, "Requesting Kiwoom token", {"url": url})
+            # Log with masked credentials for security
+            log_debug(MODULE, "Requesting Kiwoom token", {"url": url, "body": mask_credentials(body)})
             resp = requests.post(url, json=body, headers=headers, timeout=DEFAULT_TIMEOUT)
             resp.raise_for_status()
             data = resp.json()

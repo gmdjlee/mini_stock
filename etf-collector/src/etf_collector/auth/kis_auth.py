@@ -8,6 +8,7 @@ import requests
 
 from ..config import ENDPOINTS, DEFAULT_TIMEOUT
 from ..utils.logger import log_info, log_err, log_debug
+from ..utils.validators import mask_credentials
 
 MODULE = "kis_auth"
 
@@ -96,7 +97,8 @@ class KisAuthClient:
         }
 
         try:
-            log_debug(MODULE, "Requesting token", {"url": url})
+            # Log with masked credentials for security
+            log_debug(MODULE, "Requesting token", {"url": url, "body": mask_credentials(body)})
             resp = requests.post(url, json=body, headers=headers, timeout=DEFAULT_TIMEOUT)
             resp.raise_for_status()
             data = resp.json()

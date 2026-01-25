@@ -22,7 +22,7 @@ from .filter.keyword import (
 )
 from .limiter.rate_limiter import SlidingWindowRateLimiter, RateLimiterConfig
 from .storage.data_storage import DataStorage, OutputFormat
-from .utils.logger import log_info, log_err, set_level
+from .utils.logger import log_info, log_err, log_warn, set_level
 
 
 def main():
@@ -263,6 +263,14 @@ def run_collect(args) -> int:
             if not result.get("ok"):
                 log_err("cli", f"Kiwoom API failed: {result.get('error', {})}")
                 print(f"Kiwoom API failed: {result.get('error', {}).get('msg')}")
+                print("Falling back to predefined ETF list...")
+                result = collect_etf_list_from_predefined(
+                    kis_auth_client, kis_rate_limiter, config
+                )
+            elif not result.get("data"):
+                # Kiwoom API returned empty list (common in mock environment)
+                log_warn("cli", "Kiwoom API returned empty ETF list")
+                print("Kiwoom API returned 0 ETFs (mock API may not have data)")
                 print("Falling back to predefined ETF list...")
                 result = collect_etf_list_from_predefined(
                     kis_auth_client, kis_rate_limiter, config

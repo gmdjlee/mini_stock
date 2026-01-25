@@ -12,6 +12,7 @@ from ..config import ENDPOINTS, DEFAULT_TIMEOUT, ERROR_CODES
 from ..limiter.rate_limiter import SlidingWindowRateLimiter
 from ..utils.helpers import to_int, to_float, now_iso
 from ..utils.logger import log_info, log_err, log_debug, log_warn
+from ..utils.validators import validate_etf_code, validate_api_response, validate_list_response
 from .etf_list import EtfInfo
 
 MODULE = "constituent"
@@ -95,6 +96,12 @@ class ConstituentCollector:
             {"ok": True, "data": EtfConstituentSummary} on success
             {"ok": False, "error": {"code": str, "msg": str}} on failure
         """
+        # Validate ETF code format
+        is_valid, error_msg = validate_etf_code(etf_code)
+        if not is_valid:
+            log_err(MODULE, f"Invalid ETF code: {error_msg}")
+            return {"ok": False, "error": {"code": "INVALID_ARG", "msg": error_msg}}
+
         log_info(MODULE, f"Fetching constituents for {etf_code} ({etf_name})")
 
         # API parameters for FHKST121600C0
@@ -293,9 +300,22 @@ class ConstituentCollector:
 
         Returns:
             EtfConstituentSummary object
+
+        Raises:
+            ValueError: If response structure is invalid
         """
+        # Validate response structure
+        is_valid, error_msg = validate_api_response(data, required_fields=["output1", "output2"])
+        if not is_valid:
+            raise ValueError(f"Invalid API response structure: {error_msg}")
+
         output1 = data.get("output1", {})
         output2 = data.get("output2", [])
+
+        # Validate output2 is a list of dicts
+        is_valid, error_msg = validate_list_response(output2, item_type=dict)
+        if not is_valid:
+            raise ValueError(f"Invalid output2 structure: {error_msg}")
 
         # Parse ETF summary from output1
         constituents = []

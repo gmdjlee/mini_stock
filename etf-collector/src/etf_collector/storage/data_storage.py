@@ -1,4 +1,7 @@
-"""Data storage module for saving collected ETF data."""
+"""Data storage module for saving collected ETF data.
+
+This module provides secure file storage with path traversal protection.
+"""
 
 import csv
 import json
@@ -11,9 +14,19 @@ from typing import Any, Dict, List, Optional
 from ..collector.constituent import ConstituentStock, EtfConstituentSummary
 from ..collector.etf_list import EtfInfo
 from ..utils.helpers import now_iso
-from ..utils.logger import log_info, log_err
+from ..utils.logger import log_info, log_err, log_warn
+from ..utils.validators import validate_filename, validate_path, ALLOWED_EXTENSIONS
 
 MODULE = "data_storage"
+
+
+class StorageError(Exception):
+    """Storage operation error."""
+
+    def __init__(self, message: str, code: str = "STORAGE_ERROR"):
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 class OutputFormat(Enum):
@@ -24,16 +37,57 @@ class OutputFormat(Enum):
 
 
 class DataStorage:
-    """Storage manager for ETF data."""
+    """Storage manager for ETF data with path traversal protection."""
 
     def __init__(self, output_dir: str = "./data"):
         """Initialize storage manager.
 
         Args:
             output_dir: Directory for output files
+
+        Raises:
+            StorageError: If output directory is invalid
         """
-        self.output_dir = Path(output_dir)
+        # Validate output directory path
+        is_valid, error_msg, resolved_path = validate_path(output_dir)
+        if not is_valid:
+            raise StorageError(f"Invalid output directory: {error_msg}", "INVALID_PATH")
+
+        self.output_dir = resolved_path
+        self._base_dir = str(resolved_path)  # Store for validation
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        log_info(MODULE, f"Initialized storage", {"output_dir": self._base_dir})
+
+    def _validate_and_resolve_path(self, filename: str, extension: str) -> Path:
+        """Validate filename and resolve full path securely.
+
+        Args:
+            filename: Base filename (without extension)
+            extension: File extension (e.g., "json", "csv")
+
+        Returns:
+            Resolved file path
+
+        Raises:
+            StorageError: If filename is invalid
+        """
+        # Validate filename
+        full_filename = f"{filename}.{extension}"
+        is_valid, error_msg = validate_filename(full_filename, ALLOWED_EXTENSIONS)
+        if not is_valid:
+            raise StorageError(f"Invalid filename: {error_msg}", "INVALID_FILENAME")
+
+        # Resolve and validate full path
+        filepath = self.output_dir / full_filename
+        is_valid, error_msg, resolved = validate_path(
+            str(filepath),
+            base_dir=self._base_dir,
+            allowed_extensions=ALLOWED_EXTENSIONS,
+        )
+        if not is_valid:
+            raise StorageError(f"Invalid path: {error_msg}", "PATH_TRAVERSAL")
+
+        return resolved
 
     def save_etf_list(
         self,
@@ -50,10 +104,15 @@ class DataStorage:
 
         Returns:
             Path to saved file
+
+        Raises:
+            StorageError: If path validation fails
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         ext = output_format.value
-        filepath = self.output_dir / f"{filename}_{timestamp}.{ext}"
+
+        # Validate and resolve path securely
+        filepath = self._validate_and_resolve_path(f"{filename}_{timestamp}", ext)
 
         if output_format == OutputFormat.CSV:
             self._save_etf_list_csv(etfs, filepath)
@@ -111,10 +170,15 @@ class DataStorage:
 
         Returns:
             Path to saved file
+
+        Raises:
+            StorageError: If path validation fails
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         ext = output_format.value
-        filepath = self.output_dir / f"{filename}_{timestamp}.{ext}"
+
+        # Validate and resolve path securely
+        filepath = self._validate_and_resolve_path(f"{filename}_{timestamp}", ext)
 
         if output_format == OutputFormat.CSV:
             self._save_constituents_csv(constituents, filepath)
@@ -179,10 +243,15 @@ class DataStorage:
 
         Returns:
             Path to saved file
+
+        Raises:
+            StorageError: If path validation fails
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         ext = output_format.value
-        filepath = self.output_dir / f"{filename}_{timestamp}.{ext}"
+
+        # Validate and resolve path securely
+        filepath = self._validate_and_resolve_path(f"{filename}_{timestamp}", ext)
 
         if output_format == OutputFormat.CSV:
             # For CSV, flatten the data
@@ -248,8 +317,17 @@ class DataStorage:
 
         Returns:
             List of ETF dictionaries
+
+        Raises:
+            StorageError: If path validation fails or file format is unsupported
         """
-        path = Path(filepath)
+        # Validate path
+        is_valid, error_msg, path = validate_path(filepath, allowed_extensions=ALLOWED_EXTENSIONS)
+        if not is_valid:
+            raise StorageError(f"Invalid file path: {error_msg}", "INVALID_PATH")
+
+        if not path.exists():
+            raise StorageError(f"File not found: {filepath}", "FILE_NOT_FOUND")
 
         if path.suffix == ".csv":
             return self._load_csv(path)
@@ -257,7 +335,7 @@ class DataStorage:
             data = self._load_json(path)
             return data.get("etfs", [])
         else:
-            raise ValueError(f"Unsupported file format: {path.suffix}")
+            raise StorageError(f"Unsupported file format: {path.suffix}", "UNSUPPORTED_FORMAT")
 
     def _load_csv(self, filepath: Path) -> List[Dict[str, Any]]:
         """Load data from CSV file."""

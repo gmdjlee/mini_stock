@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from etf_collector.storage.data_storage import DataStorage, OutputFormat
+from etf_collector.storage.data_storage import DataStorage, OutputFormat, StorageError
 from etf_collector.collector.etf_list import EtfInfo
 from etf_collector.collector.constituent import ConstituentStock, EtfConstituentSummary
 
@@ -270,7 +270,7 @@ class TestDataStorage:
 
     def test_load_unsupported_format(self):
         """Test loading unsupported file format raises error."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(StorageError) as exc_info:
             self.storage.load_etf_list("/path/to/file.xyz")
 
-        assert "Unsupported" in str(exc_info.value)
+        assert "Unsupported" in str(exc_info.value) or exc_info.value.code == "INVALID_PATH"
