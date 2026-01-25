@@ -34,5 +34,7 @@ sealed class ApiError(override val message: String) : Exception(message) {
     class ApiCallError(code: Int, msg: String) : ApiError("[$code] $msg")
     class ParseError(msg: String) : ApiError(msg)
     class TimeoutError(msg: String) : ApiError(msg)
-    class NoApiKeyError : ApiError("API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.")
+    class NoApiKeyError(
+        msg: String = "API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요."
+    ) : ApiError(msg)
 }
