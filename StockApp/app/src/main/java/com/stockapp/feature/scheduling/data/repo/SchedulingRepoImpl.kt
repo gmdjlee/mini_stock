@@ -10,6 +10,10 @@ import com.stockapp.core.db.entity.StockAnalysisDataEntity
 import com.stockapp.core.db.entity.StockEntity
 import com.stockapp.core.db.entity.SyncHistoryEntity
 import com.stockapp.core.py.PyClient
+import com.stockapp.feature.etf.domain.model.CollectionStatus
+import com.stockapp.feature.etf.domain.model.EtfFilterConfig
+import com.stockapp.feature.etf.domain.repo.EtfRepository
+import com.stockapp.feature.etf.domain.usecase.CollectAllEtfDataUC
 import com.stockapp.feature.scheduling.domain.model.SchedulingConfig
 import com.stockapp.feature.scheduling.domain.model.SyncHistory
 import com.stockapp.feature.scheduling.domain.model.SyncResult
@@ -29,6 +33,7 @@ import javax.inject.Singleton
 private const val TAG = "SchedulingRepo"
 private const val MAX_STOCKS_PER_BATCH = 10_000
 private const val ANALYSIS_BATCH_SIZE = 50
+private const val ETF_CLEANUP_DAYS = 30
 
 @Singleton
 class SchedulingRepoImpl @Inject constructor(
@@ -37,7 +42,9 @@ class SchedulingRepoImpl @Inject constructor(
     private val stockDao: StockDao,
     private val analysisDataDao: StockAnalysisDataDao,
     private val pyClient: PyClient,
-    private val json: Json
+    private val json: Json,
+    private val collectAllEtfDataUC: CollectAllEtfDataUC,
+    private val etfRepository: EtfRepository
 ) : SchedulingRepo {
 
     override fun observeConfig(): Flow<SchedulingConfig> {
@@ -155,7 +162,7 @@ class SchedulingRepoImpl @Inject constructor(
             val stockResult = syncStockList()
             if (stockResult.isFailure) {
                 val error = stockResult.exceptionOrNull()?.message ?: "Stock list sync failed"
-                finishSync(historyId, false, 0, 0, 0, error, startTime)
+                finishSync(historyId, false, 0, 0, 0, 0, 0, error, startTime)
                 return@withContext SyncResult(
                     success = false,
                     errorMessage = error,
@@ -168,8 +175,11 @@ class SchedulingRepoImpl @Inject constructor(
             val analysisResult = syncTopStocksAnalysis()
             val analysisCount = analysisResult.getOrDefault(0)
 
+            // 3. Sync ETF data
+            val (etfCount, etfConstituentCount) = syncEtfData()
+
             val durationMs = System.currentTimeMillis() - startTime
-            finishSync(historyId, true, stockCount, analysisCount, 0, null, startTime)
+            finishSync(historyId, true, stockCount, analysisCount, 0, etfCount, etfConstituentCount, null, startTime)
 
             // Update last sync status
             updateLastSync(System.currentTimeMillis(), true, null)
@@ -178,12 +188,14 @@ class SchedulingRepoImpl @Inject constructor(
                 success = true,
                 stockCount = stockCount,
                 analysisCount = analysisCount,
+                etfCount = etfCount,
+                etfConstituentCount = etfConstituentCount,
                 durationMs = durationMs
             )
         } catch (e: Exception) {
             Log.e(TAG, "syncAllData failed: ${e.message}", e)
             val durationMs = System.currentTimeMillis() - startTime
-            finishSync(historyId, false, 0, 0, 0, e.message, startTime)
+            finishSync(historyId, false, 0, 0, 0, 0, 0, e.message, startTime)
             updateLastSync(System.currentTimeMillis(), false, e.message)
 
             SyncResult(
@@ -242,6 +254,57 @@ class SchedulingRepoImpl @Inject constructor(
         }
 
         return syncAnalysisData(stocks.map { it.ticker })
+    }
+
+    /**
+     * Sync ETF data using the ETF filter configuration from the repository.
+     * @return Pair of (etfCount, constituentCount)
+     */
+    private suspend fun syncEtfData(): Pair<Int, Int> {
+        Log.d(TAG, "syncEtfData() started")
+
+        // Build filter config from enabled keywords
+        val keywords = etfRepository.getEnabledKeywords().getOrDefault(emptyList())
+        val includeKeywords = keywords
+            .filter { it.filterType.value == "INCLUDE" }
+            .map { it.keyword }
+        val excludeKeywords = keywords
+            .filter { it.filterType.value == "EXCLUDE" }
+            .map { it.keyword }
+
+        // Use defaults if no keywords are set
+        val filterConfig = EtfFilterConfig(
+            activeOnly = true, // Default: active ETFs only
+            includeKeywords = includeKeywords.ifEmpty { EtfFilterConfig.DEFAULT_INCLUDE_KEYWORDS },
+            excludeKeywords = excludeKeywords.ifEmpty { EtfFilterConfig.DEFAULT_EXCLUDE_KEYWORDS }
+        )
+
+        Log.d(TAG, "ETF filter config: activeOnly=${filterConfig.activeOnly}, " +
+                "include=${filterConfig.includeKeywords.size}, exclude=${filterConfig.excludeKeywords.size}")
+
+        return try {
+            val result = collectAllEtfDataUC(
+                filterConfig = filterConfig,
+                cleanupDays = ETF_CLEANUP_DAYS,
+                progressCallback = { current, total ->
+                    Log.d(TAG, "ETF collection progress: $current/$total")
+                }
+            )
+
+            when (result.status) {
+                CollectionStatus.SUCCESS, CollectionStatus.PARTIAL -> {
+                    Log.d(TAG, "ETF collection completed: ${result.totalEtfs} ETFs, ${result.totalConstituents} constituents")
+                    Pair(result.totalEtfs, result.totalConstituents)
+                }
+                else -> {
+                    Log.w(TAG, "ETF collection failed: ${result.errorMessage}")
+                    Pair(0, 0)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "syncEtfData exception: ${e.message}", e)
+            Pair(0, 0)
+        }
     }
 
     private suspend fun fetchAndSaveAnalysis(ticker: String, lastDate: String?): Result<Unit> {
@@ -338,6 +401,8 @@ class SchedulingRepoImpl @Inject constructor(
         stockCount: Int,
         analysisCount: Int,
         indicatorCount: Int,
+        etfCount: Int,
+        etfConstituentCount: Int,
         errorMessage: String?,
         startTime: Long
     ) {
@@ -348,6 +413,8 @@ class SchedulingRepoImpl @Inject constructor(
             stockCount = stockCount,
             analysisCount = analysisCount,
             indicatorCount = indicatorCount,
+            etfCount = etfCount,
+            etfConstituentCount = etfConstituentCount,
             errorMessage = errorMessage,
             durationMs = durationMs
         )
@@ -376,6 +443,8 @@ class SchedulingRepoImpl @Inject constructor(
         stockCount = stockCount,
         analysisCount = analysisCount,
         indicatorCount = indicatorCount,
+        etfCount = etfCount,
+        etfConstituentCount = etfConstituentCount,
         errorMessage = errorMessage,
         durationMs = durationMs,
         syncedAt = syncedAt

@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -26,7 +28,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -44,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.ui.theme.LocalExtendedColors
+import com.stockapp.feature.etf.domain.model.CollectionStatus
 import com.stockapp.feature.scheduling.domain.model.SyncHistory
 import com.stockapp.feature.scheduling.domain.model.SyncStatus
 import com.stockapp.feature.scheduling.domain.model.SyncType
@@ -96,7 +101,7 @@ fun SchedulingTab(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "매일 지정된 시간에 종목 리스트와 분석 데이터를 자동으로 업데이트합니다.",
+                            text = "매일 지정된 시간에 종목 리스트, 분석 데이터, ETF 구성종목을 자동으로 업데이트합니다.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -255,6 +260,13 @@ fun SchedulingTab(
             }
         }
 
+        // ETF Collection Status
+        item {
+            EtfCollectionStatusSection(
+                etfStatus = uiState.etfCollectionStatus
+            )
+        }
+
         // Manual sync button
         item {
             Button(
@@ -278,6 +290,32 @@ fun SchedulingTab(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("지금 동기화")
+                }
+            }
+        }
+
+        // ETF re-collection button
+        item {
+            OutlinedButton(
+                onClick = { viewModel.triggerEtfCollection() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isEtfCollecting && !uiState.isSyncing
+            ) {
+                if (uiState.isEtfCollecting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("ETF 수집 중...")
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("ETF 데이터 다시 수집")
                 }
             }
         }
@@ -341,6 +379,179 @@ fun SchedulingTab(
 }
 
 @Composable
+private fun EtfCollectionStatusSection(
+    etfStatus: EtfCollectionStatus
+) {
+    val extendedColors = LocalExtendedColors.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PieChart,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "ETF 수집 현황",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ETF collection state
+            when (val state = etfStatus.collectionState) {
+                is EtfCollectionState.Collecting -> {
+                    Column {
+                        Text(
+                            text = "수집 중... (${state.current}/${state.total})",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (state.total > 0) {
+                            LinearProgressIndicator(
+                                progress = { state.current.toFloat() / state.total },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+                is EtfCollectionState.Success -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = extendedColors.success,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "수집 완료: ${state.etfCount}개 ETF, ${state.constituentCount}개 종목",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = extendedColors.success
+                        )
+                    }
+                }
+                is EtfCollectionState.Error -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                is EtfCollectionState.Idle -> {
+                    // Show last collection info
+                    if (etfStatus.hasCollectedData) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "마지막 수집",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = etfStatus.lastCollectionTimeDisplay,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "수집된 데이터",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "${etfStatus.lastEtfCount}개 ETF, ${etfStatus.lastConstituentCount}개 종목",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "상태",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    when (etfStatus.lastStatus) {
+                                        CollectionStatus.SUCCESS -> Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = extendedColors.success,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        CollectionStatus.FAILED -> Icon(
+                                            imageVector = Icons.Default.Error,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        else -> {}
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = when (etfStatus.lastStatus) {
+                                            CollectionStatus.SUCCESS -> "성공"
+                                            CollectionStatus.FAILED -> "실패"
+                                            CollectionStatus.PARTIAL -> "부분 성공"
+                                            CollectionStatus.IN_PROGRESS -> "진행 중"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = when (etfStatus.lastStatus) {
+                                            CollectionStatus.SUCCESS -> extendedColors.success
+                                            CollectionStatus.FAILED -> MaterialTheme.colorScheme.error
+                                            else -> MaterialTheme.colorScheme.onSurface
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "수집된 ETF 데이터가 없습니다",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SyncHistoryItem(history: SyncHistory) {
     val dateFormat = SimpleDateFormat("MM/dd HH:mm", Locale.KOREA)
     val extendedColors = LocalExtendedColors.current
@@ -397,6 +608,9 @@ private fun SyncHistoryItem(history: SyncHistory) {
                                 append(" · ${history.stockCount}종목")
                                 if (history.analysisCount > 0) {
                                     append(" · ${history.analysisCount}분석")
+                                }
+                                if (history.etfCount > 0) {
+                                    append(" · ${history.etfCount}ETF")
                                 }
                             } else if (history.status == SyncStatus.FAILED) {
                                 append(" · ${history.errorMessage ?: "실패"}")

@@ -46,13 +46,15 @@ interface SyncHistoryDao {
     @Insert
     suspend fun insert(history: SyncHistoryEntity): Long
 
-    @Query("UPDATE sync_history SET status = :status, stockCount = :stockCount, analysisCount = :analysisCount, indicatorCount = :indicatorCount, errorMessage = :errorMessage, durationMs = :durationMs WHERE id = :id")
+    @Query("UPDATE sync_history SET status = :status, stockCount = :stockCount, analysisCount = :analysisCount, indicatorCount = :indicatorCount, etfCount = :etfCount, etfConstituentCount = :etfConstituentCount, errorMessage = :errorMessage, durationMs = :durationMs WHERE id = :id")
     suspend fun updateSync(
         id: Long,
         status: String,
         stockCount: Int,
         analysisCount: Int,
         indicatorCount: Int,
+        etfCount: Int,
+        etfConstituentCount: Int,
         errorMessage: String?,
         durationMs: Long
     )
