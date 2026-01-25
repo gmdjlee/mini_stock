@@ -21,6 +21,7 @@ import com.stockapp.feature.etf.domain.model.DailyEtfStatistics
 import com.stockapp.feature.etf.domain.model.EtfCashDetail
 import com.stockapp.feature.etf.domain.model.EtfConstituent
 import com.stockapp.feature.etf.domain.model.EtfDateRange
+import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfInfo
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.EtfType
@@ -179,6 +180,37 @@ class EtfRepositoryImpl @Inject constructor(
 
     override suspend fun deleteAllKeywords(): Result<Unit> = runCatching {
         keywordDao.deleteAll()
+    }
+
+    override suspend fun initializeDefaultKeywords(): Result<Boolean> = runCatching {
+        val existingCount = keywordDao.count()
+        if (existingCount > 0) {
+            return@runCatching false
+        }
+
+        // Insert default include keywords
+        EtfFilterConfig.DEFAULT_INCLUDE_KEYWORDS.forEach { keyword ->
+            val entity = EtfKeywordEntity(
+                keyword = keyword,
+                filterType = FilterType.INCLUDE.value,
+                isEnabled = true,
+                createdAt = System.currentTimeMillis()
+            )
+            keywordDao.insert(entity)
+        }
+
+        // Insert default exclude keywords
+        EtfFilterConfig.DEFAULT_EXCLUDE_KEYWORDS.forEach { keyword ->
+            val entity = EtfKeywordEntity(
+                keyword = keyword,
+                filterType = FilterType.EXCLUDE.value,
+                isEnabled = true,
+                createdAt = System.currentTimeMillis()
+            )
+            keywordDao.insert(entity)
+        }
+
+        true
     }
 
     // ==================== Collection History ====================

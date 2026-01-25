@@ -172,6 +172,13 @@ interface EtfRepository {
      */
     suspend fun deleteAllKeywords(): Result<Unit>
 
+    /**
+     * Initialize default keywords if no keywords exist.
+     * Inserts default include and exclude keywords from EtfFilterConfig.
+     * @return true if keywords were initialized, false if keywords already exist.
+     */
+    suspend fun initializeDefaultKeywords(): Result<Boolean>
+
     // ==================== Collection History ====================
 
     /**
