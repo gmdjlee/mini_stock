@@ -253,7 +253,7 @@ data class WeightHistory(
  * ETF filter configuration.
  */
 data class EtfFilterConfig(
-    val activeOnly: Boolean = true,
+    val activeOnly: Boolean = false,
     val includeKeywords: List<String> = emptyList(),
     val excludeKeywords: List<String> = listOf("레버리지", "인버스", "2X", "3X")
 )
