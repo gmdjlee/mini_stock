@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 data class EtfListResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("etf_all_qot") val items: List<EtfListItemDto>? = null
+    @SerialName("etfall_mrpr") val items: List<EtfListItemDto>? = null
 )
 
 /**
