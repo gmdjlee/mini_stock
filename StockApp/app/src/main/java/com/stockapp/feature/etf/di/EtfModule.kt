@@ -7,8 +7,11 @@ import com.stockapp.core.db.dao.EtfConstituentDao
 import com.stockapp.core.db.dao.EtfDao
 import com.stockapp.core.db.dao.EtfKeywordDao
 import com.stockapp.feature.etf.data.repo.EtfCollectorRepoImpl
+import com.stockapp.feature.etf.data.repo.EtfRepositoryImpl
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
+import com.stockapp.feature.etf.domain.repo.EtfRepository
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -18,29 +21,35 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object EtfModule {
+abstract class EtfModule {
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideEtfCollectorRepo(
-        kiwoomApiClient: KiwoomApiClient,
-        kisApiClient: KisApiClient,
-        settingsRepo: SettingsRepo,
-        etfDao: EtfDao,
-        constituentDao: EtfConstituentDao,
-        keywordDao: EtfKeywordDao,
-        historyDao: EtfCollectionHistoryDao,
-        json: Json
-    ): EtfCollectorRepo {
-        return EtfCollectorRepoImpl(
-            kiwoomApiClient = kiwoomApiClient,
-            kisApiClient = kisApiClient,
-            settingsRepo = settingsRepo,
-            etfDao = etfDao,
-            constituentDao = constituentDao,
-            keywordDao = keywordDao,
-            historyDao = historyDao,
-            json = json
-        )
+    abstract fun bindEtfRepository(impl: EtfRepositoryImpl): EtfRepository
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideEtfCollectorRepo(
+            kiwoomApiClient: KiwoomApiClient,
+            kisApiClient: KisApiClient,
+            settingsRepo: SettingsRepo,
+            etfDao: EtfDao,
+            constituentDao: EtfConstituentDao,
+            keywordDao: EtfKeywordDao,
+            historyDao: EtfCollectionHistoryDao,
+            json: Json
+        ): EtfCollectorRepo {
+            return EtfCollectorRepoImpl(
+                kiwoomApiClient = kiwoomApiClient,
+                kisApiClient = kisApiClient,
+                settingsRepo = settingsRepo,
+                etfDao = etfDao,
+                constituentDao = constituentDao,
+                keywordDao = keywordDao,
+                historyDao = historyDao,
+                json = json
+            )
+        }
     }
 }

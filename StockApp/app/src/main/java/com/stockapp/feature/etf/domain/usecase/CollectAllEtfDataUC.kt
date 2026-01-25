@@ -57,7 +57,7 @@ class CollectAllEtfDataUC @Inject constructor(
                 com.stockapp.core.db.entity.EtfEntity(
                     etfCode = info.etfCode,
                     etfName = info.etfName,
-                    etfType = info.etfType,
+                    etfType = info.etfType.value,
                     managementCompany = info.managementCompany,
                     trackingIndex = info.trackingIndex,
                     assetClass = info.assetClass,

@@ -24,6 +24,7 @@ import com.stockapp.feature.etf.domain.model.ConstituentStock
 import com.stockapp.feature.etf.domain.model.EtfCollectionResult
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfInfo
+import com.stockapp.feature.etf.domain.model.EtfType
 import com.stockapp.feature.etf.domain.model.FullCollectionResult
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
@@ -100,13 +101,13 @@ class EtfCollectorRepoImpl @Inject constructor(
         } ?: emptyList()
     }
 
-    private fun determineEtfType(name: String): String {
+    private fun determineEtfType(name: String): EtfType {
         // Active ETF keywords
         val activeKeywords = listOf("액티브", "Active", "ACTIVE")
         return if (activeKeywords.any { name.contains(it, ignoreCase = true) }) {
-            "Active"
+            EtfType.ACTIVE
         } else {
-            "Passive"
+            EtfType.PASSIVE
         }
     }
 
