@@ -12,10 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.stockapp.feature.etf.domain.model.DateRangeOption
-import com.stockapp.feature.etf.ui.ChangesState
 import com.stockapp.feature.etf.ui.EtfVm
-import com.stockapp.feature.etf.ui.RankingState
-import com.stockapp.feature.etf.ui.tabs.StockChangesTab
 import com.stockapp.feature.etf.ui.tabs.StockRankingTab
 
 /**

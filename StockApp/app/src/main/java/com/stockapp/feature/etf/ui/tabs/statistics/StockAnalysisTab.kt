@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,8 +40,6 @@ import com.stockapp.feature.etf.domain.model.ContainingEtfInfo
 import com.stockapp.feature.etf.domain.model.StockAnalysisResult
 import com.stockapp.feature.etf.ui.detail.AmountTrendChart
 import com.stockapp.feature.etf.ui.detail.WeightTrendChart
-import java.text.NumberFormat
-import java.util.Locale
 
 /**
  * Sealed class for stock analysis state
@@ -106,9 +103,16 @@ fun StockAnalysisTab(
             // Content based on state
             when (state) {
                 is StockAnalysisState.Initial -> InitialContent()
-                is StockAnalysisState.Loading -> LoadingContent()
-                is StockAnalysisState.NotFound -> NotFoundContent(query = state.query)
-                is StockAnalysisState.Error -> ErrorContent(message = state.message)
+                is StockAnalysisState.Loading -> StatisticsLoadingContent()
+                is StockAnalysisState.NotFound -> StatisticsEmptyContent(
+                    title = "종목을 찾을 수 없습니다",
+                    description = "'${state.query}' 에 해당하는 종목이 ETF에 편입되어 있지 않습니다.",
+                    icon = Icons.Default.Search
+                )
+                is StockAnalysisState.Error -> StatisticsErrorContent(
+                    message = state.message,
+                    title = "분석 실패"
+                )
                 is StockAnalysisState.Success -> AnalysisResultContent(
                     result = state.result
                 )
@@ -411,99 +415,3 @@ private fun ContainingEtfRow(etf: ContainingEtfInfo) {
     }
 }
 
-@Composable
-private fun LoadingContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun NotFoundContent(query: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "종목을 찾을 수 없습니다",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "'$query' 에 해당하는 종목이 ETF에 편입되어 있지 않습니다.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ErrorContent(message: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Error,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "분석 실패",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-    }
-}
-
-private fun formatAmount(amount: Long): String {
-    return when {
-        amount >= 1_000_000_000_000 -> String.format("%.1f조", amount / 1_000_000_000_000.0)
-        amount >= 100_000_000 -> String.format("%.0f억", amount / 100_000_000.0)
-        amount >= 10_000 -> String.format("%.0f만", amount / 10_000.0)
-        else -> NumberFormat.getNumberInstance(Locale.KOREA).format(amount)
-    }
-}

@@ -18,12 +18,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,8 +38,6 @@ import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.etf.domain.model.StockChangeType
 import com.stockapp.feature.etf.domain.usecase.EnhancedStockChange
 import com.stockapp.feature.etf.ui.ChangesState
-import java.text.NumberFormat
-import java.util.Locale
 
 /**
  * Filtered changes tab - displays only a specific type of stock changes.
@@ -60,14 +55,21 @@ fun FilteredChangesTab(
     modifier: Modifier = Modifier
 ) {
     when (changesState) {
-        is ChangesState.Loading -> LoadingContent()
-        is ChangesState.NoData -> NoDataContent(filterType)
-        is ChangesState.Error -> ErrorContent(message = changesState.message)
+        is ChangesState.Loading -> StatisticsLoadingContent()
+        is ChangesState.NoData -> StatisticsEmptyContent(
+            title = "데이터가 없습니다",
+            description = "최소 2일 이상의 수집 데이터가 필요합니다."
+        )
+        is ChangesState.Error -> StatisticsErrorContent(message = changesState.message)
         is ChangesState.Success -> {
             val filteredItems = getFilteredItems(changesState.result, filterType)
 
             if (filteredItems.isEmpty()) {
-                NoFilteredDataContent(filterType)
+                StatisticsEmptyContent(
+                    title = "${filterType.title} 종목 없음",
+                    description = "해당 기간에 ${filterType.description}이 없습니다.",
+                    icon = filterType.icon
+                )
             } else {
                 PullToRefreshBox(
                     isRefreshing = isRefreshing,
@@ -324,136 +326,3 @@ private fun FilteredChangeItemCard(
     }
 }
 
-@Composable
-private fun LoadingContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun NoDataContent(filterType: StatisticsSubTab) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Storage,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "데이터가 없습니다",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "최소 2일 이상의 수집 데이터가 필요합니다.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun NoFilteredDataContent(filterType: StatisticsSubTab) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = filterType.icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "${filterType.title} 종목 없음",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "해당 기간에 ${filterType.description}이 없습니다.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ErrorContent(message: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Error,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "데이터 로드 실패",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-    }
-}
-
-private fun formatAmount(amount: Long): String {
-    return when {
-        amount >= 1_000_000_000_000 -> String.format("%.1f조", amount / 1_000_000_000_000.0)
-        amount >= 100_000_000 -> String.format("%.0f억", amount / 100_000_000.0)
-        amount >= 10_000 -> String.format("%.0f만", amount / 10_000.0)
-        else -> NumberFormat.getNumberInstance(Locale.KOREA).format(amount)
-    }
-}

@@ -16,12 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,8 +46,6 @@ import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.etf.domain.model.CashDepositTrend
 import com.stockapp.feature.etf.domain.model.EtfCashDetail
 import com.stockapp.feature.etf.domain.usecase.CashDepositTrendResult
-import java.text.NumberFormat
-import java.util.Locale
 
 // Chart colors
 private val CashLineColor = androidx.compose.ui.graphics.Color(0xFF4CAF50) // Green
@@ -74,9 +69,12 @@ fun CashDepositTab(
     modifier: Modifier = Modifier
 ) {
     when (state) {
-        is CashDepositState.Loading -> LoadingContent()
-        is CashDepositState.NoData -> NoDataContent()
-        is CashDepositState.Error -> ErrorContent(message = state.message)
+        is CashDepositState.Loading -> StatisticsLoadingContent()
+        is CashDepositState.NoData -> StatisticsEmptyContent(
+            title = "현금 보유 데이터가 없습니다",
+            description = "수집현황 탭에서 ETF 데이터를 수집해주세요."
+        )
+        is CashDepositState.Error -> StatisticsErrorContent(message = state.message)
         is CashDepositState.Success -> {
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -285,7 +283,7 @@ private fun CashDepositTrendChart(
                     enableGridDashedLine(10f, 10f, 0f)
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String {
-                            return formatAmountShort(value.toLong())
+                            return formatAmount(value.toLong())
                         }
                     }
                 }
@@ -422,116 +420,3 @@ private fun EtfCashDetailRow(detail: EtfCashDetail) {
     }
 }
 
-// Loading/NoData/Error components - Reuse from StockRankingTab.kt pattern
-@Composable
-private fun LoadingContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun NoDataContent() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Storage,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "현금 보유 데이터가 없습니다",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "수집현황 탭에서 ETF 데이터를 수집해주세요.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ErrorContent(message: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.padding(32.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Error,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "데이터 로드 실패",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-    }
-}
-
-// Utility functions - From EtfCharts.kt and StockRankingTab.kt
-private fun formatAmount(amount: Long): String {
-    return when {
-        amount >= 1_000_000_000_000 -> String.format("%.1f조", amount / 1_000_000_000_000.0)
-        amount >= 100_000_000 -> String.format("%.0f억", amount / 100_000_000.0)
-        amount >= 10_000 -> String.format("%.0f만", amount / 10_000.0)
-        else -> NumberFormat.getNumberInstance(Locale.KOREA).format(amount)
-    }
-}
-
-private fun formatAmountChange(change: Long): String {
-    val sign = if (change > 0) "+" else ""
-    return sign + formatAmount(kotlin.math.abs(change))
-}
-
-private fun formatAmountShort(amount: Long): String = formatAmount(amount)
-
-private fun formatDateShort(date: String): String {
-    return try {
-        val parts = date.split("-")
-        if (parts.size >= 3) "${parts[1]}/${parts[2]}" else date
-    } catch (e: Exception) {
-        date
-    }
-}
