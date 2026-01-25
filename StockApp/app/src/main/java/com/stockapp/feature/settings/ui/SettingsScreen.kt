@@ -94,6 +94,7 @@ fun SettingsScreen(
             // Tab content
             when (selectedTab) {
                 SettingsTab.API_KEY -> ApiKeyTab(viewModel)
+                SettingsTab.KIS_API -> KisApiKeyTab(viewModel)
                 SettingsTab.SCHEDULING -> SchedulingTab()
             }
         }
@@ -220,6 +221,168 @@ private fun ApiKeyTab(viewModel: SettingsVm) {
             onClick = { viewModel.saveAndTest() },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isSaving && appKey.isNotBlank() && secretKey.isNotBlank()
+        ) {
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                text = if (isSaving) "저장 및 테스트 중..." else "저장 및 연결 테스트"
+            )
+        }
+
+        // Test result
+        AnimatedVisibility(visible = testResult != TestResult.Idle) {
+            TestResultCard(result = testResult)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun KisApiKeyTab(viewModel: SettingsVm) {
+    val kisAppKey by viewModel.kisAppKey.collectAsState()
+    val kisAppSecret by viewModel.kisAppSecret.collectAsState()
+    val testResult by viewModel.kisTestResult.collectAsState()
+    val isSaving by viewModel.isKisSaving.collectAsState()
+
+    var showAppKey by remember { mutableStateOf(false) }
+    var showAppSecret by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Info card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Key,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "한국투자증권 KIS API 설정",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "ETF 구성종목 수집에 사용됩니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // App Key input
+        OutlinedTextField(
+            value = kisAppKey,
+            onValueChange = { viewModel.updateKisAppKey(it) },
+            label = { Text("App Key") },
+            placeholder = { Text("KIS 앱 키를 입력하세요") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (showAppKey) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { showAppKey = !showAppKey }) {
+                    Icon(
+                        imageVector = if (showAppKey) {
+                            Icons.Default.VisibilityOff
+                        } else {
+                            Icons.Default.Visibility
+                        },
+                        contentDescription = if (showAppKey) "숨기기" else "보기"
+                    )
+                }
+            },
+            enabled = !isSaving
+        )
+
+        // App Secret input
+        OutlinedTextField(
+            value = kisAppSecret,
+            onValueChange = { viewModel.updateKisAppSecret(it) },
+            label = { Text("App Secret") },
+            placeholder = { Text("KIS 앱 시크릿을 입력하세요") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (showAppSecret) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton(onClick = { showAppSecret = !showAppSecret }) {
+                    Icon(
+                        imageVector = if (showAppSecret) {
+                            Icons.Default.VisibilityOff
+                        } else {
+                            Icons.Default.Visibility
+                        },
+                        contentDescription = if (showAppSecret) "숨기기" else "보기"
+                    )
+                }
+            },
+            enabled = !isSaving
+        )
+
+        // Info card for KIS API
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Science,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "KIS API는 한국투자증권에서 발급받은 키입니다. " +
+                        "ETF 구성종목 조회를 위해 필요합니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+
+        // Save & Test button
+        Button(
+            onClick = { viewModel.saveAndTestKis() },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSaving && kisAppKey.isNotBlank() && kisAppSecret.isNotBlank()
         ) {
             if (isSaving) {
                 CircularProgressIndicator(
