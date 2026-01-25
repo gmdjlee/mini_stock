@@ -112,6 +112,7 @@ data class EtfConstituentParams(
 ) {
     fun toQueryParams(): Map<String, String> = mapOf(
         "fid_cond_mrkt_div_code" to "J",
-        "fid_input_iscd" to etfCode
+        "fid_input_iscd" to etfCode,
+        "fid_cond_scr_div_code" to "11216"
     )
 }

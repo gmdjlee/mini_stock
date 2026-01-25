@@ -175,7 +175,7 @@ class EtfCollectorRepoImpl @Inject constructor(
 
             kisApiClient.get(
                 trId = "FHKST121600C0",
-                url = "/uapi/etfetn/v1/quotations/inquire-component-stock",
+                url = "/uapi/etfetn/v1/quotations/inquire-component-stock-price",
                 queryParams = params.toQueryParams(),
                 config = kisConfig
             ) { responseJson ->
