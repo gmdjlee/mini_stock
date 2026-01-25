@@ -28,6 +28,9 @@ class CollectAllEtfDataUC @Inject constructor(
         cleanupDays: Int = 30,
         progressCallback: ((current: Int, total: Int) -> Unit)? = null
     ): FullCollectionResult {
+        // First, refresh ETF list from API to ensure database has ETF data
+        refreshEtfList()
+
         // Apply filter if provided
         filterConfig?.let {
             repo.applyKeywordFilter(it)
