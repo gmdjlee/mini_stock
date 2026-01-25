@@ -18,13 +18,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -66,8 +66,8 @@ private enum class ChangeFilter(
     ALL("전체", Icons.Default.SwapVert, null),
     NEWLY_INCLUDED("신규편입", Icons.Default.Add, StockChangeType.NEWLY_INCLUDED),
     REMOVED("편출", Icons.Default.Remove, StockChangeType.REMOVED),
-    WEIGHT_INCREASED("비중증가", Icons.Default.TrendingUp, StockChangeType.WEIGHT_INCREASED),
-    WEIGHT_DECREASED("비중감소", Icons.Default.TrendingDown, StockChangeType.WEIGHT_DECREASED)
+    WEIGHT_INCREASED("비중증가", Icons.AutoMirrored.Filled.TrendingUp, StockChangeType.WEIGHT_INCREASED),
+    WEIGHT_DECREASED("비중감소", Icons.AutoMirrored.Filled.TrendingDown, StockChangeType.WEIGHT_DECREASED)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -342,12 +342,12 @@ private fun ChangeItemCard(
             "편출"
         )
         StockChangeType.WEIGHT_INCREASED -> Triple(
-            Icons.Default.TrendingUp,
+            Icons.AutoMirrored.Filled.TrendingUp,
             extendedColors.danger,
             "비중증가"
         )
         StockChangeType.WEIGHT_DECREASED -> Triple(
-            Icons.Default.TrendingDown,
+            Icons.AutoMirrored.Filled.TrendingDown,
             extendedColors.info,
             "비중감소"
         )
