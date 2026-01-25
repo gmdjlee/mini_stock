@@ -17,6 +17,7 @@
 | App P3 | ⛔ 제거됨 | ~~시장 지표 + 조건검색~~ |
 | App P4 | ✅ 완료 | 설정 화면 (API 키, 투자 모드) |
 | App P5 | ✅ 완료 | 자동 스케줄링 (WorkManager) |
+| App P6 | ✅ 완료 | 순위정보 (Kotlin REST API 직접 호출) |
 
 > 🚀 **Android 앱은 현재 활성 개발 중입니다.** 모든 기능 추가, 버그 수정, 개선 작업은 StockApp에 적용됩니다.
 
@@ -35,8 +36,8 @@
 | Phase 4 | ✅ 완료 | market/deposit, search/condition | 통과 |
 | Phase 5 | ✅ 완료 | indicator/oscillator, chart/oscillator | 통과 |
 
-**총 테스트**: 160개 (11 테스트 파일)
-**코드 라인**: ~5,437 lines (28 Python 파일)
+**총 테스트**: 168개 (11 테스트 파일)
+**코드 라인**: ~6,200 lines (29 Python 파일)
 
 ### 1.2 현재 Python 의존성
 
@@ -220,7 +221,7 @@ dependencies {
     ksp("com.google.dagger:hilt-compiler:2.54")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
-    // Room
+    // Room (2.8.3)
     implementation("androidx.room:room-runtime:2.8.3")
     implementation("androidx.room:room-ktx:2.8.3")
     ksp("androidx.room:room-compiler:2.8.3")
@@ -528,8 +529,9 @@ python {
 - [x] 종목 검색 화면 (SearchScreen)
 - [x] 수급 분석 화면 (AnalysisScreen)
 - [x] 기술적 지표 화면 (IndicatorScreen)
-- [x] 설정 화면 (SettingsScreen) ⭐ NEW
-- [x] 자동 스케줄링 (SchedulingTab) ⭐ NEW
+- [x] 설정 화면 (SettingsScreen)
+- [x] 자동 스케줄링 (SchedulingTab)
+- [x] 순위정보 화면 (RankingScreen)
 - [ ] ~~시장 지표 화면~~ (제거됨)
 - [ ] ~~조건검색 화면~~ (제거됨)
 
