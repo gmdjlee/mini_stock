@@ -16,11 +16,18 @@ import com.stockapp.feature.etf.ui.detail.StockDetailData
 import com.stockapp.feature.etf.ui.detail.StockDetailState
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.etf.domain.repo.EtfRepository
+import com.stockapp.feature.etf.domain.model.DateRangeOption
+import com.stockapp.feature.etf.domain.usecase.CashDepositTrendResult
 import com.stockapp.feature.etf.domain.usecase.EnhancedStockRanking
+import com.stockapp.feature.etf.domain.usecase.GetCashDepositTrendUC
+import com.stockapp.feature.etf.domain.usecase.GetStockAnalysisUC
 import com.stockapp.feature.etf.domain.usecase.GetStockChangesUC
 import com.stockapp.feature.etf.domain.usecase.GetStockRankingUC
 import com.stockapp.feature.etf.domain.usecase.StockChangesResult
 import com.stockapp.feature.etf.domain.usecase.StockRankingResult
+import com.stockapp.feature.etf.ui.tabs.statistics.CashDepositState
+import com.stockapp.feature.etf.ui.tabs.statistics.StatisticsSubTab
+import com.stockapp.feature.etf.ui.tabs.statistics.StockAnalysisState
 import com.stockapp.feature.etf.worker.EtfCollectionWorker
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,8 +47,7 @@ import javax.inject.Inject
  */
 enum class EtfTab(val title: String) {
     COLLECTION_STATUS("수집현황"),
-    STOCK_RANKING("종목랭킹"),
-    STOCK_CHANGES("변동종목"),
+    STATISTICS("통계"),
     SETTINGS("설정")
 }
 
@@ -118,6 +124,8 @@ class EtfVm @Inject constructor(
     private val etfCollectorRepo: EtfCollectorRepo,
     private val getStockRankingUC: GetStockRankingUC,
     private val getStockChangesUC: GetStockChangesUC,
+    private val getCashDepositTrendUC: GetCashDepositTrendUC,
+    private val getStockAnalysisUC: GetStockAnalysisUC,
     private val settingsRepo: SettingsRepo,
     private val selectedStockManager: SelectedStockManager
 ) : ViewModel() {
@@ -179,6 +187,37 @@ class EtfVm @Inject constructor(
     private val _stockDetailState = MutableStateFlow<StockDetailState>(StockDetailState.Loading)
     val stockDetailState: StateFlow<StockDetailState> = _stockDetailState.asStateFlow()
 
+    // ==================== Statistics Tab States ====================
+
+    // Statistics sub-tab selection
+    private val _selectedSubTab = MutableStateFlow(StatisticsSubTab.AMOUNT_RANKING)
+    val selectedSubTab: StateFlow<StatisticsSubTab> = _selectedSubTab.asStateFlow()
+
+    // Date range selection
+    private val _selectedDateRange = MutableStateFlow(DateRangeOption.WEEK)
+    val selectedDateRange: StateFlow<DateRangeOption> = _selectedDateRange.asStateFlow()
+
+    // Date info for display
+    private val _currentDate = MutableStateFlow<String?>(null)
+    val currentDate: StateFlow<String?> = _currentDate.asStateFlow()
+
+    private val _previousDate = MutableStateFlow<String?>(null)
+    val previousDate: StateFlow<String?> = _previousDate.asStateFlow()
+
+    // Cash deposit state
+    private val _cashDepositState = MutableStateFlow<CashDepositState>(CashDepositState.Loading)
+    val cashDepositState: StateFlow<CashDepositState> = _cashDepositState.asStateFlow()
+
+    private val _isCashDepositRefreshing = MutableStateFlow(false)
+    val isCashDepositRefreshing: StateFlow<Boolean> = _isCashDepositRefreshing.asStateFlow()
+
+    // Stock analysis state
+    private val _stockAnalysisState = MutableStateFlow<StockAnalysisState>(StockAnalysisState.Initial)
+    val stockAnalysisState: StateFlow<StockAnalysisState> = _stockAnalysisState.asStateFlow()
+
+    private val _stockSearchQuery = MutableStateFlow("")
+    val stockSearchQuery: StateFlow<String> = _stockSearchQuery.asStateFlow()
+
     init {
         loadInitialData()
         observeWorkProgress()
@@ -188,6 +227,23 @@ class EtfVm @Inject constructor(
         loadSettings()
         loadRankingData()
         loadChangesData()
+        loadDateInfo()
+    }
+
+    private fun loadDateInfo() {
+        viewModelScope.launch {
+            try {
+                val latestDate = etfRepository.getLatestDate().getOrNull()
+                _currentDate.value = latestDate
+
+                if (latestDate != null) {
+                    val previousDate = etfRepository.getPreviousDate(latestDate).getOrNull()
+                    _previousDate.value = previousDate
+                }
+            } catch (e: Exception) {
+                // Date info load error is not critical
+            }
+        }
     }
 
     private fun loadSettings() {
@@ -210,10 +266,137 @@ class EtfVm @Inject constructor(
     fun selectTab(tab: EtfTab) {
         _selectedTab.value = tab
         when (tab) {
-            EtfTab.STOCK_RANKING -> if (_rankingState.value is RankingState.Loading) loadRankingData()
-            EtfTab.STOCK_CHANGES -> if (_changesState.value is ChangesState.Loading) loadChangesData()
+            EtfTab.STATISTICS -> {
+                // Load data based on current sub-tab
+                loadStatisticsData()
+            }
             else -> {}
         }
+    }
+
+    // ==================== Statistics Tab ====================
+
+    /**
+     * Select a statistics sub-tab.
+     */
+    fun selectSubTab(subTab: StatisticsSubTab) {
+        _selectedSubTab.value = subTab
+        loadSubTabData(subTab)
+    }
+
+    /**
+     * Select a date range for statistics.
+     */
+    fun selectDateRange(range: DateRangeOption) {
+        _selectedDateRange.value = range
+        loadSubTabData(_selectedSubTab.value)
+    }
+
+    private fun loadStatisticsData() {
+        // Load ranking and changes data for statistics
+        if (_rankingState.value is RankingState.Loading) loadRankingData()
+        if (_changesState.value is ChangesState.Loading) loadChangesData()
+        loadSubTabData(_selectedSubTab.value)
+    }
+
+    private fun loadSubTabData(subTab: StatisticsSubTab) {
+        when (subTab) {
+            StatisticsSubTab.AMOUNT_RANKING -> {
+                if (_rankingState.value is RankingState.Loading) loadRankingData()
+            }
+            StatisticsSubTab.NEWLY_INCLUDED,
+            StatisticsSubTab.REMOVED,
+            StatisticsSubTab.WEIGHT_INCREASED,
+            StatisticsSubTab.WEIGHT_DECREASED -> {
+                if (_changesState.value is ChangesState.Loading) loadChangesData()
+            }
+            StatisticsSubTab.CASH_DEPOSIT -> loadCashDepositData()
+            StatisticsSubTab.STOCK_ANALYSIS -> {
+                // Stock analysis is loaded on search, not on tab selection
+            }
+        }
+    }
+
+    /**
+     * Load cash deposit trend data.
+     */
+    private fun loadCashDepositData() {
+        viewModelScope.launch {
+            _cashDepositState.value = CashDepositState.Loading
+
+            getCashDepositTrendUC(_selectedDateRange.value).fold(
+                onSuccess = { result ->
+                    _currentDate.value = result.endDate
+                    _previousDate.value = result.startDate
+                    _cashDepositState.value = if (result.trend.isEmpty()) {
+                        CashDepositState.NoData
+                    } else {
+                        CashDepositState.Success(result)
+                    }
+                },
+                onFailure = { error ->
+                    _cashDepositState.value = if (error.message?.contains("데이터가 없습니다") == true) {
+                        CashDepositState.NoData
+                    } else {
+                        CashDepositState.Error(error.message ?: "데이터 로드 실패")
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Refresh cash deposit data.
+     */
+    fun refreshCashDeposit() {
+        viewModelScope.launch {
+            _isCashDepositRefreshing.value = true
+            loadCashDepositData()
+            _isCashDepositRefreshing.value = false
+        }
+    }
+
+    /**
+     * Update stock search query for analysis.
+     */
+    fun updateStockSearchQuery(query: String) {
+        _stockSearchQuery.value = query
+    }
+
+    /**
+     * Search and analyze a stock.
+     */
+    fun searchStock() {
+        val query = _stockSearchQuery.value.trim()
+        if (query.length < 2) {
+            _stockAnalysisState.value = StockAnalysisState.Initial
+            return
+        }
+
+        viewModelScope.launch {
+            _stockAnalysisState.value = StockAnalysisState.Loading
+
+            getStockAnalysisUC.search(query).fold(
+                onSuccess = { result ->
+                    _stockAnalysisState.value = StockAnalysisState.Success(result)
+                },
+                onFailure = { error ->
+                    _stockAnalysisState.value = if (error.message?.contains("찾을 수 없습니다") == true ||
+                        error.message?.contains("없습니다") == true) {
+                        StockAnalysisState.NotFound(query)
+                    } else {
+                        StockAnalysisState.Error(error.message ?: "분석 실패")
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Navigate to analysis screen from stock analysis tab.
+     */
+    fun navigateToAnalysisFromStock(stockCode: String, stockName: String) {
+        selectedStockManager.selectTicker(stockCode, stockName)
     }
 
     // ==================== Collection Tab ====================
