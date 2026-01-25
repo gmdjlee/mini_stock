@@ -1,6 +1,7 @@
 package com.stockapp.feature.etf.ui.tabs
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,6 +110,9 @@ fun StockChangesTab(
                     selectedFilter = selectedFilter,
                     onFilterChange = { selectedFilter = it },
                     onItemClick = { item ->
+                        viewModel.showStockDetail(item.stockCode, item.stockName)
+                    },
+                    onItemLongClick = { item ->
                         viewModel.onRankingItemClick(
                             com.stockapp.feature.etf.domain.usecase.EnhancedStockRanking(
                                 rank = item.rank,
@@ -134,7 +138,8 @@ private fun ChangesContent(
     result: StockChangesResult,
     selectedFilter: ChangeFilter,
     onFilterChange: (ChangeFilter) -> Unit,
-    onItemClick: (EnhancedStockChange) -> Unit
+    onItemClick: (EnhancedStockChange) -> Unit,
+    onItemLongClick: (EnhancedStockChange) -> Unit
 ) {
     val extendedColors = LocalExtendedColors.current
 
@@ -274,7 +279,8 @@ private fun ChangesContent(
             items(filteredItems) { item ->
                 ChangeItemCard(
                     item = item,
-                    onClick = { onItemClick(item) }
+                    onClick = { onItemClick(item) },
+                    onLongClick = { onItemLongClick(item) }
                 )
             }
         }
@@ -315,10 +321,12 @@ private fun SummaryBadge(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChangeItemCard(
     item: EnhancedStockChange,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     val extendedColors = LocalExtendedColors.current
 
@@ -349,7 +357,10 @@ private fun ChangeItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         Row(
             modifier = Modifier

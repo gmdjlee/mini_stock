@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.stockapp.core.theme.ThemeToggleButton
+import com.stockapp.feature.etf.ui.detail.StockDetailBottomSheet
 import com.stockapp.feature.etf.ui.tabs.CollectionStatusTab
 import com.stockapp.feature.etf.ui.tabs.EtfSettingsTab
 import com.stockapp.feature.etf.ui.tabs.StockChangesTab
@@ -28,6 +29,31 @@ fun EtfScreen(
     viewModel: EtfVm = hiltViewModel()
 ) {
     val selectedTab by viewModel.selectedTab.collectAsState()
+    val showStockDetail by viewModel.showStockDetail.collectAsState()
+    val stockDetailState by viewModel.stockDetailState.collectAsState()
+
+    // Stock detail bottom sheet
+    if (showStockDetail) {
+        StockDetailBottomSheet(
+            state = stockDetailState,
+            onDismiss = { viewModel.hideStockDetail() },
+            onNavigateToAnalysis = { stockCode, stockName ->
+                viewModel.onRankingItemClick(
+                    com.stockapp.feature.etf.domain.usecase.EnhancedStockRanking(
+                        rank = 0,
+                        stockCode = stockCode,
+                        stockName = stockName,
+                        totalAmount = 0L,
+                        etfCount = 0,
+                        previousAmount = null,
+                        amountChange = null,
+                        isNew = false
+                    )
+                )
+                onStockClick()
+            }
+        )
+    }
 
     Scaffold(
         topBar = {

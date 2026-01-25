@@ -1,6 +1,7 @@
 package com.stockapp.feature.etf.ui.tabs
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +81,9 @@ fun StockRankingTab(
                 RankingContent(
                     result = state.result,
                     onItemClick = { item ->
+                        viewModel.showStockDetail(item.stockCode, item.stockName)
+                    },
+                    onItemLongClick = { item ->
                         viewModel.onRankingItemClick(item)
                         onStockClick()
                     }
@@ -92,7 +96,8 @@ fun StockRankingTab(
 @Composable
 private fun RankingContent(
     result: com.stockapp.feature.etf.domain.usecase.StockRankingResult,
-    onItemClick: (EnhancedStockRanking) -> Unit
+    onItemClick: (EnhancedStockRanking) -> Unit,
+    onItemLongClick: (EnhancedStockRanking) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize()
@@ -143,7 +148,8 @@ private fun RankingContent(
         items(result.rankings) { item ->
             RankingRow(
                 item = item,
-                onClick = { onItemClick(item) }
+                onClick = { onItemClick(item) },
+                onLongClick = { onItemLongClick(item) }
             )
             HorizontalDivider()
         }
@@ -204,10 +210,12 @@ private fun RankingTableHeader() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RankingRow(
     item: EnhancedStockRanking,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {}
 ) {
     val extendedColors = LocalExtendedColors.current
     val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
@@ -215,7 +223,10 @@ private fun RankingRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

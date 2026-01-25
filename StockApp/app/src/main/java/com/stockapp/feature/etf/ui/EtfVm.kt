@@ -8,9 +8,12 @@ import androidx.work.WorkManager
 import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
 import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.etf.domain.model.CollectionStatus
+import com.stockapp.feature.etf.domain.model.EtfConstituent
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.FilterType
+import com.stockapp.feature.etf.ui.detail.StockDetailData
+import com.stockapp.feature.etf.ui.detail.StockDetailState
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.etf.domain.repo.EtfRepository
 import com.stockapp.feature.etf.domain.usecase.EnhancedStockRanking
@@ -168,6 +171,13 @@ class EtfVm @Inject constructor(
     // Error state
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // Stock detail bottom sheet state
+    private val _showStockDetail = MutableStateFlow(false)
+    val showStockDetail: StateFlow<Boolean> = _showStockDetail.asStateFlow()
+
+    private val _stockDetailState = MutableStateFlow<StockDetailState>(StockDetailState.Loading)
+    val stockDetailState: StateFlow<StockDetailState> = _stockDetailState.asStateFlow()
 
     init {
         loadInitialData()
@@ -418,6 +428,69 @@ class EtfVm @Inject constructor(
 
     fun clearError() {
         _error.value = null
+    }
+
+    // ==================== Stock Detail ====================
+
+    /**
+     * Show stock detail bottom sheet and load data.
+     */
+    fun showStockDetail(stockCode: String, stockName: String) {
+        _showStockDetail.value = true
+        loadStockDetailData(stockCode, stockName)
+    }
+
+    /**
+     * Hide stock detail bottom sheet.
+     */
+    fun hideStockDetail() {
+        _showStockDetail.value = false
+    }
+
+    private fun loadStockDetailData(stockCode: String, stockName: String) {
+        viewModelScope.launch {
+            _stockDetailState.value = StockDetailState.Loading
+
+            try {
+                // Load amount history
+                val amountHistoryResult = etfRepository.getStockAmountHistory(stockCode)
+                val amountHistory = amountHistoryResult.getOrNull() ?: emptyList()
+
+                // Load weight history
+                val weightHistoryResult = etfRepository.getStockWeightHistory(stockCode)
+                val weightHistory = weightHistoryResult.getOrNull() ?: emptyList()
+
+                // Load containing ETFs (from latest date)
+                val latestDate = etfRepository.getLatestDate().getOrNull()
+                val containingEtfs: List<EtfConstituent> = if (latestDate != null) {
+                    val constituents = etfRepository.getConstituentsByDate(latestDate).getOrNull() ?: emptyList()
+                    constituents.filter { it.stockCode == stockCode }
+                } else {
+                    emptyList()
+                }
+
+                _stockDetailState.value = StockDetailState.Success(
+                    StockDetailData(
+                        stockCode = stockCode,
+                        stockName = stockName,
+                        amountHistory = amountHistory,
+                        weightHistory = weightHistory,
+                        containingEtfs = containingEtfs
+                    )
+                )
+            } catch (e: Exception) {
+                _stockDetailState.value = StockDetailState.Error(
+                    e.message ?: "데이터를 불러오는데 실패했습니다"
+                )
+            }
+        }
+    }
+
+    /**
+     * Handle ranking item click - show detail instead of navigating to Analysis.
+     */
+    fun onRankingItemDetailClick(item: EnhancedStockRanking) {
+        showStockDetail(item.stockCode, item.stockName)
     }
 
     // ==================== Helper ====================
