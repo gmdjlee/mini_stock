@@ -19,8 +19,7 @@ import com.stockapp.core.theme.ThemeToggleButton
 import com.stockapp.feature.etf.ui.detail.StockDetailBottomSheet
 import com.stockapp.feature.etf.ui.tabs.CollectionStatusTab
 import com.stockapp.feature.etf.ui.tabs.EtfSettingsTab
-import com.stockapp.feature.etf.ui.tabs.StockChangesTab
-import com.stockapp.feature.etf.ui.tabs.StockRankingTab
+import com.stockapp.feature.etf.ui.tabs.statistics.StatisticsHubContent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +30,16 @@ fun EtfScreen(
     val selectedTab by viewModel.selectedTab.collectAsState()
     val showStockDetail by viewModel.showStockDetail.collectAsState()
     val stockDetailState by viewModel.stockDetailState.collectAsState()
+
+    // Statistics tab states
+    val selectedSubTab by viewModel.selectedSubTab.collectAsState()
+    val selectedDateRange by viewModel.selectedDateRange.collectAsState()
+    val currentDate by viewModel.currentDate.collectAsState()
+    val previousDate by viewModel.previousDate.collectAsState()
+    val cashDepositState by viewModel.cashDepositState.collectAsState()
+    val isCashDepositRefreshing by viewModel.isCashDepositRefreshing.collectAsState()
+    val stockAnalysisState by viewModel.stockAnalysisState.collectAsState()
+    val stockSearchQuery by viewModel.stockSearchQuery.collectAsState()
 
     // Stock detail bottom sheet
     if (showStockDetail) {
@@ -87,13 +96,26 @@ fun EtfScreen(
                 EtfTab.COLLECTION_STATUS -> CollectionStatusTab(
                     viewModel = viewModel
                 )
-                EtfTab.STOCK_RANKING -> StockRankingTab(
+                EtfTab.STATISTICS -> StatisticsHubContent(
                     viewModel = viewModel,
-                    onStockClick = onStockClick
-                )
-                EtfTab.STOCK_CHANGES -> StockChangesTab(
-                    viewModel = viewModel,
-                    onStockClick = onStockClick
+                    selectedSubTab = selectedSubTab,
+                    onSubTabSelected = { viewModel.selectSubTab(it) },
+                    selectedDateRange = selectedDateRange,
+                    onDateRangeSelected = { viewModel.selectDateRange(it) },
+                    currentDate = currentDate,
+                    previousDate = previousDate,
+                    onStockClick = onStockClick,
+                    onNavigateToAnalysis = { stockCode, stockName ->
+                        viewModel.navigateToAnalysisFromStock(stockCode, stockName)
+                        onStockClick()
+                    },
+                    cashDepositState = cashDepositState,
+                    isCashDepositRefreshing = isCashDepositRefreshing,
+                    onCashDepositRefresh = { viewModel.refreshCashDeposit() },
+                    stockAnalysisState = stockAnalysisState,
+                    stockSearchQuery = stockSearchQuery,
+                    onStockSearchQueryChange = { viewModel.updateStockSearchQuery(it) },
+                    onStockSearch = { viewModel.searchStock() }
                 )
                 EtfTab.SETTINGS -> EtfSettingsTab(
                     viewModel = viewModel
