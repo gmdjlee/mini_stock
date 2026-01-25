@@ -253,10 +253,23 @@ data class WeightHistory(
  * ETF filter configuration.
  */
 data class EtfFilterConfig(
-    val activeOnly: Boolean = false,
-    val includeKeywords: List<String> = emptyList(),
-    val excludeKeywords: List<String> = listOf("레버리지", "인버스", "2X", "3X")
-)
+    val activeOnly: Boolean = true,
+    val includeKeywords: List<String> = DEFAULT_INCLUDE_KEYWORDS,
+    val excludeKeywords: List<String> = DEFAULT_EXCLUDE_KEYWORDS
+) {
+    companion object {
+        val DEFAULT_INCLUDE_KEYWORDS = listOf(
+            "반도체", "수급", "배당", "신재생", "2차전지", "이노베이션",
+            "AI", "인프라", "소비", "코스피", "친환경", "테크",
+            "수출", "로봇", "컬처", "밸류업", "바이오", "헬스케어"
+        )
+        val DEFAULT_EXCLUDE_KEYWORDS = listOf(
+            "인버스", "레버리지", "곱버스", "2X", "3X",
+            "차이나", "채권", "달러", "아시아", "미국", "일본",
+            "금리", "금융채", "회사채", "China"
+        )
+    }
+}
 
 // ==================== ETF Statistics Models (Phase 2) ====================
 

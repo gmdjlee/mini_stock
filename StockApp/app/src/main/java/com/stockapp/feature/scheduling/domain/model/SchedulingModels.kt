@@ -51,6 +51,8 @@ data class SyncHistory(
     val stockCount: Int = 0,
     val analysisCount: Int = 0,
     val indicatorCount: Int = 0,
+    val etfCount: Int = 0,
+    val etfConstituentCount: Int = 0,
     val errorMessage: String? = null,
     val durationMs: Long = 0,
     val syncedAt: Long = System.currentTimeMillis()
@@ -74,6 +76,8 @@ data class SyncResult(
     val stockCount: Int = 0,
     val analysisCount: Int = 0,
     val indicatorCount: Int = 0,
+    val etfCount: Int = 0,
+    val etfConstituentCount: Int = 0,
     val errorMessage: String? = null,
     val durationMs: Long = 0
 )

@@ -1,20 +1,10 @@
 package com.stockapp.feature.settings.ui
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
-import com.stockapp.feature.etf.domain.model.CollectionStatus
-import com.stockapp.feature.etf.domain.model.EtfFilterConfig
-import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.FilterType
-import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.etf.domain.repo.EtfRepository
-import com.stockapp.feature.etf.worker.EtfCollectionWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,11 +14,15 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
+/**
+ * ViewModel for ETF settings tab.
+ * Manages keyword filtering and data management.
+ *
+ * Note: Auto-collection scheduling has been moved to SchedulingVm.
+ */
 @HiltViewModel
 class EtfSettingsVm @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val etfRepository: EtfRepository,
-    private val etfCollectorRepo: EtfCollectorRepo
+    private val etfRepository: EtfRepository
 ) : ViewModel() {
 
     // Main UI state
@@ -36,9 +30,6 @@ class EtfSettingsVm @Inject constructor(
     val uiState: StateFlow<EtfSettingsUiState> = _uiState.asStateFlow()
 
     // Dialog states
-    private val _showTimePicker = MutableStateFlow(false)
-    val showTimePicker: StateFlow<Boolean> = _showTimePicker.asStateFlow()
-
     private val _showAddKeywordDialog = MutableStateFlow(false)
     val showAddKeywordDialog: StateFlow<Boolean> = _showAddKeywordDialog.asStateFlow()
 
@@ -51,8 +42,6 @@ class EtfSettingsVm @Inject constructor(
     init {
         loadInitialData()
         observeKeywords()
-        observeCollectionHistory()
-        observeWorkProgress()
     }
 
     private fun loadInitialData() {
@@ -62,15 +51,6 @@ class EtfSettingsVm @Inject constructor(
 
             // Load filter preview
             loadFilterPreview()
-
-            // Get last collection time from history
-            etfRepository.getRecentHistory(1).fold(
-                onSuccess = { history ->
-                    val latest = history.firstOrNull()
-                    _uiState.update { it.copy(lastCollectionTime = latest?.completedAt) }
-                },
-                onFailure = { /* ignore */ }
-            )
         }
     }
 
@@ -84,16 +64,6 @@ class EtfSettingsVm @Inject constructor(
                         includeKeywords = includeKeywords,
                         excludeKeywords = excludeKeywords
                     )
-                }
-            }
-        }
-    }
-
-    private fun observeCollectionHistory() {
-        viewModelScope.launch {
-            etfCollectorRepo.observeCollectionHistory(10).collect { historyList ->
-                _uiState.update {
-                    it.copy(collectionHistory = historyList.map { entity -> entity.toUiItem() })
                 }
             }
         }
@@ -172,94 +142,7 @@ class EtfSettingsVm @Inject constructor(
         }
     }
 
-    // ==================== Collection ====================
-
-    fun startManualCollection() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(collectionState = CollectionUiState.Collecting(0, 0)) }
-
-            val currentState = _uiState.value
-            val filterConfig = EtfFilterConfig(
-                activeOnly = currentState.activeOnly,
-                includeKeywords = currentState.includeKeywords.map { it.keyword },
-                excludeKeywords = currentState.excludeKeywords.map { it.keyword }
-            )
-
-            // Start background worker
-            EtfCollectionWorker.collectNow(context, filterConfig)
-        }
-    }
-
-    private fun observeWorkProgress() {
-        viewModelScope.launch {
-            WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWorkFlow(EtfCollectionWorker.WORK_NAME_ONCE)
-                .collect { workInfos ->
-                    val workInfo = workInfos.firstOrNull() ?: return@collect
-
-                    when (workInfo.state) {
-                        WorkInfo.State.RUNNING -> {
-                            val current = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_CURRENT, 0)
-                            val total = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_TOTAL, 0)
-                            _uiState.update { it.copy(collectionState = CollectionUiState.Collecting(current, total)) }
-                        }
-                        WorkInfo.State.SUCCEEDED -> {
-                            val etfCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_ETF_COUNT, 0)
-                            val constituentCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_CONSTITUENT_COUNT, 0)
-                            _uiState.update {
-                                it.copy(
-                                    collectionState = CollectionUiState.Success(etfCount, constituentCount),
-                                    lastCollectionTime = System.currentTimeMillis()
-                                )
-                            }
-                            // Reload statistics
-                            loadDataStatistics()
-                        }
-                        WorkInfo.State.FAILED -> {
-                            val error = workInfo.outputData.getString(EtfCollectionWorker.KEY_RESULT_ERROR)
-                                ?: "수집 실패"
-                            _uiState.update { it.copy(collectionState = CollectionUiState.Error(error)) }
-                        }
-                        WorkInfo.State.CANCELLED -> {
-                            _uiState.update { it.copy(collectionState = CollectionUiState.Idle) }
-                        }
-                        else -> {}
-                    }
-                }
-        }
-    }
-
     // ==================== Settings ====================
-
-    fun setAutoCollectionEnabled(enabled: Boolean) {
-        _uiState.update { it.copy(isAutoCollectionEnabled = enabled) }
-
-        if (enabled) {
-            val currentState = _uiState.value
-            EtfCollectionWorker.scheduleDailyCollection(
-                context = context,
-                hour = currentState.collectionHour,
-                minute = currentState.collectionMinute,
-                filterConfig = EtfFilterConfig(
-                    activeOnly = currentState.activeOnly,
-                    includeKeywords = currentState.includeKeywords.map { it.keyword },
-                    excludeKeywords = currentState.excludeKeywords.map { it.keyword }
-                )
-            )
-        } else {
-            EtfCollectionWorker.cancelScheduledCollection(context)
-        }
-    }
-
-    fun setCollectionTime(hour: Int, minute: Int) {
-        _uiState.update { it.copy(collectionHour = hour, collectionMinute = minute) }
-        hideTimePicker()
-
-        // Reschedule if enabled
-        if (_uiState.value.isAutoCollectionEnabled) {
-            setAutoCollectionEnabled(true)
-        }
-    }
 
     fun setActiveOnly(activeOnly: Boolean) {
         _uiState.update { it.copy(activeOnly = activeOnly) }
@@ -302,7 +185,13 @@ class EtfSettingsVm @Inject constructor(
 
     fun cleanupOldData() {
         viewModelScope.launch {
-            val cutoffDate = LocalDate.now().minusDays(_uiState.value.dataRetentionDays.toLong())
+            val retentionDays = _uiState.value.dataRetentionDays
+            if (retentionDays == -1) {
+                // Unlimited retention - no cleanup needed
+                return@launch
+            }
+
+            val cutoffDate = LocalDate.now().minusDays(retentionDays.toLong())
                 .format(DateTimeFormatter.ISO_LOCAL_DATE)
 
             etfRepository.deleteOldConstituents(cutoffDate).fold(
@@ -338,14 +227,6 @@ class EtfSettingsVm @Inject constructor(
 
     // ==================== Dialog Management ====================
 
-    fun showTimePicker() {
-        _showTimePicker.value = true
-    }
-
-    fun hideTimePicker() {
-        _showTimePicker.value = false
-    }
-
     fun showAddKeywordDialog(type: FilterType) {
         _addKeywordType.value = type
         _showAddKeywordDialog.value = true
@@ -365,24 +246,5 @@ class EtfSettingsVm @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
-    }
-
-    // ==================== Helpers ====================
-
-    private fun EtfCollectionHistoryEntity.toUiItem(): EtfCollectionHistoryUiItem {
-        val duration = completedAt?.let { (it - startedAt) / 1000 }
-        return EtfCollectionHistoryUiItem(
-            id = id,
-            collectionType = if (status == CollectionStatus.IN_PROGRESS.value) "진행 중" else "수동",
-            status = CollectionStatus.fromValue(status),
-            etfCount = totalEtfs,
-            constituentCount = totalConstituents,
-            errorMessage = errorMessage,
-            startedAt = startedAt,
-            completedAt = completedAt,
-            durationDisplay = duration?.let {
-                if (it >= 60) "${it / 60}분 ${it % 60}초" else "${it}초"
-            }
-        )
     }
 }
