@@ -26,11 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.stockapp.core.ui.theme.extendedShapes
 import com.stockapp.core.ui.theme.spacing
 
 /**
  * Idle card for empty states with action hint.
- * Based on EtfMonitor_Rel design system.
+ * Based on DESIGN_SYSTEM_SPEC.md v1.0.0
  *
  * @param title Title text
  * @param message Description message
@@ -46,6 +47,7 @@ fun IdleCard(
 ) {
     OutlinedCard(
         modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.extendedShapes.cardMedium,
         border = BorderStroke(
             width = 1.dp,
             color = MaterialTheme.colorScheme.outlineVariant
@@ -171,6 +173,7 @@ fun StatRow(
 
 /**
  * Info card for displaying information with optional icon.
+ * Based on DESIGN_SYSTEM_SPEC.md v1.0.0
  *
  * @param title Title text
  * @param message Message text
@@ -186,6 +189,7 @@ fun InfoCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.extendedShapes.cardSmall,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         )
