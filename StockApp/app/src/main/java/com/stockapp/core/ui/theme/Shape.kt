@@ -21,72 +21,45 @@ val Shapes = Shapes(
 )
 
 /**
- * Extended shape system for StockApp.
- * Provides specialized shapes beyond Material Design 3 defaults.
- *
- * Usage:
- * ```
- * Card(shape = MaterialTheme.extendedShapes.card)
- * Button(shape = MaterialTheme.extendedShapes.button)
- * ```
+ * Extended shape system for StockApp beyond Material Design 3 defaults.
  */
 @Immutable
 data class ExtendedShapes(
-    // Card Shapes
-    /** Standard card corners - 32dp */
+    // Cards
     val card: Shape = RoundedCornerShape(32.dp),
-    /** Large cards - 32dp */
-    val cardLarge: Shape = RoundedCornerShape(32.dp),
-    /** Medium cards - 24dp */
+    val cardLarge: Shape = card,
     val cardMedium: Shape = RoundedCornerShape(24.dp),
-    /** Small cards - 16dp */
     val cardSmall: Shape = RoundedCornerShape(16.dp),
+    val aiInsightsCard: Shape = card,
 
-    // Button Shapes
-    /** Pill-shaped buttons - 100dp */
+    // Buttons (pill-shaped)
     val button: Shape = RoundedCornerShape(100.dp),
-    /** Outlined buttons - 100dp */
-    val buttonOutlined: Shape = RoundedCornerShape(100.dp),
-    /** Large buttons - 100dp */
-    val buttonLarge: Shape = RoundedCornerShape(100.dp),
+    val buttonOutlined: Shape = button,
+    val buttonLarge: Shape = button,
 
-    // Dialog & Sheet Shapes
-    /** Dialog boxes - 28dp */
+    // Dialogs & Sheets
     val dialog: Shape = RoundedCornerShape(28.dp),
-    /** Bottom sheet (top corners only) - 32dp */
     val bottomSheet: Shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
 
-    // Chip Shapes
-    /** Pill-shaped chips - 100dp */
+    // Chips
     val chip: Shape = RoundedCornerShape(100.dp),
-    /** Filter chips - 100dp */
-    val filterChip: Shape = RoundedCornerShape(100.dp),
-    /** Status chips - 8dp */
+    val filterChip: Shape = chip,
     val statusChip: Shape = RoundedCornerShape(8.dp),
 
-    // Specialized Shapes
-    /** Floating action buttons - 16dp */
+    // FAB
     val fab: Shape = RoundedCornerShape(16.dp),
-    /** Extended FAB - 100dp */
     val fabExtended: Shape = RoundedCornerShape(100.dp),
-    /** Search bars (pill) - 100dp */
+
+    // Other
     val searchBar: Shape = RoundedCornerShape(100.dp),
-    /** Status badges - 8dp */
     val badge: Shape = RoundedCornerShape(8.dp),
-    /** List item backgrounds - 16dp */
     val listItem: Shape = RoundedCornerShape(16.dp),
-    /** AI insights card - 32dp */
-    val aiInsightsCard: Shape = RoundedCornerShape(32.dp),
-    /** Icon containers - 16dp */
     val iconContainer: Shape = RoundedCornerShape(16.dp),
-    /** Circular elements */
     val circle: Shape = CircleShape,
 
-    // Input Shapes
-    /** Text fields - 8dp */
+    // Inputs
     val textField: Shape = RoundedCornerShape(8.dp),
-    /** Text field outlined - 8dp */
-    val textFieldOutlined: Shape = RoundedCornerShape(8.dp)
+    val textFieldOutlined: Shape = textField
 )
 
 /**
