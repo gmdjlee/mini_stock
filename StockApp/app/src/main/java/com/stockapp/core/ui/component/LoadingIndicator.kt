@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import com.stockapp.core.ui.theme.extendedShapes
+import com.stockapp.core.ui.theme.motion
 import com.stockapp.core.ui.theme.spacing
 
 /**
@@ -57,7 +59,12 @@ fun LoadingIndicator(
 
 /**
  * Loading card with breathing animation.
- * Based on EtfMonitor_Rel design system.
+ * Based on DESIGN_SYSTEM_SPEC.md v1.0.0
+ *
+ * Features:
+ * - Pulsing alpha animation (1200ms cycle using Motion system)
+ * - CircularProgressIndicator (56dp as per spec)
+ * - Uses surfaceContainerHigh background
  *
  * @param message Loading message to display
  * @param modifier Modifier for the card
@@ -67,13 +74,14 @@ fun LoadingCard(
     message: String = "데이터 분석 중...",
     modifier: Modifier = Modifier
 ) {
-    // Breathing animation (1200ms cycle)
+    // Breathing animation (1200ms cycle) using Motion system
+    val motion = MaterialTheme.motion
     val infiniteTransition = rememberInfiniteTransition(label = "breathing")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200),
+            animation = tween(durationMillis = motion.durationExtraLong2), // 800ms
             repeatMode = RepeatMode.Reverse
         ),
         label = "alpha"
@@ -83,8 +91,9 @@ fun LoadingCard(
         modifier = modifier
             .fillMaxWidth()
             .alpha(alpha),
+        shape = MaterialTheme.extendedShapes.cardMedium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
         Column(
@@ -94,9 +103,9 @@ fun LoadingCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             CircularProgressIndicator(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(56.dp), // 56dp as per spec
                 color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 3.dp
+                strokeWidth = 4.dp
             )
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.md))
             Text(

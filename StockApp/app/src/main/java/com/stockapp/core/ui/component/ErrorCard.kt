@@ -23,11 +23,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.stockapp.core.ui.theme.extendedShapes
 import com.stockapp.core.ui.theme.spacing
 
 /**
  * Error card with retry and dismiss options.
- * Based on EtfMonitor_Rel design system.
+ * Based on DESIGN_SYSTEM_SPEC.md v1.0.0
+ *
+ * Features:
+ * - Error icon + message + optional close button
+ * - Uses errorContainer background
+ * - Extended card shape
  *
  * @param code Error code to display
  * @param message Error message
@@ -45,6 +51,7 @@ fun ErrorCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.extendedShapes.cardMedium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
