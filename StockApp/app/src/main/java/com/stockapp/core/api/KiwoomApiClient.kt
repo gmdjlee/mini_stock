@@ -225,6 +225,7 @@ class KiwoomApiClient @Inject constructor(
     /**
      * Fetch all pages of a paginated API call.
      * Automatically continues fetching while hasNext is true.
+     * Returns partial results if a page fetch fails after collecting some data.
      *
      * @param apiId API identifier
      * @param url API endpoint path
@@ -233,6 +234,7 @@ class KiwoomApiClient @Inject constructor(
      * @param secretKey Kiwoom API secret key
      * @param baseUrl API base URL
      * @param maxPages Maximum number of pages to fetch (default: 10, for safety)
+     * @param paginationDelayMs Extra delay between pagination calls (default: 1000ms)
      * @param parser Function to parse response JSON string to a List
      */
     suspend fun <T> callAllPages(
@@ -243,6 +245,7 @@ class KiwoomApiClient @Inject constructor(
         secretKey: String,
         baseUrl: String,
         maxPages: Int = 10,
+        paginationDelayMs: Long = PAGINATION_DELAY_MS,
         parser: (String) -> List<T>
     ): Result<List<T>> = withContext(Dispatchers.IO) {
         val allItems = mutableListOf<T>()
@@ -251,7 +254,8 @@ class KiwoomApiClient @Inject constructor(
         var pageCount = 0
 
         while (pageCount < maxPages) {
-            val result = callPaginated(
+            // Fetch page with retry for rate limit errors
+            val result = fetchPageWithRetry(
                 apiId = apiId,
                 url = url,
                 body = body,
@@ -264,6 +268,12 @@ class KiwoomApiClient @Inject constructor(
             )
 
             val paginatedResponse = result.getOrElse { error ->
+                // On failure, return partial results if we have any data
+                if (allItems.isNotEmpty()) {
+                    Log.w(TAG, "Pagination failed after $pageCount pages, returning ${allItems.size} partial results. Error: ${error.message}")
+                    return@withContext Result.success(allItems)
+                }
+                // If no data collected yet, return the failure
                 return@withContext Result.failure(error)
             }
 
@@ -280,6 +290,9 @@ class KiwoomApiClient @Inject constructor(
 
             contYn = "Y"
             nextKey = paginatedResponse.pagination.nextKey ?: ""
+
+            // Extra delay between pagination calls to avoid rate limiting
+            delay(paginationDelayMs)
         }
 
         if (pageCount >= maxPages) {
@@ -287,6 +300,61 @@ class KiwoomApiClient @Inject constructor(
         }
 
         Result.success(allItems)
+    }
+
+    /**
+     * Fetch a single page with retry logic for rate limit errors (429).
+     */
+    private suspend fun <T> fetchPageWithRetry(
+        apiId: String,
+        url: String,
+        body: Map<String, String>,
+        appKey: String,
+        secretKey: String,
+        baseUrl: String,
+        contYn: String,
+        nextKey: String,
+        maxRetries: Int = MAX_RATE_LIMIT_RETRIES,
+        parser: (String) -> T
+    ): Result<PaginatedResponse<T>> {
+        var lastError: Throwable? = null
+        var retryCount = 0
+
+        while (retryCount <= maxRetries) {
+            val result = callPaginated(
+                apiId = apiId,
+                url = url,
+                body = body,
+                appKey = appKey,
+                secretKey = secretKey,
+                baseUrl = baseUrl,
+                contYn = contYn,
+                nextKey = nextKey,
+                parser = parser
+            )
+
+            result.fold(
+                onSuccess = { return Result.success(it) },
+                onFailure = { error ->
+                    lastError = error
+                    // Check if it's a rate limit error (429)
+                    val isRateLimitError = error is ApiError.ApiCallError &&
+                        (error.code == 429 || error.code == 5)
+
+                    if (isRateLimitError && retryCount < maxRetries) {
+                        val backoffMs = RATE_LIMIT_BACKOFF_MS * (retryCount + 1)
+                        Log.w(TAG, "Rate limit hit, retrying in ${backoffMs}ms (attempt ${retryCount + 1}/$maxRetries)")
+                        delay(backoffMs)
+                        retryCount++
+                    } else {
+                        // Non-retriable error or max retries reached
+                        return Result.failure(error)
+                    }
+                }
+            )
+        }
+
+        return Result.failure(lastError ?: ApiError.ApiCallError(0, "Unknown error after retries"))
     }
 
     /**
@@ -319,5 +387,12 @@ class KiwoomApiClient @Inject constructor(
 
     companion object {
         private const val TAG = "KiwoomApiClient"
+
+        // Pagination delay between consecutive page fetches (ms)
+        private const val PAGINATION_DELAY_MS = 1000L
+
+        // Rate limit retry settings
+        private const val MAX_RATE_LIMIT_RETRIES = 3
+        private const val RATE_LIMIT_BACKOFF_MS = 2000L
     }
 }
