@@ -49,7 +49,7 @@ sealed class ApiError(override val message: String) : Exception(message) {
     class AuthError(msg: String) : ApiError(msg)
     class NetworkError(msg: String) : ApiError(msg)
     class RateLimitError(msg: String) : ApiError(msg)
-    class ApiCallError(code: Int, msg: String) : ApiError("[$code] $msg")
+    class ApiCallError(val code: Int, msg: String) : ApiError("[$code] $msg")
     class ParseError(msg: String) : ApiError(msg)
     class TimeoutError(msg: String) : ApiError(msg)
     class NoApiKeyError(
