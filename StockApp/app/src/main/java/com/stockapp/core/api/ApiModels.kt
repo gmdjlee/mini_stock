@@ -25,6 +25,24 @@ data class TokenResponse(
 )
 
 /**
+ * Pagination information from API response headers.
+ * Used for Kiwoom REST API continuation queries.
+ */
+data class PaginationInfo(
+    val hasNext: Boolean,
+    val nextKey: String?
+)
+
+/**
+ * API response with pagination support.
+ * @param T The type of parsed data
+ */
+data class PaginatedResponse<T>(
+    val data: T,
+    val pagination: PaginationInfo
+)
+
+/**
  * API call errors.
  */
 sealed class ApiError(override val message: String) : Exception(message) {
