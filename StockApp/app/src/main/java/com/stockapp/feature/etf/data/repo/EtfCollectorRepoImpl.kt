@@ -69,7 +69,7 @@ class EtfCollectorRepoImpl @Inject constructor(
                 appKey = config.appKey,
                 secretKey = config.secretKey,
                 baseUrl = config.baseUrl,
-                maxPages = 20  // Allow up to 20 pages for ETF list
+                maxPages = 20
             ) { responseJson ->
                 parseEtfListResponse(responseJson)
             }

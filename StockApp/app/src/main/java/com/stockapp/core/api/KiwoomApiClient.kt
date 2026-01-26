@@ -232,8 +232,8 @@ class KiwoomApiClient @Inject constructor(
      * @param appKey Kiwoom API app key
      * @param secretKey Kiwoom API secret key
      * @param baseUrl API base URL
-     * @param parser Function to parse response JSON string to a List
      * @param maxPages Maximum number of pages to fetch (default: 10, for safety)
+     * @param parser Function to parse response JSON string to a List
      */
     suspend fun <T> callAllPages(
         apiId: String,
@@ -242,8 +242,8 @@ class KiwoomApiClient @Inject constructor(
         appKey: String,
         secretKey: String,
         baseUrl: String,
-        parser: (String) -> List<T>,
-        maxPages: Int = 10
+        maxPages: Int = 10,
+        parser: (String) -> List<T>
     ): Result<List<T>> = withContext(Dispatchers.IO) {
         val allItems = mutableListOf<T>()
         var contYn = ""
