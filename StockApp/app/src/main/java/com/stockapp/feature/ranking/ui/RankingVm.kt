@@ -171,7 +171,7 @@ class RankingVm @Inject constructor(
         val filteredItems = fullResult.items
             .let { items ->
                 if (_excludeEtf.value) {
-                    items.filterNot { it.name.contains("ETF", ignoreCase = true) }
+                    items.filterNot { isEtfOrEtn(it.name) }
                 } else {
                     items
                 }
@@ -179,6 +179,47 @@ class RankingVm @Inject constructor(
             .take(_itemCount.value.value)
 
         _state.value = RankingState.Success(fullResult.copy(items = filteredItems))
+    }
+
+    /**
+     * Check if a stock name indicates an ETF or ETN product.
+     * Korean ETFs don't always contain "ETF" in their name, but use brand names like:
+     * KODEX, TIGER, ARIRANG, KBSTAR, etc.
+     */
+    private fun isEtfOrEtn(name: String): Boolean {
+        val upperName = name.uppercase()
+        return ETF_BRAND_PATTERNS.any { pattern -> upperName.startsWith(pattern) } ||
+            upperName.contains("ETF") ||
+            upperName.contains("ETN")
+    }
+
+    companion object {
+        /**
+         * Common Korean ETF/ETN brand name prefixes.
+         * These are asset management company brand names used for ETF products.
+         */
+        private val ETF_BRAND_PATTERNS = listOf(
+            "KODEX",      // Samsung Asset Management
+            "TIGER",      // Mirae Asset
+            "ARIRANG",    // Hanwha Asset Management
+            "KINDEX",     // Korea Investment Trust
+            "KBSTAR",     // KB Asset Management
+            "HANARO",     // NH-Amundi Asset Management
+            "ACE",        // Korea Investment Trust
+            "SOL",        // Shinhan Asset Management
+            "KOSEF",      // Samsung Asset Management
+            "TREX",       // Mirae Asset
+            "SMART",      // Kyobo AXA Asset Management
+            "TIMEFOLIO",  // Timefolio Asset Management
+            "RISE",       // KB Asset Management
+            "PLUS",       // Shinhan Asset Management
+            "FOCUS",      // DB Asset Management
+            "WOORI",      // Woori Asset Management
+            "BNK",        // BNK Asset Management
+            "파워",       // Power (Korean ETN prefix)
+            "TRUE",       // TRUE (Korean ETF prefix)
+            "QV",         // QV (Korean ETF prefix)
+        )
     }
 
     fun refresh() {
