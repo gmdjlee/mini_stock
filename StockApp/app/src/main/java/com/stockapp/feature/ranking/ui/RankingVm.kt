@@ -80,6 +80,10 @@ class RankingVm @Inject constructor(
     private val _valueType = MutableStateFlow(ValueType.AMOUNT)
     val valueType: StateFlow<ValueType> = _valueType.asStateFlow()
 
+    // ETF exclusion filter
+    private val _excludeEtf = MutableStateFlow(false)
+    val excludeEtf: StateFlow<Boolean> = _excludeEtf.asStateFlow()
+
     init {
         checkApiKeyAndLoad()
     }
@@ -143,24 +147,38 @@ class RankingVm @Inject constructor(
         loadRanking()
     }
 
+    fun onExcludeEtfChange(exclude: Boolean) {
+        _excludeEtf.value = exclude
+        // Apply filter locally from full result
+        applyLocalFilters()
+    }
+
     fun onItemCountChange(count: ItemCount) {
         _itemCount.value = count
-        // If we have full result data, filter locally from the original
-        val fullResult = _fullResult
-        if (fullResult != null) {
-            // If requested count exceeds available data, reload from API
-            if (count.value > fullResult.items.size) {
-                loadRanking()
-            } else {
-                // Filter from the full (unfiltered) result
-                val filteredItems = fullResult.items.take(count.value)
-                _state.value = RankingState.Success(
-                    fullResult.copy(items = filteredItems)
-                )
-            }
-        } else {
+        // Apply filter locally from full result
+        applyLocalFilters()
+    }
+
+    /**
+     * Apply local filters (ETF exclusion, item count) to full result.
+     */
+    private fun applyLocalFilters() {
+        val fullResult = _fullResult ?: run {
             loadRanking()
+            return
         }
+
+        val filteredItems = fullResult.items
+            .let { items ->
+                if (_excludeEtf.value) {
+                    items.filterNot { it.name.contains("ETF", ignoreCase = true) }
+                } else {
+                    items
+                }
+            }
+            .take(_itemCount.value.value)
+
+        _state.value = RankingState.Success(fullResult.copy(items = filteredItems))
     }
 
     fun refresh() {
@@ -191,9 +209,8 @@ class RankingVm @Inject constructor(
                 onSuccess = { data ->
                     // Store full result for local filtering
                     _fullResult = data
-                    // Apply current item count filter
-                    val filteredItems = data.items.take(_itemCount.value.value)
-                    _state.value = RankingState.Success(data.copy(items = filteredItems))
+                    // Apply local filters (ETF exclusion, item count)
+                    applyLocalFilters()
                 },
                 onFailure = { error ->
                     _fullResult = null
