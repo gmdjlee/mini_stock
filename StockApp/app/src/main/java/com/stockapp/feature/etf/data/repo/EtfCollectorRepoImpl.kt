@@ -61,13 +61,15 @@ class EtfCollectorRepoImpl @Inject constructor(
         return try {
             val config = getKiwoomApiConfig()
 
-            kiwoomApiClient.call(
+            // Use callAllPages to fetch all ETFs across pages (연속조회)
+            kiwoomApiClient.callAllPages(
                 apiId = "ka40004",
                 url = "/api/dostk/etf",
                 body = EtfListParams().toRequestBody(),
                 appKey = config.appKey,
                 secretKey = config.secretKey,
-                baseUrl = config.baseUrl
+                baseUrl = config.baseUrl,
+                maxPages = 20  // Allow up to 20 pages for ETF list
             ) { responseJson ->
                 parseEtfListResponse(responseJson)
             }
