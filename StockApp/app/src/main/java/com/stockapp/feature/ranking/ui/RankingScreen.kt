@@ -33,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -87,6 +88,8 @@ fun RankingScreen(
     val investorType by viewModel.investorType.collectAsState()
     val tradeDirection by viewModel.tradeDirection.collectAsState()
     val valueType by viewModel.valueType.collectAsState()
+    // ETF exclusion filter
+    val excludeEtf by viewModel.excludeEtf.collectAsState()
 
     Scaffold(
         topBar = {
@@ -132,6 +135,8 @@ fun RankingScreen(
             FilterRow(
                 selectedCount = itemCount,
                 onCountSelected = viewModel::onItemCountChange,
+                excludeEtf = excludeEtf,
+                onExcludeEtfChange = viewModel::onExcludeEtfChange,
                 isOrderBookSurgeType = viewModel.isOrderBookSurgeType(),
                 orderBookDirection = orderBookDirection,
                 onOrderBookDirectionChange = viewModel::onOrderBookDirectionChange,
@@ -267,6 +272,8 @@ private fun ExchangeTypeTabs(
 private fun FilterRow(
     selectedCount: ItemCount,
     onCountSelected: (ItemCount) -> Unit,
+    excludeEtf: Boolean,
+    onExcludeEtfChange: (Boolean) -> Unit,
     isOrderBookSurgeType: Boolean,
     orderBookDirection: OrderBookDirection,
     onOrderBookDirectionChange: (OrderBookDirection) -> Unit,
@@ -292,6 +299,23 @@ private fun FilterRow(
                 selected = selectedCount == count,
                 onClick = { onCountSelected(count) },
                 label = { Text("${count.value}개") }
+            )
+        }
+
+        // ETF exclusion toggle
+        Spacer(modifier = Modifier.width(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "ETF 제외",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Switch(
+                checked = excludeEtf,
+                onCheckedChange = onExcludeEtfChange
             )
         }
 
