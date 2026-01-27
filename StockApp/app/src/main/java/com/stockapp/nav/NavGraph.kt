@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.stockapp.feature.analysis.ui.AnalysisScreen
 import com.stockapp.feature.etf.ui.EtfScreen
+import com.stockapp.feature.financial.ui.FinancialScreen
 import com.stockapp.feature.indicator.ui.IndicatorScreen
 import com.stockapp.feature.ranking.ui.RankingScreen
 import com.stockapp.feature.search.ui.SearchScreen
@@ -52,6 +53,11 @@ fun NavGraph(
         // Indicator screen - uses shared stock state
         composable(Screen.Indicator.route) {
             IndicatorScreen()
+        }
+
+        // Financial screen - uses shared stock state
+        composable(Screen.Financial.route) {
+            FinancialScreen()
         }
 
         // Ranking screen - stock selection navigates to Analysis

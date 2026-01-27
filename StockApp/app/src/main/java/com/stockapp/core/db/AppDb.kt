@@ -11,6 +11,7 @@ import com.stockapp.core.db.dao.EtfCollectionHistoryDao
 import com.stockapp.core.db.dao.EtfConstituentDao
 import com.stockapp.core.db.dao.EtfDao
 import com.stockapp.core.db.dao.EtfKeywordDao
+import com.stockapp.core.db.dao.FinancialCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
 import com.stockapp.core.db.dao.SchedulingConfigDao
@@ -24,6 +25,7 @@ import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
 import com.stockapp.core.db.entity.EtfConstituentEntity
 import com.stockapp.core.db.entity.EtfEntity
 import com.stockapp.core.db.entity.EtfKeywordEntity
+import com.stockapp.core.db.entity.FinancialCacheEntity
 import com.stockapp.core.db.entity.IndicatorCacheEntity
 import com.stockapp.core.db.entity.IndicatorDataEntity
 import com.stockapp.core.db.entity.SchedulingConfigEntity
@@ -48,9 +50,11 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         EtfKeywordEntity::class,
         EtfCollectionHistoryEntity::class,
         // ETF Statistics entity (Phase 2)
-        DailyEtfStatisticsEntity::class
+        DailyEtfStatisticsEntity::class,
+        // Financial data cache entity
+        FinancialCacheEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -71,6 +75,9 @@ abstract class AppDb : RoomDatabase() {
 
     // ETF Statistics DAO (Phase 2)
     abstract fun dailyEtfStatisticsDao(): DailyEtfStatisticsDao
+
+    // Financial data cache DAO
+    abstract fun financialCacheDao(): FinancialCacheDao
 
     companion object {
         const val DB_NAME = "stock_app.db"
@@ -188,6 +195,24 @@ abstract class AppDb : RoomDatabase() {
 
                 // Create unique index on date
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_etf_statistics_date` ON `daily_etf_statistics` (`date`)")
+            }
+        }
+
+        /**
+         * Migration from version 7 to 8: Add financial_cache table
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create financial_cache table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `financial_cache` (
+                        `ticker` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `data` TEXT NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`ticker`)
+                    )
+                """.trimIndent())
             }
         }
     }

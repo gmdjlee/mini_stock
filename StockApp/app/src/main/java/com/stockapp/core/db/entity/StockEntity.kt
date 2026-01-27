@@ -60,3 +60,16 @@ data class IndicatorCacheEntity(
     val data: String,  // JSON serialized indicator data
     val cachedAt: Long = System.currentTimeMillis()
 )
+
+/**
+ * Financial data cache entity for balance sheet, income statement, and ratios.
+ * Stores merged financial data by settlement year-month.
+ */
+@Entity(tableName = "financial_cache")
+data class FinancialCacheEntity(
+    @PrimaryKey
+    val ticker: String,
+    val name: String,
+    val data: String,  // JSON serialized FinancialDataCache
+    val cachedAt: Long = System.currentTimeMillis()
+)
