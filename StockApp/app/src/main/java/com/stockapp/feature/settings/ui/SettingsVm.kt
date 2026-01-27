@@ -73,6 +73,9 @@ class SettingsVm @Inject constructor(
     private val _kisAppSecret = MutableStateFlow("")
     val kisAppSecret: StateFlow<String> = _kisAppSecret.asStateFlow()
 
+    private val _kisInvestmentMode = MutableStateFlow(InvestmentMode.MOCK)
+    val kisInvestmentMode: StateFlow<InvestmentMode> = _kisInvestmentMode.asStateFlow()
+
     private val _kisTestResult = MutableStateFlow<TestResult>(TestResult.Idle)
     val kisTestResult: StateFlow<TestResult> = _kisTestResult.asStateFlow()
 
@@ -99,6 +102,7 @@ class SettingsVm @Inject constructor(
             settingsRepo.getKisApiKeyConfig().collect { config ->
                 _kisAppKey.value = config.appKey
                 _kisAppSecret.value = config.appSecret
+                _kisInvestmentMode.value = config.investmentMode
             }
         }
     }
@@ -187,6 +191,11 @@ class SettingsVm @Inject constructor(
         resetKisStates()
     }
 
+    fun updateKisInvestmentMode(mode: InvestmentMode) {
+        _kisInvestmentMode.value = mode
+        resetKisStates()
+    }
+
     private fun resetKisStates() {
         _kisTestResult.value = TestResult.Idle
     }
@@ -194,7 +203,8 @@ class SettingsVm @Inject constructor(
     fun saveAndTestKis() {
         val config = KisApiKeyConfig(
             appKey = _kisAppKey.value.trim(),
-            appSecret = _kisAppSecret.value.trim()
+            appSecret = _kisAppSecret.value.trim(),
+            investmentMode = _kisInvestmentMode.value
         )
 
         if (!config.isValid()) {

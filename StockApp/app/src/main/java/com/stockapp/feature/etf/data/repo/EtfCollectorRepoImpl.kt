@@ -420,7 +420,8 @@ class EtfCollectorRepoImpl @Inject constructor(
         }
         return KisApiConfig(
             appKey = config.appKey,
-            appSecret = config.appSecret
+            appSecret = config.appSecret,
+            baseUrl = config.getBaseUrl()
         )
     }
 
