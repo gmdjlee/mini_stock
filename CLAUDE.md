@@ -1115,7 +1115,7 @@ sealed class RankingState {
 | 수익성비율 | FHKST66430400 | 매출총이익률, 영업이익률 |
 | 기타주요비율 | FHKST66430500 | EPS, BPS, PER |
 | 안정성비율 | FHKST66430600 | 유동비율, 당좌비율 |
-| 성장성비율 | FHKST66430700 | 매출액증가율, 순이익증가율 |
+| 성장성비율 | FHKST66430800 | 매출액증가율, 순이익증가율 |
 
 **API 명세서**: `docs/KIS_FINANCIAL_API.md`
 
