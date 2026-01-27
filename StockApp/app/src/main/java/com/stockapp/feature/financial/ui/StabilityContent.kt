@@ -105,12 +105,19 @@ fun StabilityContent(
                 }
             }
         } else {
-            Text(
-                text = "안정성 데이터가 없습니다.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(32.dp)
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Text(
+                    text = "안정성 데이터가 없습니다.\n재무 데이터를 가져올 수 없거나 해당 종목의 재무정보가 제공되지 않습니다.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(24.dp)
+                )
+            }
         }
     }
 }

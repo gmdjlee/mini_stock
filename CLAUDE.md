@@ -1123,14 +1123,16 @@ sealed class RankingState {
 
 **수익성 (Profitability) 탭**:
 - 요약 카드: 최근 매출액, 영업이익, 당기순이익
-- 그룹 바 차트: 결산년월별 손익 추이
-- 라인 차트: 매출액/영업이익/순이익 증가율 추이
-- 라인 차트: 자기자본/총자산 증가율 추이
+- 그룹 바 차트: 결산년월별 손익 추이 (`hasProfitabilityData` 조건)
+- 라인 차트: 매출액/영업이익/순이익 증가율 추이 (`hasGrowthData` 조건)
+- 라인 차트: 자기자본/총자산 증가율 추이 (`hasAssetGrowthData` 조건)
+- 차트는 0이 아닌 유의미한 데이터가 있을 때만 표시됨
 
 **안정성 (Stability) 탭**:
 - 요약 카드: 부채비율, 유동비율, 차입금 의존도 (평가 포함)
-- 복합 라인 차트: 안정성 지표 추이
+- 복합 라인 차트: 안정성 지표 추이 (`hasStabilityData` 조건)
 - 개별 차트: 각 지표별 상세 추이
+- 차트는 0이 아닌 유의미한 데이터가 있을 때만 표시됨
 
 #### 안정성 지표 평가 기준
 
@@ -1166,7 +1168,13 @@ data class FinancialSummary(
     val debtRatios: List<Double>,
     val currentRatios: List<Double>,
     val borrowingDependencies: List<Double>
-)
+) {
+    // 데이터 유효성 검사 (0이 아닌 값이 있는지 확인)
+    val hasProfitabilityData: Boolean  // 손익 데이터 존재 여부
+    val hasGrowthData: Boolean         // 성장률 데이터 존재 여부
+    val hasAssetGrowthData: Boolean    // 자산 성장률 데이터 존재 여부
+    val hasStabilityData: Boolean      // 안정성 데이터 존재 여부
+}
 
 // 재무기간 (결산년월)
 data class FinancialPeriod(

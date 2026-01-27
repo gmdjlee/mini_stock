@@ -82,9 +82,7 @@ fun ProfitabilityContent(
         }
 
         // 3. Line Chart: 자산 성장률
-        val hasAssetGrowth = summary.equityGrowthRates.any { it != 0.0 } ||
-                summary.totalAssetsGrowthRates.any { it != 0.0 }
-        if (hasAssetGrowth) {
+        if (summary.hasAssetGrowthData) {
             ChartCard(
                 title = "자산 성장률",
                 subtitle = "자기자본, 총자산 증가율 (%)"
@@ -97,14 +95,21 @@ fun ProfitabilityContent(
             }
         }
 
-        // Empty state
-        if (!summary.hasProfitabilityData && !summary.hasGrowthData) {
-            Text(
-                text = "수익성 데이터가 없습니다.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(32.dp)
-            )
+        // Empty state - show when no meaningful data exists
+        if (!summary.hasProfitabilityData && !summary.hasGrowthData && !summary.hasAssetGrowthData) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Text(
+                    text = "수익성 데이터가 없습니다.\n재무 데이터를 가져올 수 없거나 해당 종목의 재무정보가 제공되지 않습니다.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(24.dp)
+                )
+            }
         }
     }
 }

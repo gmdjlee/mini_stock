@@ -193,15 +193,26 @@ data class FinancialSummary(
 
     /**
      * Check if data is available for charts.
+     * Only returns true if there's at least one non-zero value.
      */
     val hasProfitabilityData: Boolean
-        get() = revenues.isNotEmpty() || operatingProfits.isNotEmpty() || netIncomes.isNotEmpty()
+        get() = revenues.any { it != 0L } ||
+                operatingProfits.any { it != 0L } ||
+                netIncomes.any { it != 0L }
 
     val hasGrowthData: Boolean
-        get() = revenueGrowthRates.isNotEmpty() || operatingProfitGrowthRates.isNotEmpty()
+        get() = revenueGrowthRates.any { it != 0.0 } ||
+                operatingProfitGrowthRates.any { it != 0.0 } ||
+                netIncomeGrowthRates.any { it != 0.0 }
+
+    val hasAssetGrowthData: Boolean
+        get() = equityGrowthRates.any { it != 0.0 } ||
+                totalAssetsGrowthRates.any { it != 0.0 }
 
     val hasStabilityData: Boolean
-        get() = debtRatios.isNotEmpty() || currentRatios.isNotEmpty()
+        get() = debtRatios.any { it != 0.0 } ||
+                currentRatios.any { it != 0.0 } ||
+                borrowingDependencies.any { it != 0.0 }
 }
 
 /**
