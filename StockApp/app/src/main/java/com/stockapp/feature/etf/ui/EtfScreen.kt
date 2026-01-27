@@ -40,6 +40,8 @@ fun EtfScreen(
     val isCashDepositRefreshing by viewModel.isCashDepositRefreshing.collectAsState()
     val stockAnalysisState by viewModel.stockAnalysisState.collectAsState()
     val stockSearchQuery by viewModel.stockSearchQuery.collectAsState()
+    val stockSuggestions by viewModel.stockSuggestions.collectAsState()
+    val isSuggestionsLoading by viewModel.isSuggestionsLoading.collectAsState()
 
     // Theme list tab states
     val showEtfDetail by viewModel.showEtfDetail.collectAsState()
@@ -127,7 +129,10 @@ fun EtfScreen(
                     stockAnalysisState = stockAnalysisState,
                     stockSearchQuery = stockSearchQuery,
                     onStockSearchQueryChange = { viewModel.updateStockSearchQuery(it) },
-                    onStockSearch = { viewModel.searchStock() }
+                    onStockSearch = { viewModel.searchStock() },
+                    stockSuggestions = stockSuggestions,
+                    isSuggestionsLoading = isSuggestionsLoading,
+                    onStockSuggestionSelect = { viewModel.onStockSuggestionSelected(it) }
                 )
                 EtfTab.THEME_LIST -> ThemeListTab(
                     viewModel = viewModel,
