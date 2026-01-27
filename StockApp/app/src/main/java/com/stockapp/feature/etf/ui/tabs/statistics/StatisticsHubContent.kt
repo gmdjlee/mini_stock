@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.stockapp.feature.etf.domain.model.DateRangeOption
 import com.stockapp.feature.etf.ui.EtfVm
 import com.stockapp.feature.etf.ui.tabs.StockRankingTab
+import com.stockapp.feature.search.domain.model.Stock
 
 /**
  * Container component with ScrollableTabRow for 7 statistics sub-tabs.
@@ -39,7 +40,11 @@ fun StatisticsHubContent(
     stockAnalysisState: StockAnalysisState = StockAnalysisState.Initial,
     stockSearchQuery: String = "",
     onStockSearchQueryChange: (String) -> Unit = {},
-    onStockSearch: () -> Unit = {}
+    onStockSearch: () -> Unit = {},
+    // Stock analysis autocomplete
+    stockSuggestions: List<Stock> = emptyList(),
+    isSuggestionsLoading: Boolean = false,
+    onStockSuggestionSelect: (Stock) -> Unit = {}
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         // Sub-tab row (ScrollableTabRow)
@@ -128,7 +133,10 @@ fun StatisticsHubContent(
                     searchQuery = stockSearchQuery,
                     onSearchQueryChange = onStockSearchQueryChange,
                     onSearch = onStockSearch,
-                    onNavigateToAnalysis = onNavigateToAnalysis
+                    onNavigateToAnalysis = onNavigateToAnalysis,
+                    suggestions = stockSuggestions,
+                    isLoading = isSuggestionsLoading,
+                    onStockSelect = onStockSuggestionSelect
                 )
             }
         }

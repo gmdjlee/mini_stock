@@ -31,9 +31,13 @@ import com.stockapp.feature.etf.ui.tabs.statistics.CashDepositState
 import com.stockapp.feature.etf.ui.tabs.statistics.StatisticsSubTab
 import com.stockapp.feature.etf.ui.tabs.statistics.StockAnalysisState
 import com.stockapp.feature.etf.worker.EtfCollectionWorker
+import com.stockapp.feature.search.domain.model.Stock
+import com.stockapp.feature.search.domain.repo.SearchRepo
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -128,7 +132,8 @@ class EtfVm @Inject constructor(
     private val getCashDepositTrendUC: GetCashDepositTrendUC,
     private val getStockAnalysisUC: GetStockAnalysisUC,
     private val settingsRepo: SettingsRepo,
-    private val selectedStockManager: SelectedStockManager
+    private val selectedStockManager: SelectedStockManager,
+    private val searchRepo: SearchRepo
 ) : ViewModel() {
 
     // Tab selection
@@ -218,6 +223,18 @@ class EtfVm @Inject constructor(
 
     private val _stockSearchQuery = MutableStateFlow("")
     val stockSearchQuery: StateFlow<String> = _stockSearchQuery.asStateFlow()
+
+    // Stock suggestions for autocomplete
+    private val _stockSuggestions = MutableStateFlow<List<Stock>>(emptyList())
+    val stockSuggestions: StateFlow<List<Stock>> = _stockSuggestions.asStateFlow()
+
+    private val _isSuggestionsLoading = MutableStateFlow(false)
+    val isSuggestionsLoading: StateFlow<Boolean> = _isSuggestionsLoading.asStateFlow()
+
+    private var suggestionSearchJob: Job? = null
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 300L
+    }
 
     // ==================== Theme List Tab States ====================
 
@@ -377,10 +394,28 @@ class EtfVm @Inject constructor(
     }
 
     /**
-     * Update stock search query for analysis.
+     * Update stock search query for analysis with debounced autocomplete.
      */
     fun updateStockSearchQuery(query: String) {
         _stockSearchQuery.value = query
+
+        // Clear suggestions if query is blank
+        if (query.isBlank()) {
+            _stockSuggestions.value = emptyList()
+            _isSuggestionsLoading.value = false
+            suggestionSearchJob?.cancel()
+            return
+        }
+
+        // Debounce autocomplete search
+        suggestionSearchJob?.cancel()
+        suggestionSearchJob = viewModelScope.launch {
+            _isSuggestionsLoading.value = true
+            delay(SEARCH_DEBOUNCE_MS)
+            val suggestions = searchRepo.searchForSuggestions(query)
+            _stockSuggestions.value = suggestions
+            _isSuggestionsLoading.value = false
+        }
     }
 
     /**
@@ -395,6 +430,7 @@ class EtfVm @Inject constructor(
 
         viewModelScope.launch {
             _stockAnalysisState.value = StockAnalysisState.Loading
+            _stockSuggestions.value = emptyList() // Clear suggestions when searching
 
             getStockAnalysisUC.search(query).fold(
                 onSuccess = { result ->
@@ -404,6 +440,36 @@ class EtfVm @Inject constructor(
                     _stockAnalysisState.value = if (error.message?.contains("찾을 수 없습니다") == true ||
                         error.message?.contains("없습니다") == true) {
                         StockAnalysisState.NotFound(query)
+                    } else {
+                        StockAnalysisState.Error(error.message ?: "분석 실패")
+                    }
+                }
+            )
+        }
+    }
+
+    /**
+     * Handle stock selection from autocomplete suggestions.
+     */
+    fun onStockSuggestionSelected(stock: Stock) {
+        // Update query with selected stock name
+        _stockSearchQuery.value = stock.name
+        // Clear suggestions
+        _stockSuggestions.value = emptyList()
+        suggestionSearchJob?.cancel()
+
+        // Trigger analysis with the selected stock code
+        viewModelScope.launch {
+            _stockAnalysisState.value = StockAnalysisState.Loading
+
+            getStockAnalysisUC(stock.ticker).fold(
+                onSuccess = { result ->
+                    _stockAnalysisState.value = StockAnalysisState.Success(result)
+                },
+                onFailure = { error ->
+                    _stockAnalysisState.value = if (error.message?.contains("찾을 수 없습니다") == true ||
+                        error.message?.contains("없습니다") == true) {
+                        StockAnalysisState.NotFound(stock.name)
                     } else {
                         StockAnalysisState.Error(error.message ?: "분석 실패")
                     }

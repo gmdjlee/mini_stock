@@ -16,17 +16,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,10 +32,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.stockapp.core.ui.component.stockinput.StockInputField
 import com.stockapp.feature.etf.domain.model.ContainingEtfInfo
 import com.stockapp.feature.etf.domain.model.StockAnalysisResult
 import com.stockapp.feature.etf.ui.detail.AmountTrendChart
 import com.stockapp.feature.etf.ui.detail.WeightTrendChart
+import com.stockapp.feature.search.domain.model.Stock
 
 /**
  * Sealed class for stock analysis state
@@ -59,6 +57,9 @@ fun StockAnalysisTab(
     onSearchQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onNavigateToAnalysis: (stockCode: String, stockName: String) -> Unit,
+    suggestions: List<Stock> = emptyList(),
+    isLoading: Boolean = false,
+    onStockSelect: (Stock) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -89,15 +90,17 @@ fun StockAnalysisTab(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search field
-            SearchField(
-                query = searchQuery,
-                onQueryChange = onSearchQueryChange,
-                onSearch = onSearch,
-                isLoading = state is StockAnalysisState.Loading,
+            // Autocomplete search field
+            StockInputField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                suggestions = suggestions,
+                onSelect = onStockSelect,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(16.dp),
+                isLoading = isLoading,
+                placeholder = "종목코드 또는 종목명 검색"
             )
 
             // Content based on state
@@ -119,50 +122,6 @@ fun StockAnalysisTab(
             }
         }
     }
-}
-
-@Composable
-private fun SearchField(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    isLoading: Boolean,
-    modifier: Modifier = Modifier
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier,
-        placeholder = {
-            Text("종목코드 또는 종목명 검색")
-        },
-        leadingIcon = {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp
-                )
-            } else {
-                IconButton(onClick = onSearch) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "검색"
-                    )
-                }
-            }
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        imageVector = Icons.Default.Clear,
-                        contentDescription = "지우기"
-                    )
-                }
-            }
-        },
-        singleLine = true
-    )
 }
 
 @Composable
