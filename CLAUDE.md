@@ -84,6 +84,7 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | App Phase 4 | ✅ Done | **설정 화면 (API 키 관리, 투자 모드)** |
 | App Phase 5 | ✅ Done | **자동 스케줄링 (WorkManager 기반)** |
 | App Phase 6 | ✅ Done | **순위정보 (Ranking) - Kotlin REST API 직접 호출** |
+| App Phase 7 | ✅ Done | **재무정보 (Financial) - KIS API 직접 호출** |
 
 **코드**: 91 files, ~13,697 lines (Kotlin)
 **코드 품질**: 7.8/10 (테스트 부재로 감점, 보안/스레드안전성 개선)
@@ -98,6 +99,7 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | 🔍 Search | SearchScreen | 종목 검색, 검색 히스토리 |
 | 📊 Analysis | AnalysisScreen | 수급 분석, 매매 신호 |
 | 📈 Indicator | IndicatorScreen | 기술적 지표 (Trend, Elder, DeMark) |
+| 🏦 Financial | FinancialScreen | 재무정보 (수익성, 안정성) |
 | 🏆 Ranking | RankingScreen | 순위정보 (호가잔량, 거래량, 신용비율 등) |
 | ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정 |
 
@@ -601,7 +603,7 @@ StockApp/
 │   │   │   │   └── StockSyncWorker.kt     # WorkManager Worker
 │   │   │   ├── ui/SchedulingTab.kt, SchedulingVm.kt
 │   │   │   └── di/SchedulingModule.kt
-│   │   └── ranking/                # 순위정보 (Phase 6) ⭐ NEW
+│   │   ├── ranking/                # 순위정보 (Phase 6)
 │   │       ├── domain/
 │   │       │   ├── model/RankingModels.kt    # RankingType, RankingItem, RankingResult
 │   │       │   ├── model/RankingParams.kt    # API 요청 파라미터
@@ -612,8 +614,18 @@ StockApp/
 │   │       │   └── repo/RankingRepoImpl.kt
 │   │       ├── ui/RankingScreen.kt, RankingVm.kt
 │   │       └── di/RankingModule.kt
+│   │   └── financial/              # 재무정보 (Phase 7) ⭐ NEW
+│   │       ├── domain/
+│   │       │   ├── model/FinancialModels.kt  # FinancialData, FinancialSummary
+│   │       │   ├── repo/FinancialRepo.kt
+│   │       │   └── usecase/GetFinancialSummaryUC.kt
+│   │       ├── data/
+│   │       │   ├── dto/FinancialDto.kt       # KIS API 응답 DTO
+│   │       │   └── repo/FinancialRepoImpl.kt
+│   │       ├── ui/FinancialScreen.kt, FinancialVm.kt, ProfitabilityContent.kt, StabilityContent.kt
+│   │       └── di/FinancialModule.kt
 │   └── nav/
-│       ├── Nav.kt                  # Screen 정의 (5개 탭)
+│       ├── Nav.kt                  # Screen 정의 (7개 탭)
 │       └── NavGraph.kt             # Navigation
 │
 └── app/src/main/python/            # Python 패키지 (chart/ 제외)
@@ -1077,6 +1089,103 @@ sealed class RankingState {
 }
 ```
 
+---
+
+### App Phase 7: 재무정보 (Financial)
+
+#### FinancialScreen (재무정보 조회)
+
+**기능**:
+- 검색 화면에서 선택한 종목의 재무정보 표시
+- 두 개의 탭: 수익성 (Profitability), 안정성 (Stability)
+- 7개 KIS API에서 데이터 수집 후 결산년월 기준 병합
+- 24시간 캐싱 (Room Database)
+
+**기술 스택**: OkHttp (KIS REST API 직접 호출)
+
+> ⚠️ **중요**: 재무정보는 KIS (한국투자증권) API를 사용합니다. Kiwoom API와 다른 인증 체계입니다.
+
+#### KIS 재무정보 API
+
+| API | tr_id | 설명 |
+|-----|-------|------|
+| 대차대조표 | FHKST66430100 | 총자산, 유동자산, 부채총계 |
+| 손익계산서 | FHKST66430200 | 매출액, 영업이익, 당기순이익 |
+| 재무비율 | FHKST66430300 | ROE, ROA, 부채비율 |
+| 수익성비율 | FHKST66430400 | 매출총이익률, 영업이익률 |
+| 기타주요비율 | FHKST66430500 | EPS, BPS, PER |
+| 안정성비율 | FHKST66430600 | 유동비율, 당좌비율 |
+| 성장성비율 | FHKST66430700 | 매출액증가율, 순이익증가율 |
+
+**API 명세서**: `docs/KIS_FINANCIAL_API.md`
+
+#### 탭 구조
+
+**수익성 (Profitability) 탭**:
+- 요약 카드: 최근 매출액, 영업이익, 당기순이익
+- 그룹 바 차트: 결산년월별 손익 추이
+- 라인 차트: 매출액/영업이익/순이익 증가율 추이
+- 라인 차트: 자기자본/총자산 증가율 추이
+
+**안정성 (Stability) 탭**:
+- 요약 카드: 부채비율, 유동비율, 차입금 의존도 (평가 포함)
+- 복합 라인 차트: 안정성 지표 추이
+- 개별 차트: 각 지표별 상세 추이
+
+#### 안정성 지표 평가 기준
+
+| 지표 | 양호 | 보통 | 주의 |
+|------|------|------|------|
+| 부채비율 | < 100% | 100-200% | > 200% |
+| 유동비율 | > 200% | 100-200% | < 100% |
+| 차입금 의존도 | < 30% | 30-50% | > 50% |
+
+#### 핵심 모델
+```kotlin
+// 탭
+enum class FinancialTab(val label: String) {
+    PROFITABILITY("수익성"),
+    STABILITY("안정성")
+}
+
+// 재무정보 요약 (UI용)
+data class FinancialSummary(
+    val ticker: String,
+    val name: String,
+    val periods: List<FinancialPeriod>,
+    // 수익성 데이터
+    val revenues: List<Long>,
+    val operatingProfits: List<Long>,
+    val netIncomes: List<Long>,
+    val revenueGrowthRates: List<Double>,
+    val operatingProfitGrowthRates: List<Double>,
+    val netIncomeGrowthRates: List<Double>,
+    val equityGrowthRates: List<Double>,
+    val totalAssetsGrowthRates: List<Double>,
+    // 안정성 데이터
+    val debtRatios: List<Double>,
+    val currentRatios: List<Double>,
+    val borrowingDependencies: List<Double>
+)
+
+// 재무기간 (결산년월)
+data class FinancialPeriod(
+    val yearMonth: String,  // "202312"
+    val displayLabel: String  // "2023.12"
+)
+```
+
+#### ViewModel 상태
+```kotlin
+sealed class FinancialState {
+    data object NoStock : FinancialState()
+    data object Loading : FinancialState()
+    data object NoApiKey : FinancialState()
+    data class Success(val summary: FinancialSummary) : FinancialState()
+    data class Error(val message: String) : FinancialState()
+}
+```
+
 ### 참고 문서
 
 - Android 사전 준비: `docs/ANDROID_PREPARATION.md`
@@ -1084,6 +1193,7 @@ sealed class RankingState {
 - 코드 리뷰: `docs/CODE_REVIEW_REPORT.md`
 - UI 디자인 리뷰: `docs/UI_DESIGN_REVIEW.md`
 - 키움 API 문서: `docs/kiwoom_api_docs/`
+- KIS 재무정보 API: `docs/KIS_FINANCIAL_API.md`
 
 ### 외부 라이브러리 문서
 
@@ -1109,6 +1219,7 @@ sealed class RankingState {
 | `SyncHistoryEntity` | 동기화 히스토리 | id, syncType, startedAt, completedAt, status, syncedStocksCount |
 | `StockAnalysisDataEntity` | 증분 분석 데이터 | ticker, date, data (JSON) |
 | `IndicatorDataEntity` | 증분 지표 데이터 | ticker, date, indicatorType, data (JSON) |
+| `FinancialCacheEntity` | 재무정보 캐시 | ticker, name, data (JSON), cachedAt |
 
 ### 캐시 정책
 
@@ -1117,6 +1228,7 @@ sealed class RankingState {
 | 종목 정보 | 24시간 | 앱 시작 시 체크 |
 | 수급 분석 | 24시간 | 요청 시 갱신 |
 | 기술 지표 | 24시간 | 요청 시 갱신 |
+| 재무정보 | 24시간 | 요청 시 갱신 |
 | 검색 히스토리 | 무제한 | 최대 50개 유지 |
 
 ---
@@ -1128,7 +1240,7 @@ sealed class RankingState {
 | Kotlin | 2.1.0+ | 앱 개발 언어 |
 | Jetpack Compose | BOM 2024.12 | UI 프레임워크 |
 | Hilt | 2.54 | 의존성 주입 |
-| Room | 2.8.3 | 로컬 데이터베이스 (8 entities, 8 DAOs) |
+| Room | 2.8.3 | 로컬 데이터베이스 (9 entities, 9 DAOs) |
 | WorkManager | Latest | 백그라운드 작업 |
 | Vico | 2.0.0 | 차트 라이브러리 (주요 차트) |
 | MPAndroidChart | Latest | 차트 라이브러리 (레거시 지원) |
