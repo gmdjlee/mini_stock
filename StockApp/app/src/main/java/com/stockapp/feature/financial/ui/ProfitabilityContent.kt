@@ -195,8 +195,8 @@ private fun IncomeBarChart(
     netIncomes: List<Long>,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
+    val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
 
     val revenueColor = Color(0xFF4CAF50).toArgb()  // Green
     val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
@@ -208,7 +208,7 @@ private fun IncomeBarChart(
                 description.isEnabled = false
                 legend.apply {
                     isEnabled = true
-                    textColor = textColor
+                    textColor = chartTextColor
                 }
                 setDrawGridBackground(false)
                 setDrawBarShadow(false)
@@ -218,14 +218,14 @@ private fun IncomeBarChart(
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
-                    this.textColor = textColor
+                    textColor = chartTextColor
                     valueFormatter = IndexAxisValueFormatter(periods)
                 }
 
                 axisLeft.apply {
                     setDrawGridLines(true)
-                    gridColor = gridColor
-                    this.textColor = textColor
+                    gridColor = chartGridColor
+                    textColor = chartTextColor
                     axisMinimum = 0f
                 }
                 axisRight.isEnabled = false
@@ -290,8 +290,8 @@ private fun GrowthRateLineChart(
     netIncomeGrowth: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
+    val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
 
     val revenueColor = Color(0xFF4CAF50).toArgb()  // Green
     val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
@@ -303,7 +303,7 @@ private fun GrowthRateLineChart(
                 description.isEnabled = false
                 legend.apply {
                     isEnabled = true
-                    this.textColor = textColor
+                    textColor = chartTextColor
                 }
                 setDrawGridBackground(false)
 
@@ -311,14 +311,14 @@ private fun GrowthRateLineChart(
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
-                    this.textColor = textColor
+                    textColor = chartTextColor
                     valueFormatter = IndexAxisValueFormatter(periods)
                 }
 
                 axisLeft.apply {
                     setDrawGridLines(true)
-                    gridColor = gridColor
-                    this.textColor = textColor
+                    gridColor = chartGridColor
+                    textColor = chartTextColor
                 }
                 axisRight.isEnabled = false
 
@@ -377,8 +377,8 @@ private fun AssetGrowthLineChart(
     totalAssetsGrowth: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
+    val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
 
     val equityColor = Color(0xFF9C27B0).toArgb()  // Purple
     val totalAssetsColor = Color(0xFF00BCD4).toArgb()  // Cyan
@@ -389,7 +389,7 @@ private fun AssetGrowthLineChart(
                 description.isEnabled = false
                 legend.apply {
                     isEnabled = true
-                    this.textColor = textColor
+                    textColor = chartTextColor
                 }
                 setDrawGridBackground(false)
 
@@ -397,14 +397,14 @@ private fun AssetGrowthLineChart(
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
-                    this.textColor = textColor
+                    textColor = chartTextColor
                     valueFormatter = IndexAxisValueFormatter(periods)
                 }
 
                 axisLeft.apply {
                     setDrawGridLines(true)
-                    gridColor = gridColor
-                    this.textColor = textColor
+                    gridColor = chartGridColor
+                    textColor = chartTextColor
                 }
                 axisRight.isEnabled = false
 

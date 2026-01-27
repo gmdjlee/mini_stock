@@ -186,8 +186,8 @@ private fun StabilityLineChart(
     borrowingDependencies: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
+    val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
 
     val debtColor = Color(0xFFF44336).toArgb()  // Red
     val currentColor = Color(0xFF4CAF50).toArgb()  // Green
@@ -199,7 +199,7 @@ private fun StabilityLineChart(
                 description.isEnabled = false
                 legend.apply {
                     isEnabled = true
-                    this.textColor = textColor
+                    textColor = chartTextColor
                 }
                 setDrawGridBackground(false)
 
@@ -207,14 +207,14 @@ private fun StabilityLineChart(
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
-                    this.textColor = textColor
+                    textColor = chartTextColor
                     valueFormatter = IndexAxisValueFormatter(periods)
                 }
 
                 axisLeft.apply {
                     setDrawGridLines(true)
-                    gridColor = gridColor
-                    this.textColor = textColor
+                    gridColor = chartGridColor
+                    textColor = chartTextColor
                     axisMinimum = 0f
                 }
                 axisRight.isEnabled = false
@@ -264,7 +264,7 @@ private fun StabilityLineChart(
                 })
             }
 
-            chart.data = if (dataSets.isNotEmpty()) LineData(dataSets) else null
+            chart.data = if (dataSets.isNotEmpty()) LineData(dataSets.toList()) else null
             chart.invalidate()
         },
         modifier = modifier
@@ -282,8 +282,8 @@ private fun SingleRatioLineChart(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
+    val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
     val lineColor = color.toArgb()
 
     AndroidView(
@@ -297,14 +297,14 @@ private fun SingleRatioLineChart(
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
-                    this.textColor = textColor
+                    textColor = chartTextColor
                     valueFormatter = IndexAxisValueFormatter(periods)
                 }
 
                 axisLeft.apply {
                     setDrawGridLines(true)
-                    gridColor = gridColor
-                    this.textColor = textColor
+                    gridColor = chartGridColor
+                    textColor = chartTextColor
                     axisMinimum = 0f
                 }
                 axisRight.isEnabled = false
@@ -326,7 +326,7 @@ private fun SingleRatioLineChart(
                 fillColor = lineColor
                 fillAlpha = 30
                 setDrawValues(true)
-                valueTextColor = textColor
+                valueTextColor = chartTextColor
                 valueTextSize = 10f
             }
 

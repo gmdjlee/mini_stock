@@ -191,6 +191,7 @@ private fun ErrorContent(
         contentAlignment = Alignment.Center
     ) {
         ErrorCard(
+            code = "ERROR",
             message = message,
             onRetry = onRetry
         )
