@@ -23,7 +23,6 @@ import com.stockapp.feature.financial.domain.model.StabilityRatios
 import com.stockapp.feature.financial.domain.model.toCache
 import com.stockapp.feature.financial.domain.model.toData
 import com.stockapp.feature.financial.domain.repo.FinancialRepo
-import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -70,6 +69,7 @@ class FinancialRepoImpl @Inject constructor(
 
     private var cachedToken: String? = null
     private var tokenExpiresAt: Long = 0
+    private var tokenBaseUrl: String? = null
 
     override suspend fun getFinancialData(
         ticker: String,
@@ -154,30 +154,32 @@ class FinancialRepoImpl @Inject constructor(
     }
 
     private suspend fun getKisApiConfig(): KisApiConfig {
-        val config = settingsRepo.getApiKeyConfig().first()
+        // Use KIS API keys, not Kiwoom API keys
+        val config = settingsRepo.getKisApiKeyConfig().first()
         if (!config.isValid()) {
-            throw IllegalStateException("API key not configured")
+            throw IllegalStateException("KIS API key not configured. 설정에서 KIS API 키를 입력해주세요.")
         }
 
-        val baseUrl = when (config.investmentMode) {
-            InvestmentMode.MOCK -> KIS_BASE_URL_MOCK
-            InvestmentMode.PRODUCTION -> KIS_BASE_URL_PROD
-        }
+        val baseUrl = config.getBaseUrl()
 
         // Get or refresh token
-        val token = getAccessToken(config.appKey, config.secretKey, baseUrl)
+        val token = getAccessToken(config.appKey, config.appSecret, baseUrl)
 
         return KisApiConfig(
             appKey = config.appKey,
-            appSecret = config.secretKey,
+            appSecret = config.appSecret,
             baseUrl = baseUrl,
             accessToken = token
         )
     }
 
     private suspend fun getAccessToken(appKey: String, appSecret: String, baseUrl: String): String {
-        // Check if cached token is still valid
-        if (cachedToken != null && System.currentTimeMillis() < tokenExpiresAt - 60_000) {
+        // Check if cached token is still valid AND for the same baseUrl
+        // Token must be invalidated when investment mode (baseUrl) changes
+        if (cachedToken != null &&
+            tokenBaseUrl == baseUrl &&
+            System.currentTimeMillis() < tokenExpiresAt - 60_000
+        ) {
             return cachedToken!!
         }
 
@@ -211,6 +213,7 @@ class FinancialRepoImpl @Inject constructor(
             // Cache token (expires in 24 hours typically)
             cachedToken = token
             tokenExpiresAt = System.currentTimeMillis() + 23 * 60 * 60 * 1000 // 23 hours
+            tokenBaseUrl = baseUrl
 
             token
         }
@@ -396,10 +399,6 @@ class FinancialRepoImpl @Inject constructor(
     }
 
     companion object {
-        // KIS API base URLs
-        private const val KIS_BASE_URL_PROD = "https://openapi.koreainvestment.com:9443"
-        private const val KIS_BASE_URL_MOCK = "https://openapivts.koreainvestment.com:29443"
-
         // Transaction IDs (tr_id) - these need to be verified with actual KIS API docs
         private const val TR_ID_BALANCE_SHEET = "FHKST66430100"
         private const val TR_ID_INCOME_STATEMENT = "FHKST66430200"

@@ -252,6 +252,7 @@ private fun ApiKeyTab(viewModel: SettingsVm) {
 private fun KisApiKeyTab(viewModel: SettingsVm) {
     val kisAppKey by viewModel.kisAppKey.collectAsState()
     val kisAppSecret by viewModel.kisAppSecret.collectAsState()
+    val kisInvestmentMode by viewModel.kisInvestmentMode.collectAsState()
     val testResult by viewModel.kisTestResult.collectAsState()
     val isSaving by viewModel.isKisSaving.collectAsState()
 
@@ -355,6 +356,13 @@ private fun KisApiKeyTab(viewModel: SettingsVm) {
             enabled = !isSaving
         )
 
+        // Investment mode selection for KIS API
+        InvestmentModeSelector(
+            selectedMode = kisInvestmentMode,
+            onModeSelected = { viewModel.updateKisInvestmentMode(it) },
+            enabled = !isSaving
+        )
+
         // Info card for KIS API
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -375,7 +383,7 @@ private fun KisApiKeyTab(viewModel: SettingsVm) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "KIS API는 한국투자증권에서 발급받은 키입니다. " +
-                        "ETF 구성종목 조회를 위해 필요합니다.",
+                        "재무정보 조회를 위해 필요합니다.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer
                 )

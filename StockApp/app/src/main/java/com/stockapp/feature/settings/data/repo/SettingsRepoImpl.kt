@@ -40,6 +40,7 @@ class SettingsRepoImpl @Inject constructor(
     private object Keys {
         // Non-sensitive settings in DataStore
         val IS_PRODUCTION = booleanPreferencesKey("is_production")
+        val KIS_IS_PRODUCTION = booleanPreferencesKey("kis_is_production")
 
         // Sensitive Kiwoom API keys stored in EncryptedSharedPreferences
         const val APP_KEY = "api_app_key"
@@ -182,18 +183,33 @@ class SettingsRepoImpl @Inject constructor(
         val appKey = encryptedPrefs.getString(Keys.KIS_APP_KEY, "") ?: ""
         val appSecret = encryptedPrefs.getString(Keys.KIS_APP_SECRET, "") ?: ""
 
+        // Read KIS investment mode from DataStore
+        val prefs = context.dataStore.data.first()
+        val investmentMode = if (prefs[Keys.KIS_IS_PRODUCTION] == true) {
+            InvestmentMode.PRODUCTION
+        } else {
+            InvestmentMode.MOCK
+        }
+
         emit(KisApiKeyConfig(
             appKey = appKey,
-            appSecret = appSecret
+            appSecret = appSecret,
+            investmentMode = investmentMode
         ))
     }.flowOn(Dispatchers.IO)
 
     override suspend fun saveKisApiKeyConfig(config: KisApiKeyConfig) {
         withContext(Dispatchers.IO) {
+            // Save sensitive API keys to encrypted storage
             encryptedPrefs.edit()
                 .putString(Keys.KIS_APP_KEY, config.appKey)
                 .putString(Keys.KIS_APP_SECRET, config.appSecret)
                 .apply()
+
+            // Save KIS investment mode to DataStore
+            context.dataStore.edit { prefs ->
+                prefs[Keys.KIS_IS_PRODUCTION] = config.investmentMode == InvestmentMode.PRODUCTION
+            }
 
             // Clear token cache when config changes
             kisApiClient.clearToken()
@@ -208,7 +224,8 @@ class SettingsRepoImpl @Inject constructor(
 
             val kisConfig = KisApiConfig(
                 appKey = config.appKey,
-                appSecret = config.appSecret
+                appSecret = config.appSecret,
+                baseUrl = config.getBaseUrl()
             )
 
             // Test by fetching a token
