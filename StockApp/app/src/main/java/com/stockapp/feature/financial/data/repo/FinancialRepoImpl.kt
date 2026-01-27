@@ -407,7 +407,7 @@ class FinancialRepoImpl @Inject constructor(
         private const val TR_ID_PROFIT_RATIO = "FHKST66430400"
         private const val TR_ID_OTHER_MAJOR_RATIO = "FHKST66430500"
         private const val TR_ID_STABILITY_RATIO = "FHKST66430600"
-        private const val TR_ID_GROWTH_RATIO = "FHKST66430700"
+        private const val TR_ID_GROWTH_RATIO = "FHKST66430800"
     }
 }
 

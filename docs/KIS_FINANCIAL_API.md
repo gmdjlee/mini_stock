@@ -19,7 +19,7 @@
 | 4 | 국내주식 수익성비율 | /uapi/domestic-stock/v1/finance/profit-ratio | FHKST66430400 | 영업이익률, 순이익률 등 |
 | 5 | 국내주식 기타주요비율 | /uapi/domestic-stock/v1/finance/other-major-ratios | FHKST66430500 | 기타 주요 재무비율 |
 | 6 | 국내주식 안정성비율 | /uapi/domestic-stock/v1/finance/stability-ratio | FHKST66430600 | 부채비율, 유동비율 등 |
-| 7 | 국내주식 성장성비율 | /uapi/domestic-stock/v1/finance/growth-ratio | FHKST66430700 | 매출증가율, 영업이익증가율 등 |
+| 7 | 국내주식 성장성비율 | /uapi/domestic-stock/v1/finance/growth-ratio | FHKST66430800 | 매출증가율, 영업이익증가율 등 |
 
 > ⚠️ **주의**: tr_id 값은 추정치입니다. 실제 API 사용 전 KIS Developers 공식 문서에서 확인이 필요합니다.
 
@@ -249,7 +249,7 @@ PER, PBR, ROE 등 주요 재무비율을 조회합니다.
 **기본 정보**
 - Method: `GET`
 - URL: `/uapi/domestic-stock/v1/finance/growth-ratio`
-- tr_id: `FHKST66430700`
+- tr_id: `FHKST66430800`
 
 **Request Parameters (Query String)**
 
