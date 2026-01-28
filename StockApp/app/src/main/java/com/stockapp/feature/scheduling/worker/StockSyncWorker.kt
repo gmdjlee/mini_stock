@@ -24,12 +24,12 @@ class StockSyncWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        Log.d(TAG, "doWork() started, runAttemptCount=$runAttemptCount")
+        Log.d(TAG, "doWork() started")
 
-        // Check if sync is enabled
+        // Check if sync is enabled or error-stopped
         val config = schedulingRepo.getConfig()
-        if (!config.isEnabled) {
-            Log.d(TAG, "Sync is disabled, skipping")
+        if (!config.isEnabled || config.isErrorStopped) {
+            Log.d(TAG, "Sync is disabled or error-stopped, skipping")
             return Result.success()
         }
 
@@ -51,19 +51,15 @@ class StockSyncWorker @AssistedInject constructor(
                 Result.success()
             } else {
                 Log.w(TAG, "Sync failed: ${result.errorMessage}")
-                if (runAttemptCount < MAX_RETRY_COUNT) {
-                    Result.retry()
-                } else {
-                    Result.failure()
-                }
+                // No retry - set error flag and fail immediately
+                schedulingRepo.setErrorStopped(true)
+                Result.failure()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Sync exception: ${e.message}", e)
-            if (runAttemptCount < MAX_RETRY_COUNT) {
-                Result.retry()
-            } else {
-                Result.failure()
-            }
+            // No retry - set error flag and fail immediately
+            schedulingRepo.setErrorStopped(true)
+            Result.failure()
         }
     }
 
@@ -71,6 +67,5 @@ class StockSyncWorker @AssistedInject constructor(
         const val WORK_NAME_PERIODIC = "stock_sync_periodic"
         const val WORK_NAME_ONCE = "stock_sync_once"
         const val KEY_SYNC_TYPE = "sync_type"
-        private const val MAX_RETRY_COUNT = 3
     }
 }
