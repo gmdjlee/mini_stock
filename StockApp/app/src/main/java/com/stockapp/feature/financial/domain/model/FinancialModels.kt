@@ -228,15 +228,16 @@ fun FinancialData.toSummary(): FinancialSummary {
         periods = sortedPeriods,
         displayPeriods = sortedPeriods.map { FinancialPeriod.fromYearMonth(it).toDisplayString(short = true) },
 
-        // Income statement data (convert to 억원)
+        // Income statement data (convert from 백만원 to 억원)
+        // KIS API returns values in millions of KRW, divide by 100 to get 억원
         revenues = sortedPeriods.map { period ->
-            incomeStatements[period]?.revenue?.let { it / 100_000_000 } ?: 0L
+            incomeStatements[period]?.revenue?.let { it / 100 } ?: 0L
         },
         operatingProfits = sortedPeriods.map { period ->
-            incomeStatements[period]?.operatingProfit?.let { it / 100_000_000 } ?: 0L
+            incomeStatements[period]?.operatingProfit?.let { it / 100 } ?: 0L
         },
         netIncomes = sortedPeriods.map { period ->
-            incomeStatements[period]?.netIncome?.let { it / 100_000_000 } ?: 0L
+            incomeStatements[period]?.netIncome?.let { it / 100 } ?: 0L
         },
 
         // Growth rates
