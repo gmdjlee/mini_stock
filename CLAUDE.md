@@ -79,15 +79,16 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 |-------|--------|-------------|
 | App Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
 | App Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
-| App Phase 2 | ✅ Done | 기술적 지표 화면 (Vico Charts) |
+| App Phase 2 | ✅ Done | 기술적 지표 화면 (MPAndroidChart) |
 | App Phase 3 | ⛔ Removed | ~~시장 지표, 조건검색 화면~~ (제거됨) |
 | App Phase 4 | ✅ Done | **설정 화면 (API 키 관리, 투자 모드)** |
 | App Phase 5 | ✅ Done | **자동 스케줄링 (WorkManager 기반)** |
 | App Phase 6 | ✅ Done | **순위정보 (Ranking) - Kotlin REST API 직접 호출** |
 | App Phase 7 | ✅ Done | **재무정보 (Financial) - KIS API 직접 호출** |
+| App Phase 8 | ✅ Done | **ETF 분석 - ETF 포트폴리오 추적 및 분석** |
 
-**코드**: 91 files, ~13,697 lines (Kotlin)
-**코드 품질**: 7.8/10 (테스트 부재로 감점, 보안/스레드안전성 개선)
+**코드**: 160 files, ~30,033 lines (Kotlin)
+**코드 품질**: 7.5/10 (테스트 부재, 보안/스레드안전성 이슈 발견)
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
 > 🚀 **이 프로젝트가 현재 활성 개발 대상입니다.** 모든 기능 추가, 버그 수정, 개선 작업은 여기에 적용됩니다.
@@ -101,7 +102,8 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | 📈 Indicator | IndicatorScreen | 기술적 지표 (Trend, Elder, DeMark) |
 | 🏦 Financial | FinancialScreen | 재무정보 (수익성, 안정성) |
 | 🏆 Ranking | RankingScreen | 순위정보 (호가잔량, 거래량, 신용비율 등) |
-| ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정 |
+| 📁 ETF | EtfScreen | ETF 포트폴리오 추적 및 분석 |
+| ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정, ETF 키워드 |
 
 ## Quick Commands
 
@@ -539,10 +541,10 @@ StockApp/
 │   ├── App.kt                      # Hilt Application
 │   ├── MainActivity.kt             # Main Activity
 │   ├── core/
-│   │   ├── db/                     # Room Database
+│   │   ├── db/                     # Room Database (v9)
 │   │   │   ├── AppDb.kt
-│   │   │   ├── entity/*.kt         # 8개 Entity (Stock, Analysis, Search, Indicator, Scheduling 등)
-│   │   │   └── dao/*.kt            # 8개 DAO
+│   │   │   ├── entity/*.kt         # 15개 Entity (Stock, Analysis, Search, Indicator, Scheduling, ETF 등)
+│   │   │   └── dao/*.kt            # 12개 DAO
 │   │   ├── py/                     # Python Bridge
 │   │   │   ├── PyClient.kt
 │   │   │   └── PyResponse.kt
@@ -561,7 +563,8 @@ StockApp/
 │   │   ├── api/                    # Kiwoom REST API (Kotlin 직접 호출)
 │   │   │   ├── ApiModels.kt        # API 응답/에러 모델
 │   │   │   ├── TokenManager.kt     # OAuth 토큰 관리
-│   │   │   └── KiwoomApiClient.kt  # REST API 클라이언트
+│   │   │   ├── KiwoomApiClient.kt  # Kiwoom REST API 클라이언트
+│   │   │   └── KisApiClient.kt     # KIS REST API 클라이언트
 │   │   └── di/                     # DI Modules
 │   │       ├── AppModule.kt
 │   │       ├── DbModule.kt
@@ -614,18 +617,32 @@ StockApp/
 │   │       │   └── repo/RankingRepoImpl.kt
 │   │       ├── ui/RankingScreen.kt, RankingVm.kt
 │   │       └── di/RankingModule.kt
-│   │   └── financial/              # 재무정보 (Phase 7) ⭐ NEW
+│   │   ├── financial/              # 재무정보 (Phase 7)
+│   │   │   ├── domain/
+│   │   │   │   ├── model/FinancialModels.kt  # FinancialData, FinancialSummary
+│   │   │   │   ├── repo/FinancialRepo.kt
+│   │   │   │   └── usecase/GetFinancialSummaryUC.kt
+│   │   │   ├── data/
+│   │   │   │   ├── dto/FinancialDto.kt       # KIS API 응답 DTO
+│   │   │   │   └── repo/FinancialRepoImpl.kt
+│   │   │   ├── ui/FinancialScreen.kt, FinancialVm.kt, ProfitabilityContent.kt, StabilityContent.kt
+│   │   │   └── di/FinancialModule.kt
+│   │   └── etf/                    # ETF 분석 (Phase 8) ⭐ NEW
 │   │       ├── domain/
-│   │       │   ├── model/FinancialModels.kt  # FinancialData, FinancialSummary
-│   │       │   ├── repo/FinancialRepo.kt
-│   │       │   └── usecase/GetFinancialSummaryUC.kt
+│   │       │   ├── model/EtfModels.kt        # EtfData, EtfConstituent
+│   │       │   ├── repo/EtfRepo.kt, EtfCollectionRepo.kt
+│   │       │   └── usecase/*.kt              # 7개 UseCase
 │   │       ├── data/
-│   │       │   ├── dto/FinancialDto.kt       # KIS API 응답 DTO
-│   │       │   └── repo/FinancialRepoImpl.kt
-│   │       ├── ui/FinancialScreen.kt, FinancialVm.kt, ProfitabilityContent.kt, StabilityContent.kt
-│   │       └── di/FinancialModule.kt
+│   │       │   ├── dto/EtfDto.kt             # API 응답 DTO
+│   │       │   └── repo/EtfRepoImpl.kt, EtfCollectionRepoImpl.kt
+│   │       ├── worker/EtfCollectionWorker.kt # 백그라운드 수집
+│   │       ├── ui/                           # 17개 UI 컴포넌트
+│   │       │   ├── EtfScreen.kt, EtfVm.kt
+│   │       │   ├── tabs/                     # 5개 탭 컴포넌트
+│   │       │   └── components/               # 상세 컴포넌트
+│   │       └── di/EtfModule.kt
 │   └── nav/
-│       ├── Nav.kt                  # Screen 정의 (7개 탭)
+│       ├── Nav.kt                  # Screen 정의 (7개 탭: Search, Analysis, Indicator, Financial, Ranking, ETF, Settings)
 │       └── NavGraph.kt             # Navigation
 │
 └── app/src/main/python/            # Python 패키지 (chart/ 제외)
@@ -788,10 +805,11 @@ val result = pyClient.call(
 ) { json -> json.decodeFromString<DemarkResponse>(json) }
 ```
 
-#### Vico Charts 사용
+#### Charts 사용 (MPAndroidChart)
 - **LineChartContent**: CMF, Fear/Greed 추이
 - **BarChartContent**: MACD Histogram
 - **DemarkSetupChart**: Sell/Buy Setup 카운트 추이
+- 모든 차트는 `AndroidView`로 래핑된 MPAndroidChart 사용
 
 ### App Phase 3: ~~시장 지표 + 조건검색~~ (제거됨)
 
@@ -1194,6 +1212,79 @@ sealed class FinancialState {
 }
 ```
 
+---
+
+### App Phase 8: ETF 분석 (ETF)
+
+#### EtfScreen (ETF 포트폴리오 추적)
+
+**기능**:
+- ETF 데이터 수집 및 분석
+- 5개 탭 구조: 수집현황, 종목랭킹, 종목변동, 테마목록, ETF설정
+- 키워드 기반 ETF 필터링
+- 일별 ETF 통계 (현금예탁금, 신규종목)
+- 종목 상세 분석 (BottomSheet)
+
+**기술 스택**: WorkManager (백그라운드 수집), Room DB (15 entities)
+
+#### ETF 탭 구조
+
+| 탭 | 컴포넌트 | 기능 |
+|----|----------|------|
+| 수집현황 | CollectionStatusTab | 수집 진행률, 통계 요약 |
+| 종목랭킹 | StockRankingTab | 구성종목 비중 순위 |
+| 종목변동 | StockChangesTab | 편입/편출 종목 추적 |
+| 테마목록 | ThemeListTab | 키워드 기반 테마 필터링 |
+| ETF설정 | EtfSettingsTab | 키워드 관리, 수집 설정 |
+
+#### 핵심 모델
+```kotlin
+// ETF 데이터
+data class EtfData(
+    val etfCode: String,
+    val etfName: String,
+    val type: String,
+    val totalAssets: Long,
+    val constituents: List<EtfConstituent>
+)
+
+// ETF 구성종목
+data class EtfConstituent(
+    val stockCode: String,
+    val stockName: String,
+    val weight: Double,
+    val evaluationAmount: Long
+)
+
+// ETF 키워드 필터
+data class EtfKeyword(
+    val keyword: String,
+    val filterType: FilterType,  // INCLUDE, EXCLUDE
+    val isEnabled: Boolean
+)
+```
+
+#### 7개 UseCase
+| UseCase | 기능 |
+|---------|------|
+| CollectAllEtfDataUC | 전체 ETF 데이터 수집 |
+| CollectEtfDataUC | 개별 ETF 데이터 수집 |
+| GetCashDepositTrendUC | 현금예탁금 추이 조회 |
+| GetComparisonInRangeUC | 기간 비교 분석 |
+| GetStockAnalysisUC | 종목 분석 조회 |
+| GetStockChangesUC | 종목 변동 추적 |
+| GetStockRankingUC | 종목 랭킹 조회 |
+
+#### ViewModel 상태
+```kotlin
+sealed class EtfState {
+    data object Loading : EtfState()
+    data object NoApiKey : EtfState()
+    data class Success(val data: EtfScreenData) : EtfState()
+    data class Error(val message: String) : EtfState()
+}
+```
+
 ### 참고 문서
 
 - Android 사전 준비: `docs/ANDROID_PREPARATION.md`
@@ -1215,7 +1306,7 @@ sealed class FinancialState {
 
 ## Database Schema
 
-### Room Entities
+### Room Database (v9, 15 entities, 12 DAOs)
 
 | Entity | 용도 | 주요 필드 |
 |--------|------|----------|
@@ -1223,11 +1314,16 @@ sealed class FinancialState {
 | `AnalysisCacheEntity` | 수급 분석 캐시 | ticker, data (JSON), startDate, endDate, cachedAt |
 | `SearchHistoryEntity` | 검색 히스토리 | id, ticker, name, searchedAt |
 | `IndicatorCacheEntity` | 기술 지표 캐시 | key, ticker, type, data (JSON), cachedAt |
-| `SchedulingConfigEntity` | 스케줄링 설정 | id, isEnabled, syncHour, syncMinute, lastSyncAt, lastSyncStatus |
+| `SchedulingEntity` | 스케줄링 설정 | id, isEnabled, syncHour, syncMinute, lastSyncAt, lastSyncStatus, isErrorStopped |
 | `SyncHistoryEntity` | 동기화 히스토리 | id, syncType, startedAt, completedAt, status, syncedStocksCount |
 | `StockAnalysisDataEntity` | 증분 분석 데이터 | ticker, date, data (JSON) |
 | `IndicatorDataEntity` | 증분 지표 데이터 | ticker, date, indicatorType, data (JSON) |
 | `FinancialCacheEntity` | 재무정보 캐시 | ticker, name, data (JSON), cachedAt |
+| `EtfEntity` | ETF 마스터 데이터 | etfCode, etfName, type, totalAssets |
+| `EtfConstituentEntity` | ETF 구성종목 | etfCode, stockCode, weight, evaluationAmount |
+| `EtfKeywordEntity` | ETF 키워드 필터 | keyword, filterType, isEnabled |
+| `EtfCollectionHistoryEntity` | ETF 수집 이력 | collectedDate, totalEtfs, status |
+| `DailyEtfStatisticsEntity` | ETF 일별 통계 | date, newStockCount, cashDepositAmount |
 
 ### 캐시 정책
 
@@ -1245,14 +1341,15 @@ sealed class FinancialState {
 
 | 기술 | 버전 | 용도 |
 |------|------|------|
-| Kotlin | 2.1.0+ | 앱 개발 언어 |
-| Jetpack Compose | BOM 2024.12 | UI 프레임워크 |
+| Kotlin | 2.1.0 | 앱 개발 언어 |
+| Jetpack Compose | BOM 2024.12.01 | UI 프레임워크 |
 | Hilt | 2.54 | 의존성 주입 |
-| Room | 2.8.3 | 로컬 데이터베이스 (9 entities, 9 DAOs) |
-| WorkManager | Latest | 백그라운드 작업 |
-| Vico | 2.0.0 | 차트 라이브러리 (주요 차트) |
-| MPAndroidChart | Latest | 차트 라이브러리 (레거시 지원) |
-| Chaquopy | 15.0.1+ | Python 통합 |
-| DataStore | Latest | 설정 저장 |
-| Security Crypto | Latest | 암호화 저장소 (AES256) |
-| OkHttp | 4.12.0 | Kotlin REST API 클라이언트 (순위정보) |
+| Room | 2.8.3 | 로컬 데이터베이스 (v9, 15 entities, 12 DAOs) |
+| WorkManager | 2.10.0 | 백그라운드 작업 (스케줄링, ETF 수집) |
+| MPAndroidChart | 3.1.0 | 차트 라이브러리 (모든 차트) |
+| Vico | 2.0.0-alpha.28 | 차트 라이브러리 (미사용, 제거 권장) |
+| Chaquopy | 15.0.1 | Python 통합 |
+| DataStore | 1.1.1 | 설정 저장 |
+| Security Crypto | 1.1.0-alpha06 | 암호화 저장소 (AES256) |
+| OkHttp | 4.12.0 | Kotlin REST API 클라이언트 (순위정보, 재무정보) |
+| Kotlinx Serialization | 1.7.1 | JSON 직렬화 |

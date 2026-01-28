@@ -1,29 +1,29 @@
 # Code Review Report
 
-**Date:** 2026-01-23
+**Date:** 2026-01-28
 **Reviewer:** Claude (AI-assisted comprehensive code review)
-**Branch:** claude/code-review-update-docs-JoSTK
+**Branch:** claude/code-review-update-docs-XXb7E
 
 ---
 
 ## Executive Summary
 
-This report presents a comprehensive code review of the mini_stock project, covering both the Python stock-analyzer backend (FROZEN) and the Android StockApp frontend (ACTIVE). The Android codebase has matured significantly with proper security implementations, thread-safety patterns, and clean architecture. The main area requiring attention remains test coverage.
+This report presents a comprehensive code review of the mini_stock project, covering both the Python stock-analyzer backend (FROZEN) and the Android StockApp frontend (ACTIVE). The Android codebase has grown significantly with the addition of ETF and Financial modules, now totaling 160 Kotlin files and 30,033 lines of code. Several security-critical issues have been identified that require immediate attention.
 
 ### Overall Assessment
 
 | Component | Score | Quality | Notes |
 |-----------|-------|---------|-------|
 | **Python Backend** | 8.5/10 | Excellent | Production-ready, frozen state |
-| **Android Frontend** | 7.8/10 | Good | Clean Architecture, security improved, needs tests |
+| **Android Frontend** | 7.5/10 | Good | Clean Architecture, but security/threading issues |
 | **Documentation** | 9/10 | Excellent | Comprehensive CLAUDE.md and API docs |
-| **Test Coverage** | Moderate | - | Python: 168 tests, Android: 0 tests |
+| **Test Coverage** | Poor | - | Python: 168 tests, Android: 0 tests |
 
 ---
 
 ## Project Statistics
 
-### Python (stock-analyzer) 🔒 FROZEN
+### Python (stock-analyzer) - FROZEN
 
 | Metric | Count |
 |--------|-------|
@@ -35,15 +35,19 @@ This report presents a comprehensive code review of the mini_stock project, cove
 
 > Note: Python package is frozen and used only for reference and Chaquopy integration.
 
-### Android (StockApp) 🚀 ACTIVE
+### Android (StockApp) - ACTIVE
 
 | Metric | Count |
 |--------|-------|
-| **Kotlin Files** | 91 files |
-| **Total Lines** | ~13,697 lines |
-| **Feature Modules** | 6 (search, analysis, indicator, ranking, settings, scheduling) |
-| **Core Modules** | 8 (db, api, cache, di, py, state, theme, ui) |
+| **Kotlin Files** | 160 files |
+| **Total Lines** | ~30,033 lines |
+| **Embedded Python Files** | 23 files |
+| **Feature Modules** | 8 (search, analysis, indicator, ranking, financial, settings, scheduling, etf) |
+| **Core Modules** | 9 (db, api, cache, di, py, state, theme, ui, config) |
 | **Architecture** | Clean Architecture + MVVM |
+| **Room DB Version** | 9 |
+| **Entities** | 15 |
+| **DAOs** | 12 |
 | **Min SDK** | 26 |
 | **Target SDK** | 35 |
 | **Compile SDK** | 35 |
@@ -58,521 +62,458 @@ This report presents a comprehensive code review of the mini_stock project, cove
 | Jetpack Compose | BOM 2024.12.01 | Latest |
 | Hilt | 2.54 | Latest |
 | Room | 2.8.3 | Latest |
-| Vico Charts | 2.0.0 | Stable |
-| MPAndroidChart | Latest | Legacy support |
+| Vico Charts | 2.0.0-alpha.28 | Included but unused |
+| MPAndroidChart | 3.1.0 | Actively used |
 | Chaquopy | 15.0.1 | Stable |
 | OkHttp | 4.12.0 | Latest |
-| Security Crypto | Latest | Latest |
+| Security Crypto | 1.1.0-alpha06 | Latest |
+| WorkManager | 2.10.0 | Latest |
 
 ---
 
-## Module Analysis
+## Critical Security Issues
 
-### Feature Modules (6 modules, ~6,228 LOC)
+### P0 - Security Critical (Immediate Action Required)
 
-| Module | Files | Lines | Score | Purpose |
-|--------|-------|-------|-------|---------|
-| **Search** | 7 | 680 | 8.0/10 | Stock search with 300ms debounce, history management |
-| **Analysis** | 7 | 1,055 | 9.0/10 | Supply/demand analysis, MACD oscillator, pull-to-refresh |
-| **Indicator** | 9 | 1,839 | 8.0/10 | Trend/Elder/DeMark technical indicators with tabbed UI |
-| **Ranking** | 9 | 1,987 | 8.0/10 | 6 ranking types via Kotlin REST API |
-| **Settings** | 9 | 853 | 9.0/10 | API key management with AES256 encryption |
-| **Scheduling** | 8 | 1,415 | 9.0/10 | WorkManager-based background sync |
+#### 1. KIS API Token Management - Thread Safety Violation
 
-### Core Modules (8 modules, ~3,948 LOC)
+**File:** `core/api/KisApiClient.kt` (Lines 70-94)
 
-| Module | Files | Lines | Score | Purpose |
-|--------|-------|-------|-------|---------|
-| **Database (db/)** | 9 | 650 | 8.5/10 | Room DB with 8 entities, 8 DAOs, explicit migrations |
-| **API (api/)** | 3 | 400 | 8.0/10 | Kotlin REST client, OAuth token management |
-| **Cache** | 1 | 240 | 7.5/10 | TTL-based caching with market-aware truncation |
-| **Python Bridge (py/)** | 2 | 310 | 8.5/10 | Thread-safe Chaquopy integration |
-| **DI (di/)** | 3 | 190 | 8.0/10 | Hilt modules with proper scoping |
-| **State** | 1 | 60 | 8.0/10 | Cross-screen stock selection |
-| **Theme** | 7 | 500 | 9.0/10 | Material3 theming with dark mode |
-| **UI Components** | 17 | 3,574 | 7.5/10 | Charts, inputs, loading states |
+**Issue:** Token caching is NOT thread-safe. While `tokenMutex` is defined, the `lastCallTime` variable is accessed and modified without locking in `waitForRateLimit()`.
 
----
-
-## Security Analysis
-
-### Resolved Issues ✅
-
-| Issue | Status | Implementation |
-|-------|--------|----------------|
-| API Key Encryption | ✅ Fixed | EncryptedSharedPreferences with AES256 |
-| Thread-safe PyClient | ✅ Fixed | AtomicReference + Mutex for initialization |
-| Database Migrations | ✅ Fixed | Explicit migrations (v1→v5), no destructive fallback |
-| Debug Logging | ✅ Fixed | BuildConfig.DEBUG checks for sensitive data |
-
-### Current Security Status
-
-| Area | Status | Notes |
-|------|--------|-------|
-| Credentials Storage | ✅ Excellent | AES256 encryption via Security Crypto |
-| Token Management | ✅ Good | Auto-refresh, 1-minute expiry buffer |
-| HTTPS | ✅ Good | All API calls over HTTPS |
-| Rate Limiting | ✅ Good | 500ms minimum interval between API calls |
-| Input Validation | ✅ Good | Parameters validated before API calls |
-| Thread Safety | ✅ Good | Proper use of Mutex, AtomicReference |
-
-### Remaining Concerns (Low Priority)
-
-| Issue | Severity | Recommendation |
-|-------|----------|----------------|
-| No HTTPS Pinning | Low | Add certificate pinning for production |
-| Korean-only errors | Low | Consider localization for error messages |
-
----
-
-## Critical Issues
-
-### 1. No Unit Tests (Critical) ⚠️
-
-**Status:** 13,697 lines of code with 0 tests
-
-**Impact:**
-- Bug detection impossible before deployment
-- Refactoring is risky
-- Code quality cannot be verified objectively
-
-**Recommended Test Plan:**
-
+```kotlin
+// Lines 70-72: Simple mutable properties without synchronization
+private var tokenCache: KisTokenInfo? = null
+private var lastCallTime = 0L
+private val tokenMutex = Mutex()
 ```
-Phase 1 (Urgent): 30 Unit Tests
-├── PyClient tests (10)
-│   ├── Initialization (success, failure, timeout)
-│   ├── Thread safety verification
-│   └── Error mapping
-├── Repository tests (10)
-│   ├── Cache TTL logic
-│   └── Data transformation
-└── ViewModel tests (10)
-    ├── State transitions
-    └── Debouncing behavior
 
-Phase 2 (Important): 20 Instrumentation Tests
-├── Database tests (10)
-├── Navigation tests (5)
-└── Settings encryption tests (5)
+**Risk:** Race conditions in high-concurrency scenarios causing token conflicts or invalid states.
 
-Phase 3 (Nice-to-have): 10 E2E Tests
-├── Search → Analysis flow
-├── Ranking → Analysis flow
-└── Settings → API test flow
+**Fix:** Apply mutex lock to both token cache AND lastCallTime updates.
 
-Target: 80% coverage with at least 60 tests
+#### 2. KIS API Credentials in HTTP Headers
+
+**File:** `core/api/KisApiClient.kt` (Lines 210-214)
+
+**Issue:** API credentials sent in HTTP headers.
+
+```kotlin
+.addHeader("appkey", config.appKey)
+.addHeader("appsecret", config.appSecret)
 ```
+
+**Risk:** Credentials can be captured by HTTP interceptors, proxies, or logged in debugging tools.
+
+**Fix:** Move credentials to request body if API supports it, or ensure no logging of headers in production.
+
+#### 3. FinancialRepoImpl Token - TOCTOU Race Condition
+
+**File:** `feature/financial/data/repo/FinancialRepoImpl.kt` (Lines 70-73, 177-183)
+
+**Issue:** Token caching without synchronization - classic Time-of-Check-Time-of-Use bug.
+
+```kotlin
+private var cachedToken: String? = null
+private var tokenExpiresAt: Long = 0
+private var tokenBaseUrl: String? = null
+
+// Check without lock:
+if (cachedToken != null &&
+    tokenBaseUrl == baseUrl &&
+    System.currentTimeMillis() < tokenExpiresAt - 60_000) {
+    return cachedToken!!
+}
+```
+
+**Risk:** Between checking if token is valid and using it, another thread could invalidate it.
+
+**Fix:** Use Mutex like TokenManager does.
 
 ---
 
 ## High Priority Issues
 
-### Code Organization
+### P1 - Error Handling Inconsistency
 
-| # | Issue | Location | Severity | Recommendation |
-|---|-------|----------|----------|----------------|
-| 1 | TechnicalCharts.kt is 1,245 lines | core/ui/component/chart/ | Medium | Split into 4 files |
-| 2 | IndicatorScreen.kt is 748 lines | feature/indicator/ui/ | Medium | Extract composables |
-| 3 | RankingRepoImpl.kt is 537 lines | feature/ranking/data/ | Medium | Extract parsers |
+#### Multiple Error Types Without Unified Handling
 
-### Error Handling Gaps
+**Files Affected:**
+- `core/api/ApiModels.kt` - ApiError hierarchy
+- `core/py/PyClient.kt` - PyError hierarchy
+- `feature/search/data/repo/SearchRepoImpl.kt` - PyApiException
 
-| # | Issue | Location | Severity | Recommendation |
-|---|-------|----------|----------|----------------|
-| 1 | Empty catch block in search | SearchVm.kt | Medium | Log and handle errors |
-| 2 | Silent cache deletion on parse failure | AnalysisRepoImpl.kt | Low | Add logging |
-| 3 | Unsafe list access | IndicatorVm.kt | Medium | Add bounds checking |
+**Issue:** Three different error types used inconsistently across the codebase. This creates maintenance issues and makes error handling fragile.
 
-### Configuration Hardcoding
+**Recommendation:** Consolidate to a single error hierarchy or create mappers between types.
 
-| # | Issue | Location | Value | Recommendation |
-|---|-------|----------|-------|----------------|
-| 1 | Cache size | StockCacheManager.kt | 10,000 | Make configurable |
-| 2 | Debounce delay | SearchVm.kt | 300ms | Extract to config |
-| 3 | History limit | Multiple files | 50 | Centralize constant |
-| 4 | API timeout | PyClient.kt | 30s/60s | Allow user setting |
+### P2 - Thread Safety Issues
 
----
+#### PyClient Initialization Race Condition
 
-## Medium Priority Issues
+**File:** `core/py/PyClient.kt` (Lines 36-38)
 
-### Architecture Improvements
+**Issue:** AtomicReference and AtomicBoolean mixed with Mutex - redundant and confusing.
 
-1. **Chart Label Calculation Duplication**
-   - Same logic repeated across 5 chart types
-   - Recommendation: Extract to shared utility
+```kotlin
+private val kiwoomClientRef = AtomicReference<PyObject?>(null)
+private val initializedFlag = AtomicBoolean(false)
+private val initMutex = Mutex()
+```
 
-2. **Marker View Repetition**
-   - 9 custom MarkerView implementations with similar code
-   - Recommendation: Generic MarkerView with formatter lambda
+The `isReady()` function checks without lock, which could read inconsistent state.
 
-3. **Date Formatting Logic**
-   - Complex if-then-else chains in DateFormatter
-   - Recommendation: Use sealed classes for date ranges
+**Recommendation:** Use simple variables inside mutex lock instead of mixing atomic operations.
 
-4. **Test Infrastructure Missing**
-   - No Clock abstraction for TokenManager testing
-   - Recommendation: Add test doubles for time-dependent code
+### P3 - Code Duplication (DRY Violations)
 
-### Performance Considerations
+#### Token Management Duplication
 
-1. **JSON Manual Building in KiwoomApiClient**
-   - Lines 85-91 build JSON manually
-   - Recommendation: Use kotlinx.serialization
+Three independent implementations of token caching with expiry checks:
+- `TokenManager.kt` (lines 52-78)
+- `KisApiClient.kt` (lines 92-109)
+- `FinancialRepoImpl.kt` (lines 176-219)
 
-2. **Stock List Truncation**
-   - Sorts then takes 10,000 items
-   - Recommendation: More efficient filtering algorithm
+**Recommendation:** Create a shared `GenericTokenManager<T>` or common interface.
 
----
+#### Fetch Method Duplication in FinancialRepoImpl
 
-## Detailed Module Analysis
+**File:** `feature/financial/data/repo/FinancialRepoImpl.kt` (Lines 222-341)
 
-### Search Module (8.0/10)
+Five nearly identical fetch methods with same structure:
 
-**Strengths:**
-- Proper debouncing mechanism (300ms)
-- Local cache fallback reduces network load
-- Search history limited to 50 items
-- Good logging at critical points
+```kotlin
+private suspend fun fetchBalanceSheet(...): List<BalanceSheet>
+private suspend fun fetchIncomeStatement(...): List<IncomeStatement>
+private suspend fun fetchProfitabilityRatios(...): List<ProfitabilityRatios>
+private suspend fun fetchStabilityRatios(...): List<StabilityRatios>
+private suspend fun fetchGrowthRatios(...): List<GrowthRatios>
+```
 
-**Weaknesses:**
-- Empty catch block in `onQueryChange` ignores errors
-- No validation on search results count
-- Cache count refresh could be more reactive
-
-### Analysis Module (9.0/10)
-
-**Strengths:**
-- Sophisticated MACD-style oscillator calculation
-- Proper unit conversion (trillion ↔ billion)
-- TTL-based cache expiration
-- Pull-to-refresh pattern
-
-**Weaknesses:**
-- Error code extraction regex could fail on malformed messages
-- No circuit breaker pattern for repeated failures
-
-### Indicator Module (8.0/10)
-
-**Strengths:**
-- Intelligent tab caching (checks before API call)
-- Timeframe switching properly clears cache
-- Elder Impulse fetches close prices from OHLCV as fallback
-- Buy/Sell signal generation with multiple conditions
-
-**Weaknesses:**
-- Signal calculation relies on list indices without boundary checking
-- DemarkSetup uses arbitrary 5/9 thresholds without documentation
-
-### Ranking Module (8.0/10)
-
-**Strengths:**
-- 5 distinct ranking types with specialized parsing
-- Dynamic API response parsing
-- Investment mode-aware exchange filtering
-- Fallback for mock API institution data
-
-**Weaknesses:**
-- No request rate limiting or caching
-- Price formatting could handle 0 values more explicitly
-
-### Settings Module (9.0/10)
-
-**Strengths:**
-- Secure credential storage using EncryptedSharedPreferences
-- Three-step process: Update → Save → Test
-- Production mode warning (red styling)
-- Proper validation before save
-
-**Weaknesses:**
-- Test happens after save (risky order)
-- API key format validation missing
-
-### Scheduling Module (9.0/10)
-
-**Strengths:**
-- Proper CoroutineWorker for async operations
-- Retry logic (max 3 attempts)
-- HiltWorker for DI in background context
-- Duration calculation in human-readable format
-
-**Weaknesses:**
-- No network state checking before sync
-- No max execution time configured for WorkManager
+**Recommendation:** Extract to a generic function with type parameters.
 
 ---
 
-## Core Module Analysis
+## Performance Issues
 
-### Database Layer (8.5/10)
+### Critical - Calculations in Composables
 
-**Strengths:**
-- 8 entities covering all app needs
-- Clear entity design with proper indexes
-- Comprehensive migration path (v1→v5)
-- Type-safe DAO interfaces with suspend functions
+#### AnalysisScreen.kt (lines 177-202)
 
-**Schema:**
+```kotlin
+val supplyRatioList = mcapHistory.mapIndexed { index, mcap -> ... }
+val ema12 = calcEma(supplyRatioList, 12)
+val ema26 = calcEma(supplyRatioList, 26)
+val macdLine = ema12.zip(ema26) { e12, e26 -> e12 - e26 }
+```
 
-| Table | Entity | Purpose |
-|-------|--------|---------|
-| stocks | StockEntity | Stock info cache |
-| analysis_cache | AnalysisCacheEntity | Analysis data cache |
-| search_history | SearchHistoryEntity | Search history |
-| indicator_cache | IndicatorCacheEntity | Indicator cache |
-| scheduling_config | SchedulingConfigEntity | Scheduling settings |
-| sync_history | SyncHistoryEntity | Sync history records |
-| stock_analysis_data | StockAnalysisDataEntity | Incremental analysis data |
-| indicator_data | IndicatorDataEntity | Incremental indicator data |
+**Issue:** Runs EVERY recomposition with O(n^2) complexity for EMA calculation.
 
-### API Layer (8.0/10)
+**Fix:** Move to ViewModel or use `remember { }`.
 
-**Strengths:**
-- Thread-safe token cache using Mutex
-- Smart token expiry checking (1 minute buffer)
-- Proper rate limiting (500ms interval)
-- Comprehensive error handling with sealed ApiError class
+#### TrendContentSection.kt (lines 33-71)
 
-**Weaknesses:**
-- Manual JSON building instead of serialization
-- No token revocation when user changes keys
+Complex signal detection logic running in UI layer on every recomposition.
 
-### Python Bridge (8.5/10)
+**Fix:** Move to domain layer, cache in ViewModel.
 
-**Strengths:**
-- Thread-safe initialization (AtomicReference + Mutex)
-- Timeout support with coroutine suspension
-- Smart error message extraction from Python exceptions
-- Connection testing with actual OAuth call
+### Medium - AndroidView Data Rebuild
 
-**Weaknesses:**
-- No retry mechanism for transient Python errors
-- Limited error context for Python exceptions
+All 8 chart composables use `AndroidView` with full data rebuild on every parent recomposition.
 
-### Theme System (9.0/10)
+**Fix:** Use `remember` to memoize chart data or skip updates if data unchanged.
 
-**Strengths:**
-- Excellent color system with semantic meanings
-- Korean market convention (Red=Up, Blue=Down)
-- Complete typography system matching Material3
-- DataStore-based persistence
+### Low - Unused Vico Dependency
 
-**Weaknesses:**
-- 118 color definitions is excessive (some duplicates)
+Vico Charts dependency included but all charts use MPAndroidChart via AndroidView. This adds 2-3 MB to APK size unnecessarily.
 
-### UI Components (7.5/10)
+**Recommendation:** Remove Vico dependency or migrate charts to use it.
 
-**Strengths:**
-- Comprehensive chart library (9 chart types)
-- Python-reference style chart colors
-- Well-designed stock input with history
-- Proper error and loading state separation
+---
 
-**Weaknesses:**
-- TechnicalCharts.kt needs refactoring (1,245 lines)
-- Chart label formatting duplicated across types
-- No responsive sizing for different devices
+## Module Analysis
+
+### Feature Modules (8 modules, ~20,886 LOC)
+
+| Module | Files | Lines | Score | Purpose |
+|--------|-------|-------|-------|---------|
+| **ETF** | 32 | 9,403 | 7.0/10 | ETF portfolio tracking & analytics (largest module) |
+| **Financial** | 10 | 2,470 | 7.5/10 | KIS API financial statements |
+| **Settings** | 11 | 2,165 | 8.5/10 | API key management with AES256 encryption |
+| **Scheduling** | 8 | 2,033 | 8.5/10 | WorkManager-based background sync |
+| **Ranking** | 12 | 2,096 | 7.5/10 | 6 ranking types via Kotlin REST API |
+| **Indicator** | 13 | 1,959 | 7.5/10 | Trend/Elder/DeMark technical indicators |
+| **Analysis** | 7 | 1,065 | 8.0/10 | Supply/demand analysis, MACD oscillator |
+| **Search** | 7 | 695 | 8.0/10 | Stock search with 300ms debounce |
+
+### Core Modules (9 modules, ~3,768 LOC)
+
+| Module | Files | Lines | Score | Purpose |
+|--------|-------|-------|-------|---------|
+| **Database (db/)** | 20 | 1,404 | 8.0/10 | Room DB v9, 15 entities, 12 DAOs |
+| **API (api/)** | 4 | 889 | 7.0/10 | Kotlin REST client, OAuth (security issues) |
+| **UI Components** | 30 | 4,417 | 7.5/10 | Charts, inputs, theme, loading states |
+| **Python Bridge (py/)** | 2 | 388 | 8.0/10 | Thread-safe Chaquopy integration |
+| **DI (di/)** | 3 | ~190 | 8.0/10 | Hilt modules with proper scoping |
+| **Cache** | 1 | ~240 | 7.5/10 | TTL-based caching |
+| **State** | 1 | ~60 | 8.0/10 | Cross-screen stock selection |
+| **Config** | 1 | ~80 | 8.0/10 | App configuration constants |
+| **Navigation** | 2 | 90 | 8.0/10 | Bottom nav (7 screens) |
+
+---
+
+## Database Schema (v9)
+
+### Room Entities (15 tables)
+
+| Entity | Purpose | Key Fields |
+|--------|---------|------------|
+| **StockEntity** | Stock info cache | ticker, name, market, updatedAt |
+| **AnalysisCacheEntity** | Analysis data cache | ticker, data (JSON), cachedAt |
+| **SearchHistoryEntity** | Search history | ticker, name, searchedAt |
+| **IndicatorCacheEntity** | Indicator cache | key, type, data (JSON), cachedAt |
+| **SchedulingEntity** | Scheduling config | isEnabled, syncHour, lastSyncStatus |
+| **EtfEntity** | ETF master data | etfCode, etfName, type, totalAssets |
+| **EtfConstituentEntity** | ETF holdings | etfCode, stockCode, weight |
+| **EtfKeywordEntity** | Keyword filters | keyword, filterType, isEnabled |
+| **EtfCollectionHistoryEntity** | Collection tracking | collectedDate, status |
+| **DailyEtfStatisticsEntity** | Daily ETF stats | date, newStockCount, cashDepositAmount |
+| **FinancialCacheEntity** | Financial cache | ticker, data (JSON), cachedAt |
+| **SyncHistoryEntity** | Sync history | syncType, startedAt, status |
+| **StockAnalysisDataEntity** | Incremental analysis | ticker, date, data (JSON) |
+| **IndicatorDataEntity** | Incremental indicators | ticker, date, type, data (JSON) |
+
+### Database Migrations
+
+- v5->v6: Add ETF collector tables (4 tables)
+- v6->v7: Add daily_etf_statistics table
+- v7->v8: Add financial_cache table
+- v8->v9: Add isErrorStopped column to scheduling_config
 
 ---
 
 ## Architecture Assessment
 
-### Clean Architecture Implementation (8.5/10)
+### Clean Architecture Implementation (8.0/10)
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    UI Layer                          │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
-│  │ Screens │  │ViewModels│  │ Composables         │  │
-│  └────┬────┘  └────┬────┘  └─────────────────────┘  │
-│       │            │                                 │
-├───────┼────────────┼─────────────────────────────────┤
-│       ▼            ▼           Domain Layer          │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
-│  │Use Cases│  │ Models  │  │ Repository Interfaces│  │
-│  └────┬────┘  └─────────┘  └─────────────────────┘  │
-│       │                                              │
-├───────┼──────────────────────────────────────────────┤
-│       ▼                        Data Layer            │
-│  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
-│  │  Repos  │  │  DTOs   │  │ Data Sources        │  │
-│  └────┬────┘  └─────────┘  │ (API, DB, Prefs)    │  │
-│       │                     └─────────────────────┘  │
-└───────┼──────────────────────────────────────────────┘
-        ▼
-   External Services (Kiwoom API, Python/Chaquopy)
++---------------------------------------------------------+
+|                    UI Layer                              |
+|  +----------+  +----------+  +----------------------+   |
+|  | Screens  |  |ViewModels|  | Composables          |   |
+|  +-----+----+  +----+-----+  +----------------------+   |
+|        |            |                                    |
++--------+------------+------------------------------------+
+|        v            v           Domain Layer             |
+|  +----------+  +----------+  +----------------------+   |
+|  |Use Cases |  | Models   |  | Repository Interfaces|   |
+|  +-----+----+  +----------+  +----------------------+   |
+|        |                                                 |
++--------+--------------------------------------------------+
+|        v                        Data Layer               |
+|  +----------+  +----------+  +----------------------+   |
+|  |  Repos   |  |  DTOs    |  | Data Sources         |   |
+|  +-----+----+  +----------+  | (API, DB, Prefs)     |   |
+|        |                      +----------------------+   |
++--------+--------------------------------------------------+
+         v
+   External Services (Kiwoom API, KIS API, Python/Chaquopy)
 ```
 
 **Strengths:**
 - Consistent domain/data/ui layer separation
 - Repository pattern properly implemented
-- Use cases encapsulate business logic
-- Hilt DI properly configured
+- Use cases encapsulate business logic (17 total)
+- Hilt DI properly configured (11 modules)
 
 **Weaknesses:**
-- Some feature modules could share more common code
-- Chart utilities could be better organized
+- Some security issues in API layer
+- Missing DI for OkHttpClient (creates multiple instances)
+- Missing Dispatcher DI qualifiers in most code
 
-### State Management (8.5/10)
+### State Management (8.0/10)
 
 - All modules use sealed classes for UI state
 - Proper StateFlow for reactive updates
 - Good separation between domain and UI models
 
-### Error Handling (7.5/10)
+**Issues:**
+- Inconsistent number of StateFlows across ViewModels (1-12 flows)
+- Some ViewModels manually debounce instead of using Flow operators
 
-- Sealed error classes used throughout
-- Some modules have inconsistent patterns
-- Silent failures in a few catch blocks
+### Composable Patterns (7.5/10)
+
+**Strengths:**
+- 183 composables with clear separation
+- Proper state hoisting patterns
+- Good use of sealed classes for state
+
+**Issues:**
+- Calculations in composables (performance)
+- Missing @Immutable on data classes
+- 9 custom MarkerView implementations with similar code
 
 ---
 
-## API Implementation Status
+## UI/UX Analysis
 
-### Implemented Kiwoom APIs (22 APIs)
+### Current App Navigation (7 Bottom Nav Tabs)
 
-| API ID | Function | Module | Status |
-|--------|----------|--------|--------|
-| au10001 | Token generation | client/auth | ✅ Complete |
-| au10002 | Token revocation | client/auth | ✅ Complete |
-| ka10099 | Stock list | client/kiwoom | ✅ Complete |
-| ka10001 | Stock basic info | stock/search | ✅ Complete |
-| ka10008 | Foreign investor trend | stock/analysis | ✅ Complete |
-| ka10045 | Institution trend | stock/analysis | ✅ Complete |
-| ka10059 | Investor/institution trend | stock/analysis | ✅ Complete |
-| ka10061 | Investor summary | stock/analysis | ✅ Complete |
-| ka10081 | Daily chart (OHLCV) | stock/ohlcv | ✅ Complete |
-| ka10082 | Weekly chart | stock/ohlcv | ✅ Complete |
-| ka10083 | Monthly chart | stock/ohlcv | ✅ Complete |
-| ka10171 | Condition search list | search/condition | ✅ Complete |
-| ka10172 | Condition search exec | search/condition | ✅ Complete |
-| ka10013 | Credit trading trend | market/deposit | ✅ Complete |
-| kt00001 | Customer deposit trend | market/deposit | ✅ Complete |
-| ka40003 | ETF daily trend | client/kiwoom | ✅ Complete |
-| ka40004 | ETF full quote list | client/kiwoom | ✅ Complete |
-| ka10021 | Order book surge | ranking (Kotlin) | ✅ Complete |
-| ka10023 | Volume surge | ranking (Kotlin) | ✅ Complete |
-| ka10030 | Daily volume top | ranking (Kotlin) | ✅ Complete |
-| ka10033 | Credit ratio top | ranking (Kotlin) | ✅ Complete |
-| ka90009 | Foreign/institution top | ranking (Kotlin) | ✅ Complete |
+| Tab | Screen | Icon | Purpose |
+|-----|--------|------|---------|
+| 1 | Search | Search | Stock lookup with history |
+| 2 | Analysis | Analytics | Supply-demand ratios & signals |
+| 3 | Indicator | Chart | Technical indicators (3 types) |
+| 4 | Financial | Account | Financial statements from KIS |
+| 5 | Ranking | Leaderboard | Market rankings (6 types) |
+| 6 | ETF | Pie Chart | ETF portfolio analytics |
+| 7 | Settings | Settings | API keys, scheduling, keywords |
+
+### Theme System (9.0/10)
+
+**Strengths:**
+- 100+ colors organized logically
+- Korean market convention (Red=Up, Blue=Down)
+- Proper dark/light mode support
+- CompositionLocal providers for custom theme
+
+**Issues:**
+- Inconsistent color usage in some charts
+- Some hardcoded colors in chart files
 
 ---
 
 ## Recommendations Summary
 
-### Immediate Actions (Week 1)
+### Immediate Actions (P0 - This Week)
 
-| Priority | Action | Component | Effort |
-|----------|--------|-----------|--------|
-| 1 | Add Android unit tests (30+) | Android | 3-4 days |
-| 2 | Refactor TechnicalCharts.kt | Android | 1 day |
-| 3 | Add bounds checking to Indicator | Android | 2 hours |
-| 4 | Fix empty catch blocks | Android | 1 hour |
+| # | Action | File | Effort |
+|---|--------|------|--------|
+| 1 | Fix KisApiClient token thread safety | core/api/KisApiClient.kt | 2 hours |
+| 2 | Fix FinancialRepoImpl token TOCTOU | feature/financial/data/repo/ | 2 hours |
+| 3 | Move calculations out of composables | AnalysisScreen.kt, TrendContentSection.kt | 4 hours |
 
-### Short-term Improvements (Week 2-3)
+### High Priority (P1 - Next 2 Weeks)
 
-| Priority | Action | Component | Effort |
-|----------|--------|-----------|--------|
-| 5 | Extract configuration constants | Android | 4 hours |
-| 6 | Consolidate chart markers | Android | 4 hours |
-| 7 | Add instrumentation tests | Android | 2-3 days |
-| 8 | Improve error messages | Android | 4 hours |
+| # | Action | Component | Effort |
+|---|--------|-----------|--------|
+| 4 | Consolidate error types | core/api, core/py | 4 hours |
+| 5 | Fix PyClient atomic/mutex mixing | core/py/PyClient.kt | 2 hours |
+| 6 | Create generic token manager | core/api/ | 4 hours |
+| 7 | Add unit tests (target: 30+) | All modules | 3-4 days |
 
-### Long-term Improvements (Month 2+)
+### Medium Priority (P2 - Next Month)
 
-| Priority | Action | Component | Effort |
-|----------|--------|-----------|--------|
-| 9 | Add HTTPS certificate pinning | Android | 4 hours |
-| 10 | Implement network state awareness | Android | 4 hours |
-| 11 | Add E2E tests | Android | 3-5 days |
-| 12 | Localize error messages | Android | 1 day |
+| # | Action | Component | Effort |
+|---|--------|-----------|--------|
+| 8 | Extract financial fetch methods | FinancialRepoImpl.kt | 2 hours |
+| 9 | Provide OkHttpClient via DI | core/di/AppModule.kt | 2 hours |
+| 10 | Add Dispatcher DI qualifiers | All repos/VMs | 4 hours |
+| 11 | Remove unused Vico dependency | build.gradle | 30 min |
+| 12 | Add chart data memoization | All chart composables | 4 hours |
+
+### Low Priority (P3 - Long Term)
+
+| # | Action | Component | Effort |
+|---|--------|-----------|--------|
+| 13 | Add HTTPS certificate pinning | OkHttpClient | 4 hours |
+| 14 | Add deep link navigation | NavGraph.kt | 4 hours |
+| 15 | Localize error messages | All modules | 1 day |
+| 16 | Add E2E tests | Android | 3-5 days |
 
 ---
 
-## Files Reviewed
+## Files Analyzed
 
-### Kotlin (91 files)
+### Kotlin (160 files, 30,033 LOC)
 
 ```
 app/src/main/java/com/stockapp/
-├── App.kt (122 lines)
-├── MainActivity.kt (111 lines)
-├── core/
-│   ├── api/ (3 files, 355 lines)
-│   │   ├── ApiModels.kt
-│   │   ├── TokenManager.kt
-│   │   └── KiwoomApiClient.kt
-│   ├── cache/ (1 file, 237 lines)
-│   │   └── StockCacheManager.kt
-│   ├── db/ (9 files, ~650 lines)
-│   │   ├── AppDb.kt
-│   │   ├── entity/ (2 files)
-│   │   └── dao/ (6 files)
-│   ├── di/ (3 files, 267 lines)
-│   ├── py/ (2 files, 386 lines)
-│   ├── state/ (1 file, 57 lines)
-│   ├── theme/ (2 files, 143 lines)
-│   └── ui/ (17 files, ~3,574 lines)
-│       ├── theme/ (5 files)
-│       └── component/ (12 files)
-├── feature/
-│   ├── search/ (7 files, 680 lines)
-│   ├── analysis/ (7 files, 1,055 lines)
-│   ├── indicator/ (9 files, 1,839 lines)
-│   ├── ranking/ (9 files, 1,987 lines)
-│   ├── settings/ (9 files, 853 lines)
-│   └── scheduling/ (8 files, 1,415 lines)
-└── nav/ (2 files, 115 lines)
++-- App.kt
++-- MainActivity.kt
++-- core/
+|   +-- api/ (4 files, 889 LOC)
+|   +-- cache/ (1 file)
+|   +-- config/ (1 file)
+|   +-- db/ (20 files, 1,404 LOC)
+|   +-- di/ (3 files)
+|   +-- py/ (2 files, 388 LOC)
+|   +-- state/ (1 file)
+|   +-- ui/ (30 files, 4,417 LOC)
+|       +-- theme/ (8 files)
+|       +-- component/ (14 files)
++-- feature/
+|   +-- analysis/ (7 files, 1,065 LOC)
+|   +-- etf/ (32 files, 9,403 LOC)
+|   +-- financial/ (10 files, 2,470 LOC)
+|   +-- indicator/ (13 files, 1,959 LOC)
+|   +-- ranking/ (12 files, 2,096 LOC)
+|   +-- scheduling/ (8 files, 2,033 LOC)
+|   +-- search/ (7 files, 695 LOC)
+|   +-- settings/ (11 files, 2,165 LOC)
++-- nav/ (2 files, 90 LOC)
 ```
 
-### Python (23 files in Android)
+### Python (23 files embedded in Android)
 
 ```
 app/src/main/python/stock_analyzer/
-├── __init__.py
-├── config.py
-├── client/ (auth.py, kiwoom.py)
-├── core/ (log.py, http.py, date.py, json_util.py)
-├── stock/ (search.py, analysis.py, ohlcv.py)
-├── indicator/ (trend.py, elder.py, demark.py, oscillator.py)
-├── market/ (deposit.py)
-└── search/ (condition.py)
++-- __init__.py
++-- config.py
++-- client/ (auth.py, kiwoom.py)
++-- core/ (log.py, http.py, date.py, json_util.py)
++-- stock/ (search.py, analysis.py, ohlcv.py)
++-- indicator/ (trend.py, elder.py, demark.py, oscillator.py)
++-- market/ (deposit.py)
++-- search/ (condition.py)
 ```
+
+---
+
+## Issue Summary by Severity
+
+| Severity | Count | Status |
+|----------|-------|--------|
+| **P0 (Critical)** | 3 | Security issues requiring immediate fix |
+| **P1 (High)** | 4 | Thread safety, error handling |
+| **P2 (Medium)** | 5 | Code duplication, DI improvements |
+| **P3 (Low)** | 4 | Long-term improvements |
+| **Total** | 16 | - |
 
 ---
 
 ## Conclusion
 
-The StockApp Android application demonstrates **solid engineering practices** with a well-structured Clean Architecture implementation, proper security measures, and comprehensive feature coverage.
+The StockApp Android application has grown significantly with the addition of ETF and Financial modules, now at 160 Kotlin files and 30,033 lines of code. While the architecture remains solid with Clean Architecture + MVVM patterns, several **security-critical issues** have been identified that require immediate attention:
+
+1. **Token management race conditions** in KisApiClient and FinancialRepoImpl
+2. **API credentials in HTTP headers** exposing sensitive data
+3. **Performance issues** with calculations running in composables
 
 ### Key Strengths
-1. **Security** - AES256 encrypted credentials, thread-safe operations
-2. **Architecture** - Consistent MVVM + Clean Architecture across all modules
-3. **Feature Completeness** - 6 fully functional feature modules
-4. **Code Organization** - Clear separation of concerns
-5. **Modern Stack** - Jetpack Compose, Kotlin Coroutines, Hilt DI
+1. **Architecture** - Consistent MVVM + Clean Architecture across 8 feature modules
+2. **Feature Completeness** - Comprehensive stock analysis, ETF tracking, financial data
+3. **Modern Stack** - Jetpack Compose, Kotlin Coroutines, Hilt DI, WorkManager
+4. **Security Foundation** - AES256 encrypted credentials storage
 
 ### Critical Areas Requiring Attention
-1. **Test Coverage** - 0 tests for 13,697 lines of code
-2. **Code Organization** - Large files need refactoring (TechnicalCharts.kt)
-3. **Error Handling** - Some inconsistent patterns
+1. **Security** - Fix token management thread safety (P0)
+2. **Test Coverage** - 0 tests for 30,033 lines of code
+3. **Performance** - Move calculations out of composables
+4. **Code Quality** - Reduce duplication in token management and fetch methods
 
 ### Final Scores
 
-| Component | Current Score | After Fixes (Expected) |
-|-----------|---------------|------------------------|
-| Python Backend | 8.5/10 | 8.5/10 (frozen) |
-| Android Frontend | 7.8/10 | 8.8/10 |
-| Overall Project | 8.0/10 | 8.7/10 |
-
-With the recommended test coverage and code organization improvements, this codebase will be production-ready with high reliability and maintainability.
+| Component | Current Score | After P0 Fixes | After All Fixes |
+|-----------|---------------|----------------|-----------------|
+| Python Backend | 8.5/10 | 8.5/10 | 8.5/10 (frozen) |
+| Android Frontend | 7.5/10 | 8.0/10 | 8.8/10 |
+| Overall Project | 7.8/10 | 8.1/10 | 8.7/10 |
 
 ---
 
-*This comprehensive review was conducted using parallel agent analysis covering Python backend, Android frontend, security, architecture, and documentation.*
+*This comprehensive review was conducted using parallel agent analysis covering codebase structure, code quality patterns, and UI/Compose patterns.*
 
-**Review Duration:** ~20 minutes
+**Review Duration:** ~15 minutes
 **Analysis Method:** AI-assisted multi-agent review with specialized Explore agents
-**Total Files Analyzed:** 114 files (~20,000 lines)
+**Total Files Analyzed:** 183 files (~36,233 lines including Python)
