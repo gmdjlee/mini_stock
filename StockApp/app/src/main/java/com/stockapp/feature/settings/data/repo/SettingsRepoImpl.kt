@@ -146,7 +146,21 @@ class SettingsRepoImpl @Inject constructor(
         return try {
             val config = getApiKeyConfig().first()
             if (config.isValid()) {
-                testApiKey(config)
+                // Initialize without network test to avoid startup failures
+                // when network is unavailable
+                val baseUrl = when (config.investmentMode) {
+                    InvestmentMode.MOCK -> MOCK_URL
+                    InvestmentMode.PRODUCTION -> PROD_URL
+                }
+
+                pyClient.initialize(
+                    appKey = config.appKey,
+                    secretKey = config.secretKey,
+                    baseUrl = baseUrl
+                ).fold(
+                    onSuccess = { Result.success(true) },
+                    onFailure = { e -> Result.failure(e) }
+                )
             } else {
                 Result.success(false)
             }
