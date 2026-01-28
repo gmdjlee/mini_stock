@@ -162,7 +162,7 @@ object DbModule {
             AppDb::class.java,
             AppDb.DB_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, AppDb.MIGRATION_5_6, AppDb.MIGRATION_6_7, AppDb.MIGRATION_7_8)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, AppDb.MIGRATION_5_6, AppDb.MIGRATION_6_7, AppDb.MIGRATION_7_8, AppDb.MIGRATION_8_9)
             // Note: Removed destructive fallback to prevent silent data loss.
             // All future schema changes should have explicit migrations.
             // If migration fails, the app will crash with a clear error message,

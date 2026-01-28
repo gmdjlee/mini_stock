@@ -18,6 +18,7 @@ data class SchedulingConfigEntity(
     val lastSyncAt: Long = 0L,
     val lastSyncStatus: String = "NEVER", // NEVER, SUCCESS, FAILED
     val lastSyncMessage: String? = null,
+    val isErrorStopped: Boolean = false, // True if sync stopped due to error
     val updatedAt: Long = System.currentTimeMillis()
 )
 

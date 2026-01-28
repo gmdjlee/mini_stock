@@ -54,7 +54,7 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         // Financial data cache entity
         FinancialCacheEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -213,6 +213,17 @@ abstract class AppDb : RoomDatabase() {
                         PRIMARY KEY(`ticker`)
                     )
                 """.trimIndent())
+            }
+        }
+
+        /**
+         * Migration from version 8 to 9: Add isErrorStopped column to scheduling_config
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE scheduling_config ADD COLUMN isErrorStopped INTEGER NOT NULL DEFAULT 0"
+                )
             }
         }
     }
