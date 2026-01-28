@@ -33,6 +33,9 @@ interface SchedulingConfigDao {
         message: String?,
         updatedAt: Long = System.currentTimeMillis()
     )
+
+    @Query("UPDATE scheduling_config SET isErrorStopped = :stopped, updatedAt = :updatedAt WHERE id = 1")
+    suspend fun setErrorStopped(stopped: Boolean, updatedAt: Long = System.currentTimeMillis())
 }
 
 @Dao
@@ -64,4 +67,7 @@ interface SyncHistoryDao {
 
     @Query("DELETE FROM sync_history")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM sync_history WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }
