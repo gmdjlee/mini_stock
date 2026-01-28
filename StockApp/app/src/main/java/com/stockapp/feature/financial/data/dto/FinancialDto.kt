@@ -5,6 +5,25 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
+ * Parses a numeric string that may contain commas, spaces, or decimal points.
+ * Handles various formats returned by KIS API:
+ * - Plain numbers: "214837590000000"
+ * - With commas: "214,837,590,000,000"
+ * - With decimal: "214837590000000.00"
+ * - With spaces: " 214837590000000 "
+ * - Empty or null: "" or null
+ */
+private fun parseNumericLong(value: String?): Long? {
+    if (value.isNullOrBlank()) return null
+    val cleaned = value
+        .trim()
+        .replace(",", "")
+        .replace(" ", "")
+    // Try parsing as Double first to handle decimal points, then convert to Long
+    return cleaned.toDoubleOrNull()?.toLong() ?: cleaned.toLongOrNull()
+}
+
+/**
  * Common KIS API response wrapper.
  * Note: Some KIS APIs use "output" while others use "output1" for the data array.
  * This class handles both cases.
@@ -44,16 +63,16 @@ data class BalanceSheetDto(
         val ym = stacYymm ?: return null
         return BalanceSheet(
             period = FinancialPeriod.fromYearMonth(ym),
-            currentAssets = cras?.toLongOrNull(),
-            fixedAssets = fxas?.toLongOrNull(),
-            totalAssets = totalAset?.toLongOrNull(),
-            currentLiabilities = flowLblt?.toLongOrNull(),
-            fixedLiabilities = fixLblt?.toLongOrNull(),
-            totalLiabilities = totalLblt?.toLongOrNull(),
-            capital = cpfn?.toLongOrNull(),
-            capitalSurplus = cfpSurp?.toLongOrNull(),
-            retainedEarnings = rere?.toLongOrNull(),
-            totalEquity = totalCptl?.toLongOrNull()
+            currentAssets = parseNumericLong(cras),
+            fixedAssets = parseNumericLong(fxas),
+            totalAssets = parseNumericLong(totalAset),
+            currentLiabilities = parseNumericLong(flowLblt),
+            fixedLiabilities = parseNumericLong(fixLblt),
+            totalLiabilities = parseNumericLong(totalLblt),
+            capital = parseNumericLong(cpfn),
+            capitalSurplus = parseNumericLong(cfpSurp),
+            retainedEarnings = parseNumericLong(rere),
+            totalEquity = parseNumericLong(totalCptl)
         )
     }
 }
@@ -76,12 +95,12 @@ data class IncomeStatementDto(
         val ym = stacYymm ?: return null
         return IncomeStatement(
             period = FinancialPeriod.fromYearMonth(ym),
-            revenue = saleAccount?.toLongOrNull(),
-            costOfSales = saleCost?.toLongOrNull(),
-            grossProfit = saleTotlPrfi?.toLongOrNull(),
-            operatingProfit = bsopPrti?.toLongOrNull(),
-            ordinaryProfit = opPrfi?.toLongOrNull(),
-            netIncome = thtrNtin?.toLongOrNull()
+            revenue = parseNumericLong(saleAccount),
+            costOfSales = parseNumericLong(saleCost),
+            grossProfit = parseNumericLong(saleTotlPrfi),
+            operatingProfit = parseNumericLong(bsopPrti),
+            ordinaryProfit = parseNumericLong(opPrfi),
+            netIncome = parseNumericLong(thtrNtin)
         )
     }
 }
