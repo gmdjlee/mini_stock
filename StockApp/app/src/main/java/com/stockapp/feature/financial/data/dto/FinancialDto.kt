@@ -161,8 +161,12 @@ data class GrowthRatiosDto(
     @SerialName("grs") val grs: String? = null,                       // 매출액증가율
     @SerialName("bsop_prfi_inrt") val bsopPrfiInrt: String? = null,   // 영업이익증가율
     @SerialName("ntin_inrt") val ntinInrt: String? = null,            // 순이익증가율
-    @SerialName("cptl_ntin_rate") val cptlNtinRate: String? = null,   // 자기자본증가율
-    @SerialName("total_aset_inrt") val totalAsetInrt: String? = null  // 총자산증가율
+    // 자기자본증가율 - KIS API may use different field names
+    @SerialName("cptl_ntin_rate") val cptlNtinRate: String? = null,   // 자본금순이익률 (문서 명세)
+    @SerialName("equt_inrt") val equtInrt: String? = null,            // 자기자본증가율 (실제 API)
+    // 총자산증가율 - KIS API may use different field names
+    @SerialName("total_aset_inrt") val totalAsetInrt: String? = null, // 총자산증가율 (문서 명세)
+    @SerialName("totl_aset_inrt") val totlAsetInrt: String? = null    // 총자산증가율 (실제 API 변형)
 ) {
     fun toDomain(): GrowthRatios? {
         val ym = stacYymm ?: return null
@@ -171,8 +175,12 @@ data class GrowthRatiosDto(
             revenueGrowth = grs?.toDoubleOrNull(),
             operatingProfitGrowth = bsopPrfiInrt?.toDoubleOrNull(),
             netIncomeGrowth = ntinInrt?.toDoubleOrNull(),
-            equityGrowth = cptlNtinRate?.toDoubleOrNull(),
-            totalAssetsGrowth = totalAsetInrt?.toDoubleOrNull()
+            // Try multiple field names for equity growth
+            equityGrowth = equtInrt?.toDoubleOrNull()
+                ?: cptlNtinRate?.toDoubleOrNull(),
+            // Try multiple field names for total assets growth
+            totalAssetsGrowth = totlAsetInrt?.toDoubleOrNull()
+                ?: totalAsetInrt?.toDoubleOrNull()
         )
     }
 }
