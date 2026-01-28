@@ -302,4 +302,35 @@ class SchedulingVm @Inject constructor(
     fun clearError() {
         _error.value = null
     }
+
+    /**
+     * Delete a sync history entry.
+     */
+    fun deleteSyncHistory(historyId: Long) {
+        viewModelScope.launch {
+            try {
+                schedulingRepo.deleteSyncHistory(historyId)
+            } catch (e: Exception) {
+                _error.value = "삭제 실패: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Clear error stopped flag and resume scheduling.
+     */
+    fun clearErrorAndResume() {
+        viewModelScope.launch {
+            try {
+                schedulingRepo.clearErrorAndResume()
+                // Re-schedule if enabled
+                val config = schedulingRepo.getConfig()
+                if (config.isEnabled) {
+                    schedulingManager.scheduleDailySync(config.syncHour, config.syncMinute)
+                }
+            } catch (e: Exception) {
+                _error.value = e.message
+            }
+        }
+    }
 }
