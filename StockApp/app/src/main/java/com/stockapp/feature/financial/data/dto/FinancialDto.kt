@@ -6,14 +6,23 @@ import kotlinx.serialization.Serializable
 
 /**
  * Common KIS API response wrapper.
+ * Note: Some KIS APIs use "output" while others use "output1" for the data array.
+ * This class handles both cases.
  */
 @Serializable
 data class KisApiResponse<T>(
     @SerialName("rt_cd") val rtCd: String = "",     // 0: success
     @SerialName("msg_cd") val msgCd: String = "",
     @SerialName("msg1") val msg1: String = "",
-    val output: T? = null
-)
+    val output: T? = null,
+    @SerialName("output1") val output1: T? = null
+) {
+    /**
+     * Returns the actual output data, checking both "output" and "output1" fields.
+     */
+    val actualOutput: T?
+        get() = output ?: output1
+}
 
 // ========== Balance Sheet (대차대조표) ==========
 

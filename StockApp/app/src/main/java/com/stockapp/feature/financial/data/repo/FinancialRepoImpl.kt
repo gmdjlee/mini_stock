@@ -256,7 +256,13 @@ class FinancialRepoImpl @Inject constructor(
                     "fid_input_iscd" to ticker
                 )
             )
-            response.mapNotNull { it.toDomain() }
+            val result = response.mapNotNull { it.toDomain() }
+            Log.d(TAG, "Fetched ${result.size} income statements for $ticker")
+            if (result.isNotEmpty()) {
+                val sample = result.first()
+                Log.d(TAG, "Sample income: period=${sample.period.yearMonth}, revenue=${sample.revenue}, opProfit=${sample.operatingProfit}, netIncome=${sample.netIncome}")
+            }
+            result
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fetch income statement for $ticker", e)
             emptyList()
@@ -322,7 +328,13 @@ class FinancialRepoImpl @Inject constructor(
                     "fid_input_iscd" to ticker
                 )
             )
-            response.mapNotNull { it.toDomain() }
+            val result = response.mapNotNull { it.toDomain() }
+            Log.d(TAG, "Fetched ${result.size} growth ratios for $ticker")
+            if (result.isNotEmpty()) {
+                val sample = result.first()
+                Log.d(TAG, "Sample growth: period=${sample.period.yearMonth}, revenueGrowth=${sample.revenueGrowth}, equityGrowth=${sample.equityGrowth}, totalAssetsGrowth=${sample.totalAssetsGrowth}")
+            }
+            result
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fetch growth ratios for $ticker", e)
             emptyList()
@@ -364,7 +376,8 @@ class FinancialRepoImpl @Inject constructor(
             throw Exception("API error: ${apiResponse.msgCd} - ${apiResponse.msg1}")
         }
 
-        return apiResponse.output ?: throw Exception("No output in response")
+        // Use actualOutput to handle both "output" and "output1" field names
+        return apiResponse.actualOutput ?: throw Exception("No output in response")
     }
 
     private fun mergeFinancialData(
