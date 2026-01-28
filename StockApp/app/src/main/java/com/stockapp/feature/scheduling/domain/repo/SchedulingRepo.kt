@@ -66,4 +66,20 @@ interface SchedulingRepo {
      * Check if there's new data available since last sync.
      */
     suspend fun hasNewDataAvailable(): Boolean
+
+    /**
+     * Delete sync history by id.
+     */
+    suspend fun deleteSyncHistory(id: Long)
+
+    /**
+     * Set error stopped flag.
+     * When true, automatic sync will not run until manually resumed.
+     */
+    suspend fun setErrorStopped(stopped: Boolean)
+
+    /**
+     * Clear error stopped flag and resume scheduling.
+     */
+    suspend fun clearErrorAndResume()
 }

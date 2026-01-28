@@ -9,7 +9,8 @@ data class SchedulingConfig(
     val syncMinute: Int = 0,
     val lastSyncAt: Long = 0L,
     val lastSyncStatus: SyncStatus = SyncStatus.NEVER,
-    val lastSyncMessage: String? = null
+    val lastSyncMessage: String? = null,
+    val isErrorStopped: Boolean = false
 ) {
     val syncTimeDisplay: String
         get() = String.format("%02d:%02d", syncHour, syncMinute)

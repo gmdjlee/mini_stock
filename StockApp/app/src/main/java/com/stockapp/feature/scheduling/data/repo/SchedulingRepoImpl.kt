@@ -245,6 +245,20 @@ class SchedulingRepoImpl @Inject constructor(
         return stockCacheExpired
     }
 
+    override suspend fun deleteSyncHistory(id: Long) {
+        syncHistoryDao.deleteById(id)
+    }
+
+    override suspend fun setErrorStopped(stopped: Boolean) {
+        ensureConfigExists()
+        configDao.setErrorStopped(stopped)
+    }
+
+    override suspend fun clearErrorAndResume() {
+        ensureConfigExists()
+        configDao.setErrorStopped(false)
+    }
+
     private suspend fun syncTopStocksAnalysis(): Result<Int> {
         // Get recently searched stocks or top KOSPI/KOSDAQ stocks
         val stocks = stockDao.getAllOnce(100) // Limit to top 100
@@ -433,7 +447,8 @@ class SchedulingRepoImpl @Inject constructor(
         syncMinute = syncMinute,
         lastSyncAt = lastSyncAt,
         lastSyncStatus = SyncStatus.fromString(lastSyncStatus),
-        lastSyncMessage = lastSyncMessage
+        lastSyncMessage = lastSyncMessage,
+        isErrorStopped = isErrorStopped
     )
 
     private fun SyncHistoryEntity.toDomain() = SyncHistory(
