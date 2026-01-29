@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,13 @@ fun AmountTrendChart(
 
     if (amountHistory.isEmpty()) return
 
+    // Memoize chart data (P2 fix)
+    val entries = remember(amountHistory) {
+        amountHistory.mapIndexed { index, data ->
+            Entry(index.toFloat(), data.totalAmount.toFloat())
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             LineChart(ctx).apply {
@@ -80,10 +88,6 @@ fun AmountTrendChart(
             }
         },
         update = { chart ->
-            val entries = amountHistory.mapIndexed { index, data ->
-                Entry(index.toFloat(), data.totalAmount.toFloat())
-            }
-
             val dataSet = LineDataSet(entries, "평가금액").apply {
                 color = AmountLineColor.toArgb()
                 lineWidth = 2.5f
@@ -131,6 +135,13 @@ fun WeightTrendChart(
 
     if (weightHistory.isEmpty()) return
 
+    // Memoize chart data (P2 fix)
+    val entries = remember(weightHistory) {
+        weightHistory.mapIndexed { index, data ->
+            Entry(index.toFloat(), data.avgWeight.toFloat())
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             LineChart(ctx).apply {
@@ -168,10 +179,6 @@ fun WeightTrendChart(
             }
         },
         update = { chart ->
-            val entries = weightHistory.mapIndexed { index, data ->
-                Entry(index.toFloat(), data.avgWeight.toFloat())
-            }
-
             val dataSet = LineDataSet(entries, "평균비중").apply {
                 color = WeightLineColor.toArgb()
                 lineWidth = 2.5f

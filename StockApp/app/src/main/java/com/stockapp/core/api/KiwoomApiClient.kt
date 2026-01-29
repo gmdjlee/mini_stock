@@ -2,7 +2,8 @@ package com.stockapp.core.api
 
 import android.util.Log
 import com.stockapp.BuildConfig
-import kotlinx.coroutines.Dispatchers
+import com.stockapp.core.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,8 +14,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.logging.HttpLoggingInterceptor
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,27 +23,13 @@ import javax.inject.Singleton
  */
 @Singleton
 class KiwoomApiClient @Inject constructor(
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val httpClient: OkHttpClient,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
-    }
-
-    private val httpClient: OkHttpClient by lazy {
-        val builder = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-
-        if (BuildConfig.DEBUG) {
-            val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            }
-            builder.addInterceptor(loggingInterceptor)
-        }
-
-        builder.build()
     }
 
     // Rate limiting: minimum 500ms between API calls
@@ -71,7 +56,7 @@ class KiwoomApiClient @Inject constructor(
         secretKey: String,
         baseUrl: String,
         parser: (String) -> T
-    ): Result<T> = withContext(Dispatchers.IO) {
+    ): Result<T> = withContext(ioDispatcher) {
         try {
             // Rate limiting
             waitForRateLimit()
@@ -147,7 +132,7 @@ class KiwoomApiClient @Inject constructor(
         contYn: String = "",
         nextKey: String = "",
         parser: (String) -> T
-    ): Result<PaginatedResponse<T>> = withContext(Dispatchers.IO) {
+    ): Result<PaginatedResponse<T>> = withContext(ioDispatcher) {
         try {
             // Rate limiting
             waitForRateLimit()
@@ -247,7 +232,7 @@ class KiwoomApiClient @Inject constructor(
         maxPages: Int = 10,
         paginationDelayMs: Long = PAGINATION_DELAY_MS,
         parser: (String) -> List<T>
-    ): Result<List<T>> = withContext(Dispatchers.IO) {
+    ): Result<List<T>> = withContext(ioDispatcher) {
         val allItems = mutableListOf<T>()
         var contYn = ""
         var nextKey = ""

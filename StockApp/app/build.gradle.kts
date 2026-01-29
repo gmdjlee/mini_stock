@@ -114,10 +114,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Vico Charts
-    implementation(libs.vico.compose)
-    implementation(libs.vico.compose.m3)
-
     // MPAndroidChart
     implementation(libs.mpandroidchart)
 

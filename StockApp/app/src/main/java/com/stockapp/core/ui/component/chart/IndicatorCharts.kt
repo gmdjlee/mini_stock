@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -99,7 +100,6 @@ fun MacdChart(
     histogramValues: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     // All axis labels in black for dark theme support
@@ -108,6 +108,26 @@ fun MacdChart(
     // Python style colors: MACD blue (#2196F3), Signal orange (#FF9800)
     val lineColor1 = MacdBlue.toArgb()  // MACD line - blue
     val lineColor2 = MacdSignalOrange.toArgb()  // Signal line (dashed) - orange
+
+    // Memoize chart data (P2 fix)
+    val barEntries = remember(histogramValues) {
+        histogramValues.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
+    val histogramColors = remember(histogramValues) {
+        createColoredHistogram(histogramValues)
+    }
+    val macdEntries = remember(macdValues) {
+        macdValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val signalEntries = remember(signalValues) {
+        signalValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -145,23 +165,13 @@ fun MacdChart(
             val combinedData = CombinedData()
 
             // Histogram bars - Python style: teal (#26A69A) for positive, red (#EF5350) for negative
-            val barEntries = histogramValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
             val barDataSet = BarDataSet(barEntries, "Histogram").apply {
-                colors = createColoredHistogram(histogramValues)
+                colors = histogramColors
                 setDrawValues(false)
             }
             combinedData.setData(BarData(barDataSet).apply { barWidth = 0.7f })
 
             // MACD and Signal lines
-            val macdEntries = macdValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
-            val signalEntries = signalValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
-
             val macdDataSet = LineDataSet(macdEntries, "MACD").apply {
                 color = lineColor1
                 lineWidth = 2f
@@ -219,7 +229,6 @@ fun TrendSignalChart(
     sellSignals: List<Int> = emptyList(),
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     // All labels in black as per requirement
@@ -228,6 +237,30 @@ fun TrendSignalChart(
     // Merge legacy signals with new ones
     val effectivePrimaryBuy = if (primaryBuySignals.isEmpty()) buySignals else primaryBuySignals
     val effectivePrimarySell = if (primarySellSignals.isEmpty()) sellSignals else primarySellSignals
+
+    // Memoize chart data (P2 fix)
+    val priceEntries = remember(priceValues) {
+        priceValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val fearGreedEntries = remember(fearGreedValues) {
+        fearGreedValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val ma10Entries = remember(ma10Values) {
+        ma10Values.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val thresholdEntries = remember(dates) {
+        Triple(
+            dates.indices.map { Entry(it.toFloat(), 0.5f) },
+            dates.indices.map { Entry(it.toFloat(), -0.5f) },
+            dates.size
+        )
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -287,9 +320,6 @@ fun TrendSignalChart(
 
             // 종가 (Close price) line (left axis)
             // Per TREND_SIGNAL_CHART.md spec: Cubic Bezier, 2.5px, MACD lineColor1 (blue)
-            val priceEntries = priceValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val priceDataSet = LineDataSet(priceEntries, "종가").apply {
                 color = TrendSignalPriceColor.toArgb()  // MACD lineColor1 (#2196F3)
                 lineWidth = 2.5f
@@ -302,10 +332,7 @@ fun TrendSignalChart(
 
             // MA line (left axis) - Dashed
             // Per TREND_SIGNAL_CHART.md spec: Dashed, 2.0px, MACD lineColor2 (orange #FF9800)
-            if (ma10Values.isNotEmpty()) {
-                val ma10Entries = ma10Values.mapIndexed { index, value ->
-                    Entry(index.toFloat(), value.toFloat())
-                }
+            if (ma10Entries.isNotEmpty()) {
                 val ma10DataSet = LineDataSet(ma10Entries, "MA").apply {
                     color = TrendSignalMaColor.toArgb()  // MACD lineColor2 (#FF9800)
                     lineWidth = 2f
@@ -320,9 +347,6 @@ fun TrendSignalChart(
 
             // F&G (Fear/Greed) line (right axis) - Purple
             // Per TREND_SIGNAL_CHART.md spec: Cubic Bezier, 1.5px, Purple RGB(156, 39, 176)
-            val fearGreedEntries = fearGreedValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val fearGreedDataSet = LineDataSet(fearGreedEntries, "F&G").apply {
                 color = TrendSignalFearGreedColor.toArgb()  // Purple #9C27B0
                 lineWidth = 1.5f
@@ -335,8 +359,7 @@ fun TrendSignalChart(
 
             // Threshold lines for Fear/Greed (±0.5) - Dashed reference lines
             // +0.5 threshold (Greed zone - red dashed)
-            val threshold05Entries = dates.indices.map { Entry(it.toFloat(), 0.5f) }
-            val threshold05DataSet = LineDataSet(threshold05Entries, "탐욕(0.5)").apply {
+            val threshold05DataSet = LineDataSet(thresholdEntries.first, "탐욕(0.5)").apply {
                 color = FearGreedRed.toArgb()
                 lineWidth = 1f
                 setDrawCircles(false)
@@ -348,8 +371,7 @@ fun TrendSignalChart(
             lineDataSets.add(threshold05DataSet)
 
             // -0.5 threshold (Fear zone - green dashed)
-            val thresholdNeg05Entries = dates.indices.map { Entry(it.toFloat(), -0.5f) }
-            val thresholdNeg05DataSet = LineDataSet(thresholdNeg05Entries, "공포(-0.5)").apply {
+            val thresholdNeg05DataSet = LineDataSet(thresholdEntries.second, "공포(-0.5)").apply {
                 color = FearGreedGreen.toArgb()
                 lineWidth = 1f
                 setDrawCircles(false)

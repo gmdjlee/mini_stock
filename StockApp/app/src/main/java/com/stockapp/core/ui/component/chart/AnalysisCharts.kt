@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -66,11 +67,22 @@ fun MarketCapOscillatorChart(
     oscillatorValues: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     // All axis labels in black for dark theme support
     val textColor = Color.BLACK
+
+    // Memoize chart data (P2 fix)
+    val mcapEntries = remember(mcapValues) {
+        mcapValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val oscillatorEntries = remember(oscillatorValues) {
+        oscillatorValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), (value * 100).toFloat())
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -121,9 +133,6 @@ fun MarketCapOscillatorChart(
             val combinedData = CombinedData()
 
             // Market Cap line (left axis) - Python style: blue (#1976D2)
-            val mcapEntries = mcapValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val mcapDataSet = LineDataSet(mcapEntries, "Market Cap").apply {
                 color = OscillatorBlue.toArgb()  // Blue like Python
                 lineWidth = 2f
@@ -137,10 +146,6 @@ fun MarketCapOscillatorChart(
             }
 
             // Oscillator line (right axis) - Python style: orange (#FF5722)
-            // Convert oscillator values to percentage for display
-            val oscillatorEntries = oscillatorValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), (value * 100).toFloat())  // Convert to percentage
-            }
             val oscillatorDataSet = LineDataSet(oscillatorEntries, "Oscillator (%)").apply {
                 color = OscillatorOrange.toArgb()  // Orange like Python
                 lineWidth = 2f
@@ -176,7 +181,6 @@ fun SupplyDemandBarChart(
     institutionValues: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     // All axis labels in black for dark theme support
@@ -185,6 +189,18 @@ fun SupplyDemandBarChart(
     // Python style colors
     val foreignColor = ChartRed.toArgb()   // Red for foreign
     val institutionColor = TabBlue.toArgb() // Blue for institution
+
+    // Memoize chart data (P2 fix)
+    val foreignEntries = remember(foreignValues) {
+        foreignValues.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
+    val institutionEntries = remember(institutionValues) {
+        institutionValues.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -233,18 +249,12 @@ fun SupplyDemandBarChart(
             val barWidth = 0.4f
 
             // Foreign bars
-            val foreignEntries = foreignValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
             val foreignDataSet = BarDataSet(foreignEntries, "외국인").apply {
                 color = foreignColor
                 setDrawValues(false)
             }
 
             // Institution bars
-            val institutionEntries = institutionValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
             val institutionDataSet = BarDataSet(institutionEntries, "기관").apply {
                 color = institutionColor
                 setDrawValues(false)

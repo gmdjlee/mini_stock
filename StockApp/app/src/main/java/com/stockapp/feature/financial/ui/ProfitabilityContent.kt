@@ -13,6 +13,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -207,6 +208,23 @@ private fun IncomeBarChart(
     val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
     val netIncomeColor = Color(0xFFFF9800).toArgb()  // Orange
 
+    // Memoize chart data (P2 fix)
+    val revenueEntries = remember(revenues) {
+        revenues.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
+    val operatingProfitEntries = remember(operatingProfits) {
+        operatingProfits.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
+    val netIncomeEntries = remember(netIncomes) {
+        netIncomes.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
+
     AndroidView(
         factory = { context ->
             BarChart(context).apply {
@@ -243,16 +261,6 @@ private fun IncomeBarChart(
             val groupSpace = 0.08f
             val barSpace = 0.02f
             val barWidth = 0.28f
-
-            val revenueEntries = revenues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
-            val operatingProfitEntries = operatingProfits.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
-            val netIncomeEntries = netIncomes.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
 
             val revenueDataSet = BarDataSet(revenueEntries, "매출액").apply {
                 color = revenueColor

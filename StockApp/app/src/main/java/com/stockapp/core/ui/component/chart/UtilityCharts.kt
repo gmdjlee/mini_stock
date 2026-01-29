@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -67,11 +68,20 @@ fun MacdHistogramChart(
     histogramValues: List<Double>,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     // All axis labels in black for dark theme support
     val textColor = Color.BLACK
+
+    // Memoize chart data to avoid recreating on every recomposition (P2 fix)
+    val barEntries = remember(histogramValues) {
+        histogramValues.mapIndexed { index, value ->
+            BarEntry(index.toFloat(), value.toFloat())
+        }
+    }
+    val histogramColors = remember(histogramValues) {
+        createColoredHistogram(histogramValues)
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -93,11 +103,8 @@ fun MacdHistogramChart(
         },
         update = { chart ->
             // Python style: teal (#26A69A) for positive, red (#EF5350) for negative
-            val barEntries = histogramValues.mapIndexed { index, value ->
-                BarEntry(index.toFloat(), value.toFloat())
-            }
             val barDataSet = BarDataSet(barEntries, "MACD Histogram").apply {
-                colors = createColoredHistogram(histogramValues)
+                colors = histogramColors
                 setDrawValues(false)
             }
 
@@ -129,11 +136,18 @@ fun SimpleLineChart(
     label: String = "",
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
     val gridColor = if (isDark) ChartGridDark.toArgb() else ChartGridLight.toArgb()
     // All axis labels in black for dark theme support
     val textColor = Color.BLACK
+
+    // Memoize chart data (P2 fix)
+    val entries = remember(values) {
+        values.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val lineColorArgb = remember(lineColor) { lineColor.toArgb() }
 
     AndroidView(
         factory = { ctx ->
@@ -161,11 +175,8 @@ fun SimpleLineChart(
             }
         },
         update = { chart ->
-            val entries = values.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val dataSet = LineDataSet(entries, label).apply {
-                color = lineColor.toArgb()
+                color = lineColorArgb
                 lineWidth = 2f
                 setDrawCircles(false)
                 setDrawValues(false)

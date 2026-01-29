@@ -2,7 +2,8 @@ package com.stockapp.core.api
 
 import android.util.Log
 import com.stockapp.BuildConfig
-import kotlinx.coroutines.Dispatchers
+import com.stockapp.core.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,10 +14,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.logging.HttpLoggingInterceptor
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,26 +61,13 @@ data class KisTokenInfo(
  * Used for ETF constituent data collection.
  */
 @Singleton
-class KisApiClient @Inject constructor() {
+class KisApiClient @Inject constructor(
+    private val httpClient: OkHttpClient,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
-    }
-
-    private val httpClient: OkHttpClient by lazy {
-        val builder = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-
-        if (BuildConfig.DEBUG) {
-            val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            }
-            builder.addInterceptor(loggingInterceptor)
-        }
-
-        builder.build()
     }
 
     // Rate limiting: minimum 500ms between API calls
@@ -112,7 +98,7 @@ class KisApiClient @Inject constructor() {
     /**
      * Fetch new token from KIS API.
      */
-    private suspend fun fetchToken(config: KisApiConfig): Result<KisTokenInfo> = withContext(Dispatchers.IO) {
+    private suspend fun fetchToken(config: KisApiConfig): Result<KisTokenInfo> = withContext(ioDispatcher) {
         try {
             val requestBody = """
                 {
@@ -188,7 +174,7 @@ class KisApiClient @Inject constructor() {
         queryParams: Map<String, String>,
         config: KisApiConfig,
         parser: (String) -> T
-    ): Result<T> = withContext(Dispatchers.IO) {
+    ): Result<T> = withContext(ioDispatcher) {
         try {
             // Rate limiting
             waitForRateLimit()

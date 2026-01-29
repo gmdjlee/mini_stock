@@ -1,7 +1,8 @@
 package com.stockapp.core.api
 
 import android.util.Log
-import kotlinx.coroutines.Dispatchers
+import com.stockapp.core.di.IoDispatcher
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -12,7 +13,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,18 +37,15 @@ data class TokenInfo(
  * Thread-safe token management with automatic refresh.
  */
 @Singleton
-class TokenManager @Inject constructor() {
+class TokenManager @Inject constructor(
+    private val httpClient: OkHttpClient,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+) {
 
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
-
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
 
     // Token cache per base URL + app key combination
     private val tokenCache = mutableMapOf<String, TokenInfo>()
@@ -85,7 +82,7 @@ class TokenManager @Inject constructor() {
         appKey: String,
         secretKey: String,
         baseUrl: String
-    ): Result<TokenInfo> = withContext(Dispatchers.IO) {
+    ): Result<TokenInfo> = withContext(ioDispatcher) {
         try {
             val requestBody = """
                 {
