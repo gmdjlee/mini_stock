@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- P3 English Localization -->
+    <string name="app_name">StockApp</string>
+
+    <!-- Navigation -->
+    <string name="nav_search">Search</string>
+    <string name="nav_analysis">Analysis</string>
+    <string name="nav_indicator">Indicators</string>
+    <string name="nav_financial">Financials</string>
+    <string name="nav_ranking">Rankings</string>
+    <string name="nav_etf">ETF</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Common UI -->
+    <string name="loading">Loading…</string>
+    <string name="retry">Retry</string>
+    <string name="confirm">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="refresh">Refresh</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="show">Show</string>
+    <string name="hide">Hide</string>
+
+    <!-- Search -->
+    <string name="search_hint">Search stock name or code</string>
+    <string name="search_no_results">No results found</string>
+    <string name="search_empty_hint">Search by stock name or code</string>
+    <string name="search_enter_query">Enter search query</string>
+    <string name="search_failed">Search failed</string>
+
+    <!-- Cache Status -->
+    <string name="cache_stocks_loaded">%d stocks loaded</string>
+    <string name="cache_no_data">No stock data</string>
+    <string name="cache_loading">Loading stock data…</string>
+    <string name="cache_load_failed">Load failed: %s</string>
+
+    <!-- Error Messages - Network -->
+    <string name="error_network">Please check your network connection</string>
+    <string name="error_timeout">Request timed out</string>
+    <string name="error_timeout_retry">Request timed out. Please try again.</string>
+    <string name="error_connection">Cannot connect to server</string>
+    <string name="error_security">Security error: Invalid server certificate</string>
+    <string name="error_unknown">An unknown error occurred</string>
+
+    <!-- Error Messages - Authentication -->
+    <string name="error_auth">Authentication failed. Please check your API key.</string>
+    <string name="error_no_api_key">API key not configured. Please enter your API key in Settings.</string>
+    <string name="error_token_issue">Token issue failed: HTTP %d</string>
+    <string name="error_token_invalid">Invalid token response</string>
+    <string name="error_token_issue_general">Error issuing token: %s</string>
+
+    <!-- Error Messages - API -->
+    <string name="error_api">API Error</string>
+    <string name="error_api_with_code">Server error occurred. (Code: %d)</string>
+    <string name="error_rate_limit">Rate limit exceeded. Please try again later.</string>
+    <string name="error_parse">Error processing data</string>
+    <string name="error_parse_detail">Response parsing error: %s</string>
+
+    <!-- Error Messages - Data -->
+    <string name="error_not_found">%s not found</string>
+    <string name="error_no_data">No data available</string>
+    <string name="error_insufficient_data">Insufficient data for calculation</string>
+    <string name="error_collected_no_data">No collected data</string>
+
+    <!-- Error Messages - Python Bridge -->
+    <string name="error_python_init">App initialization failed: %s</string>
+    <string name="error_python_not_init">App not initialized</string>
+    <string name="error_python_call">Error during processing</string>
+
+    <!-- Error Messages - Analysis -->
+    <string name="error_analysis_failed">Supply/demand analysis failed</string>
+    <string name="error_refresh_failed">Refresh failed</string>
+    <string name="error_settings_load">Settings load error</string>
+    <string name="error_ticker_required">Stock code is required</string>
+
+    <!-- Error Code Display Names -->
+    <string name="error_code_network">Network Error</string>
+    <string name="error_code_timeout">Timeout</string>
+    <string name="error_code_auth">Auth Error</string>
+    <string name="error_code_api">API Error</string>
+    <string name="error_code_rate_limit">Rate Limit</string>
+    <string name="error_code_parse">Parse Error</string>
+    <string name="error_code_not_found">Not Found</string>
+    <string name="error_code_no_data">No Data</string>
+    <string name="error_code_insufficient">Insufficient Data</string>
+    <string name="error_code_invalid_arg">Invalid Argument</string>
+    <string name="error_code_unknown">Unknown Error</string>
+
+    <!-- Analysis Screen -->
+    <string name="analysis_title">Supply Analysis</string>
+    <string name="analysis_no_stock">Please select a stock</string>
+    <string name="analysis_market_cap">Market Cap</string>
+    <string name="analysis_foreign_net_buy">Foreign Net Buy</string>
+    <string name="analysis_institution_net_buy">Institution Net Buy</string>
+    <string name="analysis_supply_ratio">Supply Ratio</string>
+    <string name="analysis_oscillator_title">Market Cap &amp; Supply Oscillator</string>
+    <string name="analysis_net_buy_trend">Foreign/Institution Net Buy Trend</string>
+
+    <!-- Indicator Screen -->
+    <string name="indicator_trend">Trend Signal</string>
+    <string name="indicator_elder">Elder Impulse</string>
+    <string name="indicator_demark">DeMark TD</string>
+    <string name="indicator_bullish">Bullish</string>
+    <string name="indicator_bearish">Bearish</string>
+    <string name="indicator_neutral">Neutral</string>
+
+    <!-- Ranking Screen -->
+    <string name="ranking_title">Rankings</string>
+    <string name="ranking_order_book_surge_buy">Order Book Surge (Buy)</string>
+    <string name="ranking_order_book_surge_sell">Order Book Surge (Sell)</string>
+    <string name="ranking_volume_surge">Volume Surge</string>
+    <string name="ranking_daily_volume_top">Daily Volume Top</string>
+    <string name="ranking_credit_ratio_top">Credit Ratio Top</string>
+    <string name="ranking_foreign_institution">Foreign/Institution Top</string>
+    <string name="ranking_current_price">Current Price</string>
+    <string name="ranking_surge_rate">Surge Rate</string>
+    <string name="ranking_volume">Volume</string>
+    <string name="ranking_credit_ratio">Credit Ratio</string>
+
+    <!-- Market Types -->
+    <string name="market_all">All</string>
+    <string name="market_kospi">KOSPI</string>
+    <string name="market_kosdaq">KOSDAQ</string>
+
+    <!-- Trade Direction -->
+    <string name="trade_buy">Buy</string>
+    <string name="trade_sell">Sell</string>
+    <string name="trade_net_buy">Net Buy</string>
+    <string name="trade_net_sell">Net Sell</string>
+
+    <!-- Investor Types -->
+    <string name="investor_foreign">Foreign</string>
+    <string name="investor_institution">Institution</string>
+    <string name="investor_all">All</string>
+
+    <!-- Value Types -->
+    <string name="value_amount">Amount</string>
+    <string name="value_quantity">Quantity</string>
+
+    <!-- Financial Screen -->
+    <string name="financial_title">Financials</string>
+    <string name="financial_profitability">Profitability</string>
+    <string name="financial_stability">Stability</string>
+    <string name="financial_revenue">Revenue</string>
+    <string name="financial_operating_profit">Operating Profit</string>
+    <string name="financial_net_income">Net Income</string>
+    <string name="financial_debt_ratio">Debt Ratio</string>
+    <string name="financial_current_ratio">Current Ratio</string>
+    <string name="financial_borrowing_dependency">Borrowing Dependency</string>
+    <string name="financial_rating_good">Good</string>
+    <string name="financial_rating_normal">Normal</string>
+    <string name="financial_rating_caution">Caution</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_scheduling">Scheduling</string>
+    <string name="settings_etf_keywords">ETF Keywords</string>
+    <string name="settings_app_key_hint">Enter app key</string>
+    <string name="settings_secret_key_hint">Enter secret key</string>
+    <string name="settings_kis_app_key_hint">Enter KIS app key</string>
+    <string name="settings_kis_secret_hint">Enter KIS app secret</string>
+    <string name="settings_test_connection">Test Connection</string>
+    <string name="settings_testing">Testing connection…</string>
+    <string name="settings_test_success">Connection successful</string>
+    <string name="settings_test_failed">Connection test failed: %s</string>
+    <string name="settings_save_failed">Error saving settings</string>
+    <string name="settings_enter_keys">Please enter API Key and Secret Key</string>
+    <string name="settings_enter_kis_keys">Please enter KIS App Key and App Secret</string>
+
+    <!-- Investment Mode -->
+    <string name="mode_mock">Paper Trading</string>
+    <string name="mode_mock_desc">Test environment for paper trading</string>
+    <string name="mode_production">Live Trading</string>
+    <string name="mode_production_desc">Real trading environment</string>
+
+    <!-- Theme Toggle -->
+    <string name="theme_switch_light">Switch to light mode</string>
+    <string name="theme_switch_dark">Switch to dark mode</string>
+
+    <!-- Scheduling -->
+    <string name="scheduling_title">Auto Sync Settings</string>
+    <string name="scheduling_desc">Automatically updates stock list, analysis data, and ETF holdings daily at the specified time.</string>
+    <string name="scheduling_enabled">Enabled</string>
+    <string name="scheduling_disabled">Disabled</string>
+    <string name="scheduling_paused">Sync Paused</string>
+    <string name="scheduling_paused_desc">Auto sync was stopped due to previous sync failure.</string>
+    <string name="scheduling_resume">Resume</string>
+    <string name="scheduling_sync_time">Sync Time</string>
+    <string name="scheduling_sync_time_desc">Sync will run daily at this time</string>
+    <string name="scheduling_last_sync">Last Sync</string>
+    <string name="scheduling_time">Time</string>
+    <string name="scheduling_status">Status</string>
+    <string name="scheduling_syncing">Syncing…</string>
+    <string name="scheduling_sync_now">Sync Now</string>
+    <string name="scheduling_history">Sync History</string>
+    <string name="scheduling_swipe_delete">Swipe to delete</string>
+
+    <!-- Sync Status -->
+    <string name="sync_status_never">Never</string>
+    <string name="sync_status_success">Success</string>
+    <string name="sync_status_failed">Failed</string>
+    <string name="sync_status_in_progress">In Progress</string>
+
+    <!-- ETF Screen -->
+    <string name="etf_title">ETF Analysis</string>
+    <string name="etf_collection_status">Collection Status</string>
+    <string name="etf_stock_ranking">Stock Ranking</string>
+    <string name="etf_stock_changes">Stock Changes</string>
+    <string name="etf_theme_list">Theme List</string>
+    <string name="etf_settings">ETF Settings</string>
+    <string name="etf_increase">Increase</string>
+    <string name="etf_decrease">Decrease</string>
+    <string name="etf_maintain">Maintain</string>
+    <string name="etf_constituents">Constituents</string>
+    <string name="etf_type">Type</string>
+    <string name="etf_stock_name">Stock Name</string>
+    <string name="etf_weight">Weight</string>
+    <string name="etf_eval_amount">Evaluation Amount</string>
+    <string name="etf_status">Status</string>
+    <string name="etf_keyword_leverage">Leverage</string>
+    <string name="etf_keyword_inverse">Inverse</string>
+
+    <!-- Units -->
+    <string name="unit_trillion">T</string>
+    <string name="unit_billion">B</string>
+    <string name="unit_million">M</string>
+    <string name="unit_percent">%</string>
+</resources>
