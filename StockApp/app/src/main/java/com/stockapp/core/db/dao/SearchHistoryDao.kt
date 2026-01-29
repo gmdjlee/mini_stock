@@ -15,6 +15,12 @@ interface SearchHistoryDao {
     @Query("SELECT * FROM search_history ORDER BY searchedAt DESC LIMIT :limit")
     suspend fun getRecentList(limit: Int = 20): List<SearchHistoryEntity>
 
+    @Query("SELECT * FROM search_history ORDER BY searchedAt DESC")
+    suspend fun getAllOnce(): List<SearchHistoryEntity>
+
+    @Query("SELECT * FROM search_history WHERE searchedAt BETWEEN :startMs AND :endMs ORDER BY searchedAt DESC")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<SearchHistoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(history: SearchHistoryEntity)
 

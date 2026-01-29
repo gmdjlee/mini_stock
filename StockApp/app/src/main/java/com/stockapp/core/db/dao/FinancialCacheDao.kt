@@ -11,6 +11,12 @@ interface FinancialCacheDao {
     @Query("SELECT * FROM financial_cache WHERE ticker = :ticker")
     suspend fun get(ticker: String): FinancialCacheEntity?
 
+    @Query("SELECT * FROM financial_cache")
+    suspend fun getAllOnce(): List<FinancialCacheEntity>
+
+    @Query("SELECT * FROM financial_cache WHERE cachedAt BETWEEN :startMs AND :endMs")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<FinancialCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(cache: FinancialCacheEntity)
 

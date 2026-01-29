@@ -19,6 +19,12 @@ interface StockAnalysisDataDao {
     @Query("SELECT * FROM stock_analysis_data ORDER BY updatedAt DESC")
     fun observeAll(): Flow<List<StockAnalysisDataEntity>>
 
+    @Query("SELECT * FROM stock_analysis_data")
+    suspend fun getAllOnce(): List<StockAnalysisDataEntity>
+
+    @Query("SELECT * FROM stock_analysis_data WHERE updatedAt BETWEEN :startMs AND :endMs")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<StockAnalysisDataEntity>
+
     @Query("SELECT * FROM stock_analysis_data WHERE signalType IN ('STRONG_BUY', 'BUY') ORDER BY supplyRatio DESC")
     fun getBuySignals(): Flow<List<StockAnalysisDataEntity>>
 
@@ -66,6 +72,12 @@ interface IndicatorDataDao {
 
     @Query("SELECT * FROM indicator_data WHERE indicatorType = :type ORDER BY updatedAt DESC")
     fun getByType(type: String): Flow<List<IndicatorDataEntity>>
+
+    @Query("SELECT * FROM indicator_data")
+    suspend fun getAllOnce(): List<IndicatorDataEntity>
+
+    @Query("SELECT * FROM indicator_data WHERE updatedAt BETWEEN :startMs AND :endMs")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<IndicatorDataEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(data: IndicatorDataEntity)
