@@ -13,9 +13,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.Json
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,14 +24,10 @@ import javax.inject.Singleton
 class PyClient @Inject constructor(
     @ApplicationContext private val ctx: Context
 ) {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
-
-    // Thread-safe client state using AtomicReference and Mutex
-    private val kiwoomClientRef = AtomicReference<PyObject?>(null)
-    private val initializedFlag = AtomicBoolean(false)
+    // Thread-safe client state: Mutex protects all writes, simple vars for state
+    // P1 fix: Removed redundant AtomicReference/AtomicBoolean since Mutex already provides thread safety
+    private var kiwoomClient: PyObject? = null
+    private var initialized: Boolean = false
     private val initMutex = Mutex()
 
     /**
@@ -61,8 +54,8 @@ class PyClient @Inject constructor(
                     secretKey,
                     baseUrl
                 )
-                kiwoomClientRef.set(client)
-                initializedFlag.set(true)
+                kiwoomClient = client
+                initialized = true
                 Result.success(Unit)
             } catch (e: Exception) {
                 Result.failure(PyError.InitError(e.message ?: "Python initialization failed"))
@@ -91,8 +84,8 @@ class PyClient @Inject constructor(
         }
 
         try {
-            val client = kiwoomClientRef.get()
-            if (!initializedFlag.get() || client == null) {
+            val client = kiwoomClient
+            if (!initialized || client == null) {
                 Log.e(TAG, "call() failed: PyClient not initialized")
                 return@withContext Result.failure(
                     PyError.NotInitialized("PyClient not initialized. Call initialize() first.")
@@ -104,9 +97,7 @@ class PyClient @Inject constructor(
                 val pyModule = py.getModule(module)
 
                 // Build args: [client, ...args]
-                val allArgs = mutableListOf<Any>(client)
-                allArgs.addAll(args)
-
+                val allArgs = listOf(client) + args
                 val result = pyModule.callAttr(func, *allArgs.toTypedArray())
 
                 // Convert Python dict to JSON string using json.dumps()
@@ -173,8 +164,8 @@ class PyClient @Inject constructor(
         timeoutMs: Long = DEFAULT_TIMEOUT_MS
     ): Result<PyObject> = withContext(Dispatchers.IO) {
         try {
-            val client = kiwoomClientRef.get()
-            if (!initializedFlag.get() || client == null) {
+            val client = kiwoomClient
+            if (!initialized || client == null) {
                 return@withContext Result.failure(
                     PyError.NotInitialized("PyClient not initialized")
                 )
@@ -184,9 +175,7 @@ class PyClient @Inject constructor(
                 val py = Python.getInstance()
                 val pyModule = py.getModule(module)
 
-                val allArgs = mutableListOf<Any>(client)
-                allArgs.addAll(args)
-
+                val allArgs = listOf(client) + args
                 val result = pyModule.callAttr(func, *allArgs.toTypedArray())
                 Result.success(result)
             }
@@ -197,7 +186,7 @@ class PyClient @Inject constructor(
         }
     }
 
-    fun isReady(): Boolean = initializedFlag.get() && kiwoomClientRef.get() != null
+    fun isReady(): Boolean = initialized && kiwoomClient != null
 
     /**
      * Test API key connection without modifying global state.
