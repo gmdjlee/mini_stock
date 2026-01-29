@@ -268,7 +268,7 @@ class KiwoomClient:
 
         Args:
             ticker: Stock code
-            date: Base date (YYYYMMDD), defaults to today
+            date: Base date (YYYYMMDD), defaults to yesterday
             amt_qty_tp: Amount/quantity type (1: Amount, 2: Quantity)
             trde_tp: Trade type (0: Net buy, 1: Buy, 2: Sell)
             unit_tp: Unit type (1000, etc.)
@@ -276,9 +276,11 @@ class KiwoomClient:
         Returns:
             ApiResponse with investor trading trend
         """
-        from ..core.date import today_str
+        from ..core.date import days_ago
 
-        dt = date or today_str()
+        # Use yesterday's date by default to ensure data availability
+        # (today's data may not be available if market is closed or after hours)
+        dt = date or days_ago(1)
         return self._call(
             "ka10059",
             "/api/dostk/stkinfo",
