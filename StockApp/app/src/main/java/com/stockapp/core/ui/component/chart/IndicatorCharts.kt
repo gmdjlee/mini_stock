@@ -219,7 +219,7 @@ fun TrendSignalChart(
     dates: List<String>,
     priceValues: List<Double>,
     fearGreedValues: List<Double>,
-    ma10Values: List<Double> = emptyList(),
+    ma10Values: List<Double?> = emptyList(),
     primaryBuySignals: List<Int> = emptyList(),
     additionalBuySignals: List<Int> = emptyList(),
     primarySellSignals: List<Int> = emptyList(),
@@ -250,8 +250,8 @@ fun TrendSignalChart(
         }
     }
     val ma10Entries = remember(ma10Values) {
-        ma10Values.mapIndexed { index, value ->
-            Entry(index.toFloat(), value.toFloat())
+        ma10Values.mapIndexedNotNull { index, value ->
+            value?.let { Entry(index.toFloat(), it.toFloat()) }
         }
     }
     val thresholdEntries = remember(dates) {
