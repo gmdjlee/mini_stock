@@ -1,17 +1,231 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">StockApp</string>
-    <string name="search_hint">종목명 또는 코드 검색</string>
-    <string name="loading">로딩 중...</string>
-    <string name="error_network">네트워크 오류가 발생했습니다</string>
-    <string name="error_unknown">알 수 없는 오류가 발생했습니다</string>
-    <string name="retry">다시 시도</string>
-    <string name="no_results">검색 결과가 없습니다</string>
 
-    <!-- Navigation -->
+    <!-- Navigation (P3 Localization) -->
     <string name="nav_search">검색</string>
     <string name="nav_analysis">수급 분석</string>
     <string name="nav_indicator">기술 지표</string>
-    <string name="nav_market">시장 지표</string>
-    <string name="nav_condition">조건검색</string>
+    <string name="nav_financial">재무정보</string>
+    <string name="nav_ranking">순위정보</string>
+    <string name="nav_etf">ETF</string>
+    <string name="nav_settings">설정</string>
+
+    <!-- Common UI -->
+    <string name="loading">로딩 중…</string>
+    <string name="retry">다시 시도</string>
+    <string name="confirm">확인</string>
+    <string name="cancel">취소</string>
+    <string name="close">닫기</string>
+    <string name="refresh">새로고침</string>
+    <string name="save">저장</string>
+    <string name="delete">삭제</string>
+    <string name="show">보기</string>
+    <string name="hide">숨기기</string>
+
+    <!-- Search -->
+    <string name="search_hint">종목명 또는 코드 검색</string>
+    <string name="search_no_results">검색 결과가 없습니다</string>
+    <string name="search_empty_hint">종목명 또는 코드를 검색하세요</string>
+    <string name="search_enter_query">검색어를 입력하세요</string>
+    <string name="search_failed">검색 실패</string>
+
+    <!-- Cache Status -->
+    <string name="cache_stocks_loaded">종목 %d개 로드됨</string>
+    <string name="cache_no_data">종목 데이터 없음</string>
+    <string name="cache_loading">종목 데이터 로딩 중…</string>
+    <string name="cache_load_failed">로딩 실패: %s</string>
+
+    <!-- Error Messages - Network -->
+    <string name="error_network">네트워크 연결을 확인해주세요</string>
+    <string name="error_timeout">요청 시간이 초과되었습니다</string>
+    <string name="error_timeout_retry">요청 시간이 초과되었습니다. 다시 시도해주세요.</string>
+    <string name="error_connection">서버에 연결할 수 없습니다</string>
+    <string name="error_security">보안 연결 오류: 서버 인증서가 유효하지 않습니다</string>
+    <string name="error_unknown">알 수 없는 오류가 발생했습니다</string>
+
+    <!-- Error Messages - Authentication -->
+    <string name="error_auth">인증에 실패했습니다. API 키를 확인해주세요.</string>
+    <string name="error_no_api_key">API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.</string>
+    <string name="error_token_issue">토큰 발급 실패: HTTP %d</string>
+    <string name="error_token_invalid">토큰 응답이 올바르지 않습니다</string>
+    <string name="error_token_issue_general">토큰 발급 중 오류 발생: %s</string>
+
+    <!-- Error Messages - API -->
+    <string name="error_api">API 오류</string>
+    <string name="error_api_with_code">서버 오류가 발생했습니다. (코드: %d)</string>
+    <string name="error_rate_limit">요청 한도 초과. 잠시 후 다시 시도해주세요.</string>
+    <string name="error_parse">데이터 처리 중 오류가 발생했습니다</string>
+    <string name="error_parse_detail">응답 파싱 오류: %s</string>
+
+    <!-- Error Messages - Data -->
+    <string name="error_not_found">%s 을(를) 찾을 수 없습니다</string>
+    <string name="error_no_data">데이터가 없습니다</string>
+    <string name="error_insufficient_data">계산에 필요한 데이터가 부족합니다</string>
+    <string name="error_collected_no_data">수집된 데이터가 없습니다</string>
+
+    <!-- Error Messages - Python Bridge -->
+    <string name="error_python_init">앱 초기화 실패: %s</string>
+    <string name="error_python_not_init">앱이 초기화되지 않았습니다</string>
+    <string name="error_python_call">처리 중 오류가 발생했습니다</string>
+
+    <!-- Error Messages - Analysis -->
+    <string name="error_analysis_failed">수급 분석 실패</string>
+    <string name="error_refresh_failed">새로고침 실패</string>
+    <string name="error_settings_load">설정 로드 오류</string>
+    <string name="error_ticker_required">종목코드가 필요합니다</string>
+
+    <!-- Error Code Display Names -->
+    <string name="error_code_network">네트워크 오류</string>
+    <string name="error_code_timeout">시간 초과</string>
+    <string name="error_code_auth">인증 오류</string>
+    <string name="error_code_api">API 오류</string>
+    <string name="error_code_rate_limit">요청 제한</string>
+    <string name="error_code_parse">파싱 오류</string>
+    <string name="error_code_not_found">찾을 수 없음</string>
+    <string name="error_code_no_data">데이터 없음</string>
+    <string name="error_code_insufficient">데이터 부족</string>
+    <string name="error_code_invalid_arg">잘못된 인자</string>
+    <string name="error_code_unknown">알 수 없는 오류</string>
+
+    <!-- Analysis Screen -->
+    <string name="analysis_title">수급 분석</string>
+    <string name="analysis_no_stock">종목을 선택해주세요</string>
+    <string name="analysis_market_cap">시가총액</string>
+    <string name="analysis_foreign_net_buy">외국인 순매수</string>
+    <string name="analysis_institution_net_buy">기관 순매수</string>
+    <string name="analysis_supply_ratio">수급 비율</string>
+    <string name="analysis_oscillator_title">시가총액 &amp; 수급 오실레이터</string>
+    <string name="analysis_net_buy_trend">외국인/기관 순매수 추이</string>
+
+    <!-- Indicator Screen -->
+    <string name="indicator_trend">추세 신호</string>
+    <string name="indicator_elder">Elder Impulse</string>
+    <string name="indicator_demark">DeMark TD</string>
+    <string name="indicator_bullish">상승 추세</string>
+    <string name="indicator_bearish">하락 추세</string>
+    <string name="indicator_neutral">중립</string>
+
+    <!-- Ranking Screen -->
+    <string name="ranking_title">순위정보</string>
+    <string name="ranking_order_book_surge_buy">호가잔량급증(매수)</string>
+    <string name="ranking_order_book_surge_sell">호가잔량급증(매도)</string>
+    <string name="ranking_volume_surge">거래량급증</string>
+    <string name="ranking_daily_volume_top">당일거래량상위</string>
+    <string name="ranking_credit_ratio_top">신용비율상위</string>
+    <string name="ranking_foreign_institution">외국인/기관상위</string>
+    <string name="ranking_current_price">현재가</string>
+    <string name="ranking_surge_rate">급증률</string>
+    <string name="ranking_volume">거래량</string>
+    <string name="ranking_credit_ratio">신용비율</string>
+
+    <!-- Market Types -->
+    <string name="market_all">전체</string>
+    <string name="market_kospi">KOSPI</string>
+    <string name="market_kosdaq">KOSDAQ</string>
+
+    <!-- Trade Direction -->
+    <string name="trade_buy">매수</string>
+    <string name="trade_sell">매도</string>
+    <string name="trade_net_buy">순매수</string>
+    <string name="trade_net_sell">순매도</string>
+
+    <!-- Investor Types -->
+    <string name="investor_foreign">외국인</string>
+    <string name="investor_institution">기관</string>
+    <string name="investor_all">전체</string>
+
+    <!-- Value Types -->
+    <string name="value_amount">금액</string>
+    <string name="value_quantity">수량</string>
+
+    <!-- Financial Screen -->
+    <string name="financial_title">재무정보</string>
+    <string name="financial_profitability">수익성</string>
+    <string name="financial_stability">안정성</string>
+    <string name="financial_revenue">매출액</string>
+    <string name="financial_operating_profit">영업이익</string>
+    <string name="financial_net_income">당기순이익</string>
+    <string name="financial_debt_ratio">부채비율</string>
+    <string name="financial_current_ratio">유동비율</string>
+    <string name="financial_borrowing_dependency">차입금 의존도</string>
+    <string name="financial_rating_good">양호</string>
+    <string name="financial_rating_normal">보통</string>
+    <string name="financial_rating_caution">주의</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">설정</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_scheduling">스케줄링</string>
+    <string name="settings_etf_keywords">ETF 키워드</string>
+    <string name="settings_app_key_hint">앱 키를 입력하세요</string>
+    <string name="settings_secret_key_hint">시크릿 키를 입력하세요</string>
+    <string name="settings_kis_app_key_hint">KIS 앱 키를 입력하세요</string>
+    <string name="settings_kis_secret_hint">KIS 앱 시크릿을 입력하세요</string>
+    <string name="settings_test_connection">연결 테스트</string>
+    <string name="settings_testing">연결 테스트 중…</string>
+    <string name="settings_test_success">연결 성공</string>
+    <string name="settings_test_failed">연결 테스트 실패: %s</string>
+    <string name="settings_save_failed">저장 중 오류가 발생했습니다</string>
+    <string name="settings_enter_keys">API Key와 Secret Key를 입력해주세요</string>
+    <string name="settings_enter_kis_keys">KIS App Key와 App Secret을 입력해주세요</string>
+
+    <!-- Investment Mode -->
+    <string name="mode_mock">모의투자</string>
+    <string name="mode_mock_desc">테스트용 모의투자 환경</string>
+    <string name="mode_production">실전투자</string>
+    <string name="mode_production_desc">실제 거래가 이루어지는 환경</string>
+
+    <!-- Theme Toggle -->
+    <string name="theme_switch_light">라이트 모드로 전환</string>
+    <string name="theme_switch_dark">다크 모드로 전환</string>
+
+    <!-- Scheduling -->
+    <string name="scheduling_title">자동 동기화 설정</string>
+    <string name="scheduling_desc">매일 지정된 시간에 종목 리스트, 분석 데이터, ETF 구성종목을 자동으로 업데이트합니다.</string>
+    <string name="scheduling_enabled">활성화됨</string>
+    <string name="scheduling_disabled">비활성화됨</string>
+    <string name="scheduling_paused">동기화 일시 중지됨</string>
+    <string name="scheduling_paused_desc">이전 동기화가 실패하여 자동 동기화가 중지되었습니다.</string>
+    <string name="scheduling_resume">재개</string>
+    <string name="scheduling_sync_time">동기화 시간</string>
+    <string name="scheduling_sync_time_desc">매일 이 시간에 자동으로 동기화됩니다</string>
+    <string name="scheduling_last_sync">마지막 동기화</string>
+    <string name="scheduling_time">시간</string>
+    <string name="scheduling_status">상태</string>
+    <string name="scheduling_syncing">동기화 중…</string>
+    <string name="scheduling_sync_now">지금 동기화</string>
+    <string name="scheduling_history">동기화 기록</string>
+    <string name="scheduling_swipe_delete">밀어서 삭제</string>
+
+    <!-- Sync Status -->
+    <string name="sync_status_never">없음</string>
+    <string name="sync_status_success">성공</string>
+    <string name="sync_status_failed">실패</string>
+    <string name="sync_status_in_progress">진행 중</string>
+
+    <!-- ETF Screen -->
+    <string name="etf_title">ETF 분석</string>
+    <string name="etf_collection_status">수집현황</string>
+    <string name="etf_stock_ranking">종목랭킹</string>
+    <string name="etf_stock_changes">종목변동</string>
+    <string name="etf_theme_list">테마목록</string>
+    <string name="etf_settings">ETF설정</string>
+    <string name="etf_increase">상승</string>
+    <string name="etf_decrease">하락</string>
+    <string name="etf_maintain">유지</string>
+    <string name="etf_constituents">구성종목</string>
+    <string name="etf_type">유형</string>
+    <string name="etf_stock_name">종목명</string>
+    <string name="etf_weight">비중</string>
+    <string name="etf_eval_amount">평가금액</string>
+    <string name="etf_status">현황</string>
+    <string name="etf_keyword_leverage">레버리지</string>
+    <string name="etf_keyword_inverse">인버스</string>
+
+    <!-- Units -->
+    <string name="unit_trillion">조</string>
+    <string name="unit_billion">억</string>
+    <string name="unit_million">백만</string>
+    <string name="unit_percent">%</string>
 </resources>

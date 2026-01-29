@@ -19,7 +19,8 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // P3: Use Hilt test runner for E2E tests
+        testInstrumentationRunner = "com.stockapp.HiltTestRunner"
 
         // Chaquopy ABI filters
         ndk {
@@ -133,4 +134,8 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // Hilt Testing (P3 E2E tests)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
 }

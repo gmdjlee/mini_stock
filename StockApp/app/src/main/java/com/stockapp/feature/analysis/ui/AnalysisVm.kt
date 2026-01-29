@@ -60,6 +60,14 @@ class AnalysisVm @Inject constructor(
     fun getTicker(): String? = currentTicker
 
     /**
+     * Select a ticker from deep link (P3).
+     * This sets the ticker in the shared state manager.
+     */
+    fun selectTickerFromDeepLink(ticker: String) {
+        selectedStockManager.selectTicker(ticker)
+    }
+
+    /**
      * Load analysis data.
      */
     private fun loadAnalysis(ticker: String) {

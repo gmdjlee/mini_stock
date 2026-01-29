@@ -1,6 +1,7 @@
 package com.stockapp.core.di
 
 import com.stockapp.BuildConfig
+import com.stockapp.core.network.CertificatePinningConfig
 import com.stockapp.core.state.SelectedStockManager
 import dagger.Module
 import dagger.Provides
@@ -42,6 +43,14 @@ object AppModule {
         }
     }
 
+    /**
+     * Provides OkHttpClient with security enhancements (P3).
+     *
+     * Features:
+     * - Certificate pinning in release builds (MITM protection)
+     * - HTTP logging in debug builds
+     * - Standard timeouts (30s)
+     */
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -51,10 +60,15 @@ object AppModule {
             .writeTimeout(30, TimeUnit.SECONDS)
 
         if (BuildConfig.DEBUG) {
+            // Debug: Enable HTTP logging, skip certificate pinning
             val loggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
             builder.addInterceptor(loggingInterceptor)
+            // Note: Certificate pinning disabled in debug for proxy tools
+        } else {
+            // Release: Enable certificate pinning for API security
+            builder.certificatePinner(CertificatePinningConfig.createPinner())
         }
 
         return builder.build()
