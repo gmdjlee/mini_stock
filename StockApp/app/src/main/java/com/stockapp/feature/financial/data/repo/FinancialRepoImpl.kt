@@ -4,6 +4,7 @@ import android.util.Log
 import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.dao.FinancialCacheDao
 import com.stockapp.core.db.entity.FinancialCacheEntity
+import com.stockapp.core.di.IoDispatcher
 import com.stockapp.feature.financial.data.dto.BalanceSheetDto
 import com.stockapp.feature.financial.data.dto.GrowthRatiosDto
 import com.stockapp.feature.financial.data.dto.IncomeStatementDto
@@ -13,18 +14,15 @@ import com.stockapp.feature.financial.data.dto.StabilityRatiosDto
 import com.stockapp.feature.financial.domain.model.BalanceSheet
 import com.stockapp.feature.financial.domain.model.FinancialData
 import com.stockapp.feature.financial.domain.model.FinancialDataCache
-import com.stockapp.feature.financial.domain.model.FinancialPeriod
-import com.stockapp.feature.financial.domain.model.FinancialRatios
 import com.stockapp.feature.financial.domain.model.GrowthRatios
 import com.stockapp.feature.financial.domain.model.IncomeStatement
-import com.stockapp.feature.financial.domain.model.OtherMajorRatios
 import com.stockapp.feature.financial.domain.model.ProfitabilityRatios
 import com.stockapp.feature.financial.domain.model.StabilityRatios
 import com.stockapp.feature.financial.domain.model.toCache
 import com.stockapp.feature.financial.domain.model.toData
 import com.stockapp.feature.financial.domain.repo.FinancialRepo
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
@@ -36,7 +34,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -60,14 +57,10 @@ private data class KisApiConfig(
 class FinancialRepoImpl @Inject constructor(
     private val financialCacheDao: FinancialCacheDao,
     private val settingsRepo: SettingsRepo,
-    private val json: Json
+    private val json: Json,
+    private val httpClient: OkHttpClient,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : FinancialRepo {
-
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
 
     // Token cache with mutex for thread safety (P0 fix: TOCTOU race condition)
     private var cachedToken: String? = null
@@ -100,7 +93,7 @@ class FinancialRepoImpl @Inject constructor(
     override suspend fun refreshFinancialData(
         ticker: String,
         name: String
-    ): Result<FinancialData> = withContext(Dispatchers.IO) {
+    ): Result<FinancialData> = withContext(ioDispatcher) {
         try {
             val config = getKisApiConfig()
 
@@ -190,7 +183,7 @@ class FinancialRepoImpl @Inject constructor(
                 return@withLock cached
             }
 
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 val tokenUrl = "$baseUrl/oauth2/tokenP"
                 val requestBody = json.encodeToString(
                     kotlinx.serialization.serializer(),
@@ -227,127 +220,99 @@ class FinancialRepoImpl @Inject constructor(
         }
     }
 
-    private suspend fun fetchBalanceSheet(
+    /**
+     * Generic fetch function for financial data.
+     * Extracts common fetch pattern to reduce code duplication (P2 fix).
+     *
+     * @param D DTO type (e.g., BalanceSheetDto)
+     * @param T Domain type (e.g., BalanceSheet)
+     * @param ticker Stock ticker
+     * @param config KIS API configuration
+     * @param endpoint API endpoint path
+     * @param trId Transaction ID
+     * @param dataTypeLabel Label for logging
+     * @param mapper Function to convert DTO to domain model
+     */
+    private suspend inline fun <reified D, T> fetchFinancialData(
         ticker: String,
-        config: KisApiConfig
-    ): List<BalanceSheet> = withContext(Dispatchers.IO) {
+        config: KisApiConfig,
+        endpoint: String,
+        trId: String,
+        dataTypeLabel: String,
+        crossinline mapper: (D) -> T?
+    ): List<T> = withContext(ioDispatcher) {
         try {
-            val response = callKisApi<List<BalanceSheetDto>>(
+            val response = callKisApi<List<D>>(
                 config = config,
-                endpoint = "/uapi/domestic-stock/v1/finance/balance-sheet",
-                trId = TR_ID_BALANCE_SHEET,
+                endpoint = endpoint,
+                trId = trId,
                 params = mapOf(
-                    "FID_DIV_CLS_CODE" to "1",  // 분기
+                    "FID_DIV_CLS_CODE" to "1",
                     "fid_cond_mrkt_div_code" to "J",
                     "fid_input_iscd" to ticker
                 )
             )
-            response.mapNotNull { it.toDomain() }
+            response.mapNotNull { mapper(it) }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to fetch balance sheet for $ticker", e)
+            Log.w(TAG, "Failed to fetch $dataTypeLabel for $ticker", e)
             emptyList()
         }
     }
+
+    private suspend fun fetchBalanceSheet(
+        ticker: String,
+        config: KisApiConfig
+    ): List<BalanceSheet> = fetchFinancialData<BalanceSheetDto, BalanceSheet>(
+        ticker = ticker,
+        config = config,
+        endpoint = "/uapi/domestic-stock/v1/finance/balance-sheet",
+        trId = TR_ID_BALANCE_SHEET,
+        dataTypeLabel = "balance sheet"
+    ) { it.toDomain() }
 
     private suspend fun fetchIncomeStatement(
         ticker: String,
         config: KisApiConfig
-    ): List<IncomeStatement> = withContext(Dispatchers.IO) {
-        try {
-            val response = callKisApi<List<IncomeStatementDto>>(
-                config = config,
-                endpoint = "/uapi/domestic-stock/v1/finance/income-statement",
-                trId = TR_ID_INCOME_STATEMENT,
-                params = mapOf(
-                    "FID_DIV_CLS_CODE" to "1",
-                    "fid_cond_mrkt_div_code" to "J",
-                    "fid_input_iscd" to ticker
-                )
-            )
-            val result = response.mapNotNull { it.toDomain() }
-            Log.d(TAG, "Fetched ${result.size} income statements for $ticker")
-            if (result.isNotEmpty()) {
-                val sample = result.first()
-                Log.d(TAG, "Sample income: period=${sample.period.yearMonth}, revenue=${sample.revenue}, opProfit=${sample.operatingProfit}, netIncome=${sample.netIncome}")
-            }
-            result
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to fetch income statement for $ticker", e)
-            emptyList()
-        }
-    }
+    ): List<IncomeStatement> = fetchFinancialData<IncomeStatementDto, IncomeStatement>(
+        ticker = ticker,
+        config = config,
+        endpoint = "/uapi/domestic-stock/v1/finance/income-statement",
+        trId = TR_ID_INCOME_STATEMENT,
+        dataTypeLabel = "income statement"
+    ) { it.toDomain() }
 
     private suspend fun fetchProfitabilityRatios(
         ticker: String,
         config: KisApiConfig
-    ): List<ProfitabilityRatios> = withContext(Dispatchers.IO) {
-        try {
-            val response = callKisApi<List<ProfitabilityRatiosDto>>(
-                config = config,
-                endpoint = "/uapi/domestic-stock/v1/finance/profit-ratio",
-                trId = TR_ID_PROFIT_RATIO,
-                params = mapOf(
-                    "FID_DIV_CLS_CODE" to "1",
-                    "fid_cond_mrkt_div_code" to "J",
-                    "fid_input_iscd" to ticker
-                )
-            )
-            response.mapNotNull { it.toDomain() }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to fetch profitability ratios for $ticker", e)
-            emptyList()
-        }
-    }
+    ): List<ProfitabilityRatios> = fetchFinancialData<ProfitabilityRatiosDto, ProfitabilityRatios>(
+        ticker = ticker,
+        config = config,
+        endpoint = "/uapi/domestic-stock/v1/finance/profit-ratio",
+        trId = TR_ID_PROFIT_RATIO,
+        dataTypeLabel = "profitability ratios"
+    ) { it.toDomain() }
 
     private suspend fun fetchStabilityRatios(
         ticker: String,
         config: KisApiConfig
-    ): List<StabilityRatios> = withContext(Dispatchers.IO) {
-        try {
-            val response = callKisApi<List<StabilityRatiosDto>>(
-                config = config,
-                endpoint = "/uapi/domestic-stock/v1/finance/stability-ratio",
-                trId = TR_ID_STABILITY_RATIO,
-                params = mapOf(
-                    "FID_DIV_CLS_CODE" to "1",
-                    "fid_cond_mrkt_div_code" to "J",
-                    "fid_input_iscd" to ticker
-                )
-            )
-            response.mapNotNull { it.toDomain() }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to fetch stability ratios for $ticker", e)
-            emptyList()
-        }
-    }
+    ): List<StabilityRatios> = fetchFinancialData<StabilityRatiosDto, StabilityRatios>(
+        ticker = ticker,
+        config = config,
+        endpoint = "/uapi/domestic-stock/v1/finance/stability-ratio",
+        trId = TR_ID_STABILITY_RATIO,
+        dataTypeLabel = "stability ratios"
+    ) { it.toDomain() }
 
     private suspend fun fetchGrowthRatios(
         ticker: String,
         config: KisApiConfig
-    ): List<GrowthRatios> = withContext(Dispatchers.IO) {
-        try {
-            val response = callKisApi<List<GrowthRatiosDto>>(
-                config = config,
-                endpoint = "/uapi/domestic-stock/v1/finance/growth-ratio",
-                trId = TR_ID_GROWTH_RATIO,
-                params = mapOf(
-                    "FID_DIV_CLS_CODE" to "1",
-                    "fid_cond_mrkt_div_code" to "J",
-                    "fid_input_iscd" to ticker
-                )
-            )
-            val result = response.mapNotNull { it.toDomain() }
-            Log.d(TAG, "Fetched ${result.size} growth ratios for $ticker")
-            if (result.isNotEmpty()) {
-                val sample = result.first()
-                Log.d(TAG, "Sample growth: period=${sample.period.yearMonth}, revenueGrowth=${sample.revenueGrowth}, equityGrowth=${sample.equityGrowth}, totalAssetsGrowth=${sample.totalAssetsGrowth}")
-            }
-            result
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to fetch growth ratios for $ticker", e)
-            emptyList()
-        }
-    }
+    ): List<GrowthRatios> = fetchFinancialData<GrowthRatiosDto, GrowthRatios>(
+        ticker = ticker,
+        config = config,
+        endpoint = "/uapi/domestic-stock/v1/finance/growth-ratio",
+        trId = TR_ID_GROWTH_RATIO,
+        dataTypeLabel = "growth ratios"
+    ) { it.toDomain() }
 
     private inline fun <reified T> callKisApi(
         config: KisApiConfig,

@@ -17,7 +17,6 @@ hiltWork = "1.2.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxSerializationJson = "1.7.1"
 chaquopy = "15.0.1"
-vico = "2.0.0-alpha.28"
 hiltNavigationCompose = "1.2.0"
 mpandroidchart = "v3.1.0"
 okhttp = "4.12.0"
@@ -71,10 +70,6 @@ security-crypto = { group = "androidx.security", name = "security-crypto", versi
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
-
-# Vico Charts
-vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
-vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
 
 # MPAndroidChart
 mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpandroidchart" }
