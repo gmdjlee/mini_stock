@@ -207,11 +207,8 @@ private fun AnalysisContent(
         ChartDataHolder(dates, mcapHistory, for5dHistory, ins5dHistory, oscillatorValues)
     }
 
-    val dates = chartData.dates
-    val mcapHistory = chartData.mcapHistory
-    val for5dHistory = chartData.for5dHistory
-    val ins5dHistory = chartData.ins5dHistory
-    val oscillatorValues = chartData.oscillatorValues
+    // Destructure chart data for use in UI
+    val (dates, mcapHistory, for5dHistory, ins5dHistory, oscillatorValues) = chartData
 
     Column(
         modifier = modifier

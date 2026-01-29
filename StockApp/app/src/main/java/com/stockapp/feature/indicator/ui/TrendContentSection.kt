@@ -86,15 +86,11 @@ internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
         )
     }
 
-    val dates = chartData.dates
-    val priceHistory = chartData.priceHistory
-    val fearGreedHistory = chartData.fearGreedHistory
-    val cmfHistory = chartData.cmfHistory
-    val ma20History = chartData.ma20History
-    val primaryBuySignals = chartData.primaryBuySignals
-    val additionalBuySignals = chartData.additionalBuySignals
-    val primarySellSignals = chartData.primarySellSignals
-    val additionalSellSignals = chartData.additionalSellSignals
+    // Destructure chart data for use in UI
+    val (
+        dates, priceHistory, fearGreedHistory, cmfHistory, ma20History,
+        primaryBuySignals, additionalBuySignals, primarySellSignals, additionalSellSignals
+    ) = chartData
 
     // Format latest date for subtitle
     val latestDate = dates.lastOrNull()?.let { date ->
