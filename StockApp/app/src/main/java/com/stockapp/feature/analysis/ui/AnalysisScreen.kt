@@ -32,6 +32,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -174,32 +175,43 @@ private fun AnalysisContent(
     summary: AnalysisSummary,
     modifier: Modifier = Modifier
 ) {
+    // P0 fix: Memoize chart data preparation to avoid recalculation on every recomposition
     // Python returns data in reverse chronological order (newest first)
     // take(N) gets newest N days, reversed() converts to chronological order for chart display
-    val displayCount = minOf(ChartConfig.OSCILLATOR_CHART_MAX_DAYS, summary.dates.size)
-    val dates = summary.dates.take(displayCount).reversed()
-    val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
-    val for5dHistory = summary.for5dHistory.take(displayCount).reversed()
-    val ins5dHistory = summary.ins5dHistory.take(displayCount).reversed()
+    val chartData = remember(summary) {
+        val displayCount = minOf(ChartConfig.OSCILLATOR_CHART_MAX_DAYS, summary.dates.size)
+        val dates = summary.dates.take(displayCount).reversed()
+        val mcapHistory = summary.mcapHistory.take(displayCount).reversed()
+        val for5dHistory = summary.for5dHistory.take(displayCount).reversed()
+        val ins5dHistory = summary.ins5dHistory.take(displayCount).reversed()
 
-    // Calculate MACD-style oscillator values (matching Python reference)
-    // 1. Calculate Supply Ratio = (foreign + institution) / mcap
-    //    for5dHistory is in 억원, mcapHistory is in 조원
-    //    supply_ratio = (for5d + ins5d) * 1e8 / (mcap * 1e12) = (for5d + ins5d) / (mcap * TRILLION_TO_BILLION)
-    val supplyRatioList = mcapHistory.mapIndexed { index, mcap ->
-        if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
-            (for5dHistory[index] + ins5dHistory[index]) / (mcap * ChartConfig.TRILLION_TO_BILLION)
-        } else {
-            0.0
+        // Calculate MACD-style oscillator values (matching Python reference)
+        // 1. Calculate Supply Ratio = (foreign + institution) / mcap
+        //    for5dHistory is in 억원, mcapHistory is in 조원
+        //    supply_ratio = (for5d + ins5d) * 1e8 / (mcap * 1e12) = (for5d + ins5d) / (mcap * TRILLION_TO_BILLION)
+        val supplyRatioList = mcapHistory.mapIndexed { index, mcap ->
+            if (mcap > 0 && index < for5dHistory.size && index < ins5dHistory.size) {
+                (for5dHistory[index] + ins5dHistory[index]) / (mcap * ChartConfig.TRILLION_TO_BILLION)
+            } else {
+                0.0
+            }
         }
+
+        // 2. Calculate EMA12, EMA26, MACD, Signal, and Oscillator (Histogram)
+        val ema12 = calcEma(supplyRatioList, 12)
+        val ema26 = calcEma(supplyRatioList, 26)
+        val macdLine = ema12.zip(ema26) { e12, e26 -> e12 - e26 }
+        val signalLine = calcEma(macdLine, 9)
+        val oscillatorValues = macdLine.zip(signalLine) { m, s -> m - s }
+
+        ChartDataHolder(dates, mcapHistory, for5dHistory, ins5dHistory, oscillatorValues)
     }
 
-    // 2. Calculate EMA12, EMA26, MACD, Signal, and Oscillator (Histogram)
-    val ema12 = calcEma(supplyRatioList, 12)
-    val ema26 = calcEma(supplyRatioList, 26)
-    val macdLine = ema12.zip(ema26) { e12, e26 -> e12 - e26 }
-    val signalLine = calcEma(macdLine, 9)
-    val oscillatorValues = macdLine.zip(signalLine) { m, s -> m - s }
+    val dates = chartData.dates
+    val mcapHistory = chartData.mcapHistory
+    val for5dHistory = chartData.for5dHistory
+    val ins5dHistory = chartData.ins5dHistory
+    val oscillatorValues = chartData.oscillatorValues
 
     Column(
         modifier = modifier
@@ -511,3 +523,15 @@ private fun calcEma(values: List<Double>, period: Int): List<Double> {
     }
     return ema
 }
+
+/**
+ * Holder for memoized chart data to avoid recomputation on recomposition.
+ * P0 fix: Performance optimization.
+ */
+private data class ChartDataHolder(
+    val dates: List<String>,
+    val mcapHistory: List<Double>,
+    val for5dHistory: List<Double>,
+    val ins5dHistory: List<Double>,
+    val oscillatorValues: List<Double>
+)

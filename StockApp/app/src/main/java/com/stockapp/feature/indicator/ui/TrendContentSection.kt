@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,53 +23,78 @@ import com.stockapp.feature.indicator.domain.model.TrendSummary
  */
 @Composable
 internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
-    // Prepare data for chart display (newest N days in chronological order)
-    val dates = summary.dates.prepareForChart()
-    val priceHistory = summary.priceHistory.prepareForChart()
-    val fearGreedHistory = summary.fearGreedHistory.prepareForChart()
-    val cmfHistory = summary.cmfHistory.prepareForChart()
-    val ma20History = summary.ma20History.prepareNullableForChart()
-    val maSignalHistory = summary.maSignalHistory.prepareForChart()
+    // P0 fix: Memoize chart data and signal calculations to avoid recomputation on recomposition
+    val chartData = remember(summary) {
+        // Prepare data for chart display (newest N days in chronological order)
+        val dates = summary.dates.prepareForChart()
+        val priceHistory = summary.priceHistory.prepareForChart()
+        val fearGreedHistory = summary.fearGreedHistory.prepareForChart()
+        val cmfHistory = summary.cmfHistory.prepareForChart()
+        val ma20History = summary.ma20History.prepareNullableForChart()
+        val maSignalHistory = summary.maSignalHistory.prepareForChart()
 
-    // Generate signal indices based on TREND_SIGNAL_CHART.md spec:
-    // - Primary Buy: maSignal == 1 (3 conditions: High>Prev_High, Close>MA, CMF>0)
-    // - Additional Buy: maSignal == 0 but CMF > 0 AND Close > MA (2 conditions met with MA)
-    // - Primary Sell: maSignal == -1 (3 conditions: Low<Prev_Low, Close<MA, CMF<0)
-    // - Additional Sell: maSignal == 0 but CMF < 0 AND Close < MA (2 conditions met with MA)
-    val primaryBuySignals = mutableListOf<Int>()
-    val additionalBuySignals = mutableListOf<Int>()
-    val primarySellSignals = mutableListOf<Int>()
-    val additionalSellSignals = mutableListOf<Int>()
+        // Generate signal indices based on TREND_SIGNAL_CHART.md spec:
+        // - Primary Buy: maSignal == 1 (3 conditions: High>Prev_High, Close>MA, CMF>0)
+        // - Additional Buy: maSignal == 0 but CMF > 0 AND Close > MA (2 conditions met with MA)
+        // - Primary Sell: maSignal == -1 (3 conditions: Low<Prev_Low, Close<MA, CMF<0)
+        // - Additional Sell: maSignal == 0 but CMF < 0 AND Close < MA (2 conditions met with MA)
+        val primaryBuySignals = mutableListOf<Int>()
+        val additionalBuySignals = mutableListOf<Int>()
+        val primarySellSignals = mutableListOf<Int>()
+        val additionalSellSignals = mutableListOf<Int>()
 
-    for (i in maSignalHistory.indices) {
-        val signal = maSignalHistory[i]
+        for (i in maSignalHistory.indices) {
+            val signal = maSignalHistory[i]
 
-        when (signal) {
-            // Primary signals: all 3 conditions met (from Python ma_signal)
-            1 -> primaryBuySignals.add(i)
-            -1 -> primarySellSignals.add(i)
-            // Additional signals: check CMF and Close vs MA conditions
-            0 -> {
-                // Need CMF and price data for additional signal calculation
-                if (i < cmfHistory.size && i < priceHistory.size && i < ma20History.size) {
-                    val cmf = cmfHistory[i]
-                    val close = priceHistory[i]
-                    val ma = ma20History.getOrNull(i)
+            when (signal) {
+                // Primary signals: all 3 conditions met (from Python ma_signal)
+                1 -> primaryBuySignals.add(i)
+                -1 -> primarySellSignals.add(i)
+                // Additional signals: check CMF and Close vs MA conditions
+                0 -> {
+                    // Need CMF and price data for additional signal calculation
+                    if (i < cmfHistory.size && i < priceHistory.size && i < ma20History.size) {
+                        val cmf = cmfHistory[i]
+                        val close = priceHistory[i]
+                        val ma = ma20History.getOrNull(i)
 
-                    if (ma != null) {
-                        // Additional Buy: CMF > 0 AND Close > MA
-                        if (cmf > 0 && close > ma) {
-                            additionalBuySignals.add(i)
-                        }
-                        // Additional Sell: CMF < 0 AND Close < MA
-                        else if (cmf < 0 && close < ma) {
-                            additionalSellSignals.add(i)
+                        if (ma != null) {
+                            // Additional Buy: CMF > 0 AND Close > MA
+                            if (cmf > 0 && close > ma) {
+                                additionalBuySignals.add(i)
+                            }
+                            // Additional Sell: CMF < 0 AND Close < MA
+                            else if (cmf < 0 && close < ma) {
+                                additionalSellSignals.add(i)
+                            }
                         }
                     }
                 }
             }
         }
+
+        TrendChartData(
+            dates = dates,
+            priceHistory = priceHistory,
+            fearGreedHistory = fearGreedHistory,
+            cmfHistory = cmfHistory,
+            ma20History = ma20History,
+            primaryBuySignals = primaryBuySignals,
+            additionalBuySignals = additionalBuySignals,
+            primarySellSignals = primarySellSignals,
+            additionalSellSignals = additionalSellSignals
+        )
     }
+
+    val dates = chartData.dates
+    val priceHistory = chartData.priceHistory
+    val fearGreedHistory = chartData.fearGreedHistory
+    val cmfHistory = chartData.cmfHistory
+    val ma20History = chartData.ma20History
+    val primaryBuySignals = chartData.primaryBuySignals
+    val additionalBuySignals = chartData.additionalBuySignals
+    val primarySellSignals = chartData.primarySellSignals
+    val additionalSellSignals = chartData.additionalSellSignals
 
     // Format latest date for subtitle
     val latestDate = dates.lastOrNull()?.let { date ->
@@ -159,3 +185,19 @@ internal fun TrendContent(summary: TrendSummary, timeframe: Timeframe) {
         }
     }
 }
+
+/**
+ * Holder for memoized trend chart data to avoid recomputation on recomposition.
+ * P0 fix: Performance optimization.
+ */
+private data class TrendChartData(
+    val dates: List<String>,
+    val priceHistory: List<Double>,
+    val fearGreedHistory: List<Double>,
+    val cmfHistory: List<Double>,
+    val ma20History: List<Double?>,
+    val primaryBuySignals: List<Int>,
+    val additionalBuySignals: List<Int>,
+    val primarySellSignals: List<Int>,
+    val additionalSellSignals: List<Int>
+)
