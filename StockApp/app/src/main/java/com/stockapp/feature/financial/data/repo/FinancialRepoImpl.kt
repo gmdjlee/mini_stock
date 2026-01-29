@@ -28,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -67,9 +69,11 @@ class FinancialRepoImpl @Inject constructor(
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
+    // Token cache with mutex for thread safety (P0 fix: TOCTOU race condition)
     private var cachedToken: String? = null
     private var tokenExpiresAt: Long = 0
     private var tokenBaseUrl: String? = null
+    private val tokenMutex = Mutex()
 
     override suspend fun getFinancialData(
         ticker: String,
@@ -174,48 +178,52 @@ class FinancialRepoImpl @Inject constructor(
     }
 
     private suspend fun getAccessToken(appKey: String, appSecret: String, baseUrl: String): String {
-        // Check if cached token is still valid AND for the same baseUrl
-        // Token must be invalidated when investment mode (baseUrl) changes
-        if (cachedToken != null &&
-            tokenBaseUrl == baseUrl &&
-            System.currentTimeMillis() < tokenExpiresAt - 60_000
-        ) {
-            return cachedToken!!
-        }
-
-        return withContext(Dispatchers.IO) {
-            val tokenUrl = "$baseUrl/oauth2/tokenP"
-            val requestBody = json.encodeToString(
-                kotlinx.serialization.serializer(),
-                mapOf(
-                    "grant_type" to "client_credentials",
-                    "appkey" to appKey,
-                    "appsecret" to appSecret
-                )
-            )
-
-            val request = Request.Builder()
-                .url(tokenUrl)
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string() ?: throw Exception("Empty token response")
-
-            if (!response.isSuccessful) {
-                throw Exception("Token request failed: ${response.code} - $responseBody")
+        // P0 fix: Use mutex to prevent TOCTOU race condition
+        return tokenMutex.withLock {
+            // Check if cached token is still valid AND for the same baseUrl
+            // Token must be invalidated when investment mode (baseUrl) changes
+            val cached = cachedToken
+            if (cached != null &&
+                tokenBaseUrl == baseUrl &&
+                System.currentTimeMillis() < tokenExpiresAt - 60_000
+            ) {
+                return@withLock cached
             }
 
-            // Parse token response
-            val tokenResponse = json.decodeFromString<Map<String, String>>(responseBody)
-            val token = tokenResponse["access_token"] ?: throw Exception("No access_token in response")
+            withContext(Dispatchers.IO) {
+                val tokenUrl = "$baseUrl/oauth2/tokenP"
+                val requestBody = json.encodeToString(
+                    kotlinx.serialization.serializer(),
+                    mapOf(
+                        "grant_type" to "client_credentials",
+                        "appkey" to appKey,
+                        "appsecret" to appSecret
+                    )
+                )
 
-            // Cache token (expires in 24 hours typically)
-            cachedToken = token
-            tokenExpiresAt = System.currentTimeMillis() + 23 * 60 * 60 * 1000 // 23 hours
-            tokenBaseUrl = baseUrl
+                val request = Request.Builder()
+                    .url(tokenUrl)
+                    .post(requestBody.toRequestBody("application/json".toMediaType()))
+                    .build()
 
-            token
+                val response = httpClient.newCall(request).execute()
+                val responseBody = response.body?.string() ?: throw Exception("Empty token response")
+
+                if (!response.isSuccessful) {
+                    throw Exception("Token request failed: ${response.code} - $responseBody")
+                }
+
+                // Parse token response
+                val tokenResponse = json.decodeFromString<Map<String, String>>(responseBody)
+                val token = tokenResponse["access_token"] ?: throw Exception("No access_token in response")
+
+                // Cache token (expires in 24 hours typically)
+                cachedToken = token
+                tokenExpiresAt = System.currentTimeMillis() + 23 * 60 * 60 * 1000 // 23 hours
+                tokenBaseUrl = baseUrl
+
+                token
+            }
         }
     }
 
