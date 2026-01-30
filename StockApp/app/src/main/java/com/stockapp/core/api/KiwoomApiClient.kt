@@ -39,6 +39,7 @@ class KiwoomApiClient @Inject constructor(
 
     /**
      * Make a direct API call to Kiwoom REST API.
+     * Automatically retries with token refresh on 401/403 errors.
      *
      * @param apiId API identifier (e.g., "ka10021")
      * @param url API endpoint path (e.g., "/api/dostk/rkinfo")
@@ -57,6 +58,47 @@ class KiwoomApiClient @Inject constructor(
         baseUrl: String,
         parser: (String) -> T
     ): Result<T> = withContext(ioDispatcher) {
+        // First attempt
+        val result = callOnce(apiId, url, body, appKey, secretKey, baseUrl, parser)
+
+        result.fold(
+            onSuccess = { return@withContext Result.success(it) },
+            onFailure = { error ->
+                // Check if it's an auth error (401/403 or auth-related API error)
+                val isAuthError = isAuthenticationError(error)
+                if (isAuthError) {
+                    Log.w(TAG, "Auth error detected, refreshing token and retrying: ${error.message}")
+
+                    // Refresh token and retry once
+                    val refreshResult = tokenManager.refreshToken(appKey, secretKey, baseUrl)
+                    if (refreshResult.isFailure) {
+                        return@withContext Result.failure(
+                            ApiError.AuthError("토큰 갱신 실패: ${refreshResult.exceptionOrNull()?.message}")
+                        )
+                    }
+
+                    // Retry with fresh token
+                    return@withContext callOnce(apiId, url, body, appKey, secretKey, baseUrl, parser)
+                }
+
+                // Non-auth error, return as-is
+                return@withContext Result.failure(error)
+            }
+        )
+    }
+
+    /**
+     * Single attempt to make an API call.
+     */
+    private suspend fun <T> callOnce(
+        apiId: String,
+        url: String,
+        body: Map<String, String>,
+        appKey: String,
+        secretKey: String,
+        baseUrl: String,
+        parser: (String) -> T
+    ): Result<T> {
         try {
             // Rate limiting
             waitForRateLimit()
@@ -64,7 +106,7 @@ class KiwoomApiClient @Inject constructor(
             // Get token
             val tokenResult = tokenManager.getToken(appKey, secretKey, baseUrl)
             val token = tokenResult.getOrElse { error ->
-                return@withContext Result.failure(error)
+                return Result.failure(error)
             }
 
             // Build request body JSON using kotlinx.serialization for proper escaping
@@ -87,7 +129,7 @@ class KiwoomApiClient @Inject constructor(
 
             if (!response.isSuccessful || responseBody == null) {
                 Log.e(TAG, "API call failed: ${response.code}")
-                return@withContext Result.failure(
+                return Result.failure(
                     ApiError.ApiCallError(response.code, "HTTP ${response.code}")
                 )
             }
@@ -95,7 +137,7 @@ class KiwoomApiClient @Inject constructor(
             // Check for API error in response
             val apiResponse = json.decodeFromString<ApiResponse>(responseBody)
             if (apiResponse.returnCode != 0) {
-                return@withContext Result.failure(
+                return Result.failure(
                     ApiError.ApiCallError(apiResponse.returnCode, apiResponse.returnMsg ?: "API 오류")
                 )
             }
@@ -104,13 +146,32 @@ class KiwoomApiClient @Inject constructor(
             val parsed = parser(responseBody)
             Result.success(parsed)
         } catch (e: Exception) {
-            Result.failure(mapException(e))
+            return Result.failure(mapException(e))
+        }
+    }
+
+    /**
+     * Check if an error is authentication-related (401/403 or auth API error codes).
+     */
+    private fun isAuthenticationError(error: Throwable): Boolean {
+        return when {
+            error is ApiError.AuthError -> true
+            error is ApiError.ApiCallError -> {
+                // HTTP 401 (Unauthorized) or 403 (Forbidden)
+                error.code == 401 || error.code == 403 ||
+                    // Kiwoom API auth-related error codes
+                    error.message?.contains("인증", ignoreCase = true) == true ||
+                    error.message?.contains("토큰", ignoreCase = true) == true ||
+                    error.message?.contains("권한", ignoreCase = true) == true
+            }
+            else -> false
         }
     }
 
     /**
      * Make a paginated API call to Kiwoom REST API.
      * Supports cont-yn and next-key headers for pagination (연속조회).
+     * Automatically retries with token refresh on 401/403 errors.
      *
      * @param apiId API identifier (e.g., "ka40004")
      * @param url API endpoint path
@@ -133,6 +194,49 @@ class KiwoomApiClient @Inject constructor(
         nextKey: String = "",
         parser: (String) -> T
     ): Result<PaginatedResponse<T>> = withContext(ioDispatcher) {
+        // First attempt
+        val result = callPaginatedOnce(apiId, url, body, appKey, secretKey, baseUrl, contYn, nextKey, parser)
+
+        result.fold(
+            onSuccess = { return@withContext Result.success(it) },
+            onFailure = { error ->
+                // Check if it's an auth error
+                val isAuthError = isAuthenticationError(error)
+                if (isAuthError) {
+                    Log.w(TAG, "Auth error in paginated call, refreshing token and retrying: ${error.message}")
+
+                    // Refresh token and retry once
+                    val refreshResult = tokenManager.refreshToken(appKey, secretKey, baseUrl)
+                    if (refreshResult.isFailure) {
+                        return@withContext Result.failure(
+                            ApiError.AuthError("토큰 갱신 실패: ${refreshResult.exceptionOrNull()?.message}")
+                        )
+                    }
+
+                    // Retry with fresh token
+                    return@withContext callPaginatedOnce(apiId, url, body, appKey, secretKey, baseUrl, contYn, nextKey, parser)
+                }
+
+                // Non-auth error, return as-is
+                return@withContext Result.failure(error)
+            }
+        )
+    }
+
+    /**
+     * Single attempt to make a paginated API call.
+     */
+    private suspend fun <T> callPaginatedOnce(
+        apiId: String,
+        url: String,
+        body: Map<String, String>,
+        appKey: String,
+        secretKey: String,
+        baseUrl: String,
+        contYn: String,
+        nextKey: String,
+        parser: (String) -> T
+    ): Result<PaginatedResponse<T>> {
         try {
             // Rate limiting
             waitForRateLimit()
@@ -140,7 +244,7 @@ class KiwoomApiClient @Inject constructor(
             // Get token
             val tokenResult = tokenManager.getToken(appKey, secretKey, baseUrl)
             val token = tokenResult.getOrElse { error ->
-                return@withContext Result.failure(error)
+                return Result.failure(error)
             }
 
             // Build request body JSON
@@ -173,7 +277,7 @@ class KiwoomApiClient @Inject constructor(
 
             if (!response.isSuccessful || responseBody == null) {
                 Log.e(TAG, "API call failed: ${response.code}")
-                return@withContext Result.failure(
+                return Result.failure(
                     ApiError.ApiCallError(response.code, "HTTP ${response.code}")
                 )
             }
@@ -181,7 +285,7 @@ class KiwoomApiClient @Inject constructor(
             // Check for API error in response
             val apiResponse = json.decodeFromString<ApiResponse>(responseBody)
             if (apiResponse.returnCode != 0) {
-                return@withContext Result.failure(
+                return Result.failure(
                     ApiError.ApiCallError(apiResponse.returnCode, apiResponse.returnMsg ?: "API 오류")
                 )
             }
@@ -203,7 +307,7 @@ class KiwoomApiClient @Inject constructor(
                 )
             )
         } catch (e: Exception) {
-            Result.failure(mapException(e))
+            return Result.failure(mapException(e))
         }
     }
 
