@@ -1666,6 +1666,7 @@ chaquopy = "15.0.1"
 | App P3 | ~~시장 지표 + 조건검색~~ | ~~MarketScreen, ConditionScreen~~ | ⛔ 제거됨 |
 | App P4 | **설정 화면** | SettingsScreen (API 키, 투자 모드) | ✅ 완료 |
 | App P5 | **자동 스케줄링** | SchedulingTab, WorkManager | ✅ 완료 |
+| App P9 | **DB 백업/복원** | DbBackupTab, BackupManager | ✅ 완료 |
 
 **사전 준비 문서**: `docs/ANDROID_PREPARATION.md`
 
@@ -2051,6 +2052,256 @@ interface SchedulingDao {
 
     @Insert
     suspend fun insertHistory(history: SyncHistoryEntity)
+}
+```
+
+---
+
+## 17. App Phase 9: DB 백업/복원 (DB Backup)
+
+### 17.1 개요
+
+Room Database의 모든 데이터를 JSON 형식으로 백업하고 복원하는 기능. 스키마 변경에도 호환성을 유지하도록 설계.
+
+### 17.2 DbBackupTab 구조
+
+```
+DbBackupTab
+├── 백업 섹션
+│   ├── 백업 유형 선택 (전체 / 날짜 범위)
+│   ├── 날짜 선택 (시작일, 종료일) - FILTERED 모드 시
+│   ├── 백업 생성 버튼
+│   └── 진행률 표시
+├── 복원 섹션
+│   ├── 파일 선택 버튼
+│   ├── 파일 정보 표시 (메타데이터)
+│   ├── 복원 모드 선택 (MERGE / REPLACE)
+│   └── 복원 시작 버튼
+└── 결과 알림 카드
+```
+
+### 17.3 도메인 모델
+
+```kotlin
+// 백업 유형
+enum class BackupType {
+    FULL,      // 전체 백업
+    FILTERED   // 날짜 범위 필터링
+}
+
+// 복원 모드
+enum class RestoreMode {
+    MERGE,     // 기존 데이터 유지, 새 데이터 추가/업데이트
+    REPLACE    // 기존 데이터 삭제 후 복원
+}
+
+// 백업 메타데이터
+@Serializable
+data class BackupMetadata(
+    val version: Int = 1,
+    val createdAt: Long,
+    val appVersion: String,
+    val backupType: BackupType,
+    val startDate: String? = null,
+    val endDate: String? = null,
+    val entityCounts: Map<String, Int> = emptyMap()
+)
+
+// 백업 파일 구조
+@Serializable
+data class BackupFile(
+    val metadata: BackupMetadata,
+    val tables: BackupTables
+)
+
+// 백업 설정
+data class BackupConfig(
+    val backupType: BackupType,
+    val startDate: String? = null,
+    val endDate: String? = null
+)
+
+// 복원 결과
+data class RestoreResult(
+    val success: Boolean,
+    val restoredCounts: Map<String, Int>,
+    val skippedCounts: Map<String, Int>,
+    val errorMessage: String? = null
+)
+```
+
+### 17.4 백업 데이터 모델 (14개 테이블)
+
+```kotlin
+@Serializable
+data class BackupTables(
+    val stocks: List<BackupStock>? = null,
+    val analysisCache: List<BackupAnalysisCache>? = null,
+    val searchHistory: List<BackupSearchHistory>? = null,
+    val indicatorCache: List<BackupIndicatorCache>? = null,
+    val scheduling: List<BackupScheduling>? = null,
+    val syncHistory: List<BackupSyncHistory>? = null,
+    val stockAnalysisData: List<BackupStockAnalysisData>? = null,
+    val indicatorData: List<BackupIndicatorData>? = null,
+    val financialCache: List<BackupFinancialCache>? = null,
+    val etfs: List<BackupEtf>? = null,
+    val etfConstituents: List<BackupEtfConstituent>? = null,
+    val etfKeywords: List<BackupEtfKeyword>? = null,
+    val etfCollectionHistory: List<BackupEtfCollectionHistory>? = null,
+    val dailyEtfStatistics: List<BackupDailyEtfStatistics>? = null
+)
+```
+
+### 17.5 호환성 처리
+
+**Forward Compatibility (새 버전 → 이전 버전)**
+- `ignoreUnknownKeys = true`: 알 수 없는 필드 무시
+- nullable 테이블 목록: 새 테이블이 추가되어도 이전 버전에서 복원 가능
+
+**Backward Compatibility (이전 버전 → 새 버전)**
+- 모든 필드에 기본값 제공
+- BackupMigrator를 통한 버전별 데이터 변환
+- 누락된 테이블은 건너뜀
+
+### 17.6 핵심 컴포넌트
+
+#### BackupSerializer
+```kotlin
+class BackupSerializer(private val json: Json) {
+    fun serialize(backup: BackupFile): String
+    fun deserialize(jsonString: String): BackupFile
+    fun extractMetadata(jsonString: String): BackupMetadata?
+    fun validate(jsonString: String): ValidationResult
+}
+```
+
+#### BackupManager
+```kotlin
+class BackupManager(
+    private val db: AppDb,
+    private val serializer: BackupSerializer
+) {
+    suspend fun createBackup(
+        config: BackupConfig,
+        onProgress: (BackupProgress) -> Unit
+    ): Result<BackupFile>
+
+    suspend fun restoreBackup(
+        backup: BackupFile,
+        mode: RestoreMode,
+        onProgress: (RestoreProgress) -> Unit
+    ): Result<RestoreResult>
+}
+```
+
+#### BackupMigrator
+```kotlin
+class BackupMigrator {
+    fun needsMigration(backup: BackupFile): Boolean
+    fun isSupported(version: Int): Boolean
+    fun migrate(backup: BackupFile): BackupFile
+}
+```
+
+### 17.7 Use Cases
+
+```kotlin
+// 백업 생성
+class CreateBackupUC @Inject constructor(
+    private val backupRepo: BackupRepo
+) {
+    suspend operator fun invoke(
+        config: BackupConfig,
+        outputUri: Uri,
+        onProgress: (BackupProgress) -> Unit
+    ): Result<Unit>
+}
+
+// 백업 복원
+class RestoreBackupUC @Inject constructor(
+    private val backupRepo: BackupRepo
+) {
+    suspend operator fun invoke(
+        inputUri: Uri,
+        mode: RestoreMode,
+        onProgress: (RestoreProgress) -> Unit
+    ): Result<RestoreResult>
+}
+
+// 백업 검증
+class ValidateBackupUC @Inject constructor(
+    private val backupRepo: BackupRepo
+) {
+    suspend operator fun invoke(inputUri: Uri): Result<ValidationResult>
+}
+```
+
+### 17.8 진행 상태
+
+```kotlin
+// 백업 진행 상태
+sealed class BackupProgress {
+    data class Creating(val progress: Float, val message: String) : BackupProgress()
+    data object Saving : BackupProgress()
+    data object Complete : BackupProgress()
+}
+
+// 복원 진행 상태
+sealed class RestoreProgress {
+    data object Loading : RestoreProgress()
+    data object Validating : RestoreProgress()
+    data object Migrating : RestoreProgress()
+    data class Restoring(val progress: Float, val message: String) : RestoreProgress()
+    data object Complete : RestoreProgress()
+}
+
+// 검증 결과
+sealed class ValidationResult {
+    data class Valid(val metadata: BackupMetadata) : ValidationResult()
+    data class Invalid(val reason: String) : ValidationResult()
+    data class NeedsMigration(val fromVersion: Int, val metadata: BackupMetadata) : ValidationResult()
+}
+```
+
+### 17.9 파일 포맷
+
+```json
+{
+  "metadata": {
+    "version": 1,
+    "createdAt": 1706500000000,
+    "appVersion": "1.0.0",
+    "backupType": "FULL",
+    "startDate": null,
+    "endDate": null,
+    "entityCounts": {
+      "stocks": 150,
+      "analysisCache": 50,
+      "searchHistory": 30,
+      "etfs": 200
+    }
+  },
+  "tables": {
+    "stocks": [...],
+    "analysisCache": [...],
+    "searchHistory": [...],
+    ...
+  }
+}
+```
+
+### 17.10 DAO 확장
+
+각 DAO에 백업/복원용 메서드 추가:
+
+```kotlin
+@Dao
+interface StockDao {
+    @Query("SELECT * FROM stocks")
+    suspend fun getAllOnce(): List<StockEntity>
+
+    @Query("SELECT * FROM stocks WHERE updatedAt BETWEEN :startDate AND :endDate")
+    suspend fun getInDateRange(startDate: Long, endDate: Long): List<StockEntity>
 }
 ```
 

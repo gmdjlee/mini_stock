@@ -18,6 +18,9 @@ interface EtfDao {
     @Query("SELECT * FROM etfs ORDER BY etfName")
     suspend fun getAllEtfs(): List<EtfEntity>
 
+    @Query("SELECT * FROM etfs WHERE updatedAt BETWEEN :startMs AND :endMs ORDER BY etfName")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<EtfEntity>
+
     @Query("SELECT * FROM etfs ORDER BY etfName")
     fun observeAllEtfs(): Flow<List<EtfEntity>>
 
