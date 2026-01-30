@@ -11,6 +11,12 @@ interface AnalysisCacheDao {
     @Query("SELECT * FROM analysis_cache WHERE ticker = :ticker")
     suspend fun get(ticker: String): AnalysisCacheEntity?
 
+    @Query("SELECT * FROM analysis_cache")
+    suspend fun getAllOnce(): List<AnalysisCacheEntity>
+
+    @Query("SELECT * FROM analysis_cache WHERE cachedAt BETWEEN :startMs AND :endMs")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<AnalysisCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(cache: AnalysisCacheEntity)
 

@@ -103,7 +103,7 @@ Task(subagent_type="verify-app", prompt="Run the app and verify scheduling featu
 | 🏦 Financial | FinancialScreen | 재무정보 (수익성, 안정성) |
 | 🏆 Ranking | RankingScreen | 순위정보 (호가잔량, 거래량, 신용비율 등) |
 | 📁 ETF | EtfScreen | ETF 포트폴리오 추적 및 분석 |
-| ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정, ETF 키워드 |
+| ⚙️ Settings | SettingsScreen | API 키 설정, 스케줄링 설정, ETF 키워드, DB 백업/복원 |
 
 ## Quick Commands
 
@@ -548,6 +548,11 @@ StockApp/
 │   │   ├── py/                     # Python Bridge
 │   │   │   ├── PyClient.kt
 │   │   │   └── PyResponse.kt
+│   │   ├── backup/                 # DB 백업/복원
+│   │   │   ├── BackupModels.kt
+│   │   │   ├── BackupSerializer.kt
+│   │   │   ├── BackupManager.kt
+│   │   │   └── BackupMigrator.kt
 │   │   ├── cache/                  # 캐시 관리
 │   │   │   └── StockCacheManager.kt
 │   │   ├── state/                  # 공유 상태
@@ -585,14 +590,14 @@ StockApp/
 │   │   │   ├── data/
 │   │   │   ├── ui/IndicatorScreen.kt, IndicatorVm.kt
 │   │   │   └── di/IndicatorModule.kt
-│   │   ├── settings/               # 설정 (Phase 4) ⭐ NEW
+│   │   ├── settings/               # 설정 (Phase 4)
 │   │   │   ├── domain/
 │   │   │   │   ├── model/ApiKeyConfig.kt  # API 키, InvestmentMode
-│   │   │   │   ├── repo/SettingsRepo.kt
-│   │   │   │   └── usecase/*.kt
+│   │   │   │   ├── repo/SettingsRepo.kt, BackupRepo.kt
+│   │   │   │   └── usecase/*.kt           # CreateBackupUC, RestoreBackupUC, ValidateBackupUC
 │   │   │   ├── data/
-│   │   │   │   └── repo/SettingsRepoImpl.kt  # EncryptedSharedPreferences
-│   │   │   ├── ui/SettingsScreen.kt, SettingsVm.kt
+│   │   │   │   └── repo/SettingsRepoImpl.kt, BackupRepoImpl.kt
+│   │   │   ├── ui/SettingsScreen.kt, SettingsVm.kt, DbBackupTab.kt, DbBackupVm.kt
 │   │   │   └── di/SettingsModule.kt
 │   │   ├── scheduling/             # 자동 스케줄링 (Phase 5)
 │   │   │   ├── SchedulingManager.kt       # WorkManager 오케스트레이션
@@ -1283,6 +1288,85 @@ sealed class EtfState {
     data class Success(val data: EtfScreenData) : EtfState()
     data class Error(val message: String) : EtfState()
 }
+```
+
+---
+
+### App Phase 9: DB 백업/복원 (DB Backup)
+
+#### DbBackupTab (데이터베이스 백업 및 복원)
+
+**기능**:
+- 전체 DB 백업 또는 날짜 범위 필터링 백업
+- JSON 형식 백업 파일 생성
+- 백업 파일 검증 및 복원
+- MERGE (병합) 또는 REPLACE (교체) 복원 모드
+- 백업 파일 버전 관리 및 마이그레이션
+
+**기술 스택**: Kotlinx Serialization, Android SAF (Storage Access Framework)
+
+#### 백업 유형
+| 유형 | 설명 |
+|------|------|
+| FULL | 전체 데이터 백업 |
+| FILTERED | 날짜 범위 필터링 백업 |
+
+#### 복원 모드
+| 모드 | 설명 |
+|------|------|
+| MERGE | 기존 데이터 유지, 새 데이터 추가/업데이트 |
+| REPLACE | 기존 데이터 삭제 후 복원 |
+
+#### 핵심 모델
+```kotlin
+// 백업 유형
+enum class BackupType { FULL, FILTERED }
+
+// 복원 모드
+enum class RestoreMode { MERGE, REPLACE }
+
+// 백업 메타데이터
+data class BackupMetadata(
+    val version: Int,
+    val createdAt: Long,
+    val appVersion: String,
+    val backupType: BackupType,
+    val startDate: String?,
+    val endDate: String?,
+    val entityCounts: Map<String, Int>
+)
+
+// 백업 파일 구조
+data class BackupFile(
+    val metadata: BackupMetadata,
+    val tables: BackupTables
+)
+```
+
+#### 호환성 처리
+- `ignoreUnknownKeys = true`: 새 필드가 추가되어도 이전 버전에서 복원 가능
+- nullable 테이블 목록: 테이블이 추가/제거되어도 호환성 유지
+- 버전 마이그레이션: BackupMigrator를 통한 버전별 데이터 변환
+
+#### 파일 구조
+```
+core/backup/
+├── BackupModels.kt        # 백업 데이터 모델
+├── BackupSerializer.kt    # JSON 직렬화/역직렬화
+├── BackupManager.kt       # 백업/복원 핵심 로직
+└── BackupMigrator.kt      # 버전 마이그레이션
+
+feature/settings/
+├── domain/
+│   ├── repo/BackupRepo.kt
+│   └── usecase/
+│       ├── CreateBackupUC.kt
+│       ├── RestoreBackupUC.kt
+│       └── ValidateBackupUC.kt
+├── data/repo/BackupRepoImpl.kt
+└── ui/
+    ├── DbBackupTab.kt
+    └── DbBackupVm.kt
 ```
 
 ### 참고 문서

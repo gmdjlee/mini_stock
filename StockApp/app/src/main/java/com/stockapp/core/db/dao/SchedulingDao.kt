@@ -46,6 +46,12 @@ interface SyncHistoryDao {
     @Query("SELECT * FROM sync_history ORDER BY syncedAt DESC LIMIT 1")
     suspend fun getLatestSync(): SyncHistoryEntity?
 
+    @Query("SELECT * FROM sync_history ORDER BY syncedAt DESC")
+    suspend fun getAllOnce(): List<SyncHistoryEntity>
+
+    @Query("SELECT * FROM sync_history WHERE syncedAt BETWEEN :startMs AND :endMs ORDER BY syncedAt DESC")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<SyncHistoryEntity>
+
     @Insert
     suspend fun insert(history: SyncHistoryEntity): Long
 

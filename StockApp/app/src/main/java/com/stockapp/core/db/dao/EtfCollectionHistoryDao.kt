@@ -26,6 +26,12 @@ interface EtfCollectionHistoryDao {
     @Query("SELECT * FROM etf_collection_history WHERE status = :status ORDER BY startedAt DESC")
     suspend fun getByStatus(status: String): List<EtfCollectionHistoryEntity>
 
+    @Query("SELECT * FROM etf_collection_history ORDER BY startedAt DESC")
+    suspend fun getAllOnce(): List<EtfCollectionHistoryEntity>
+
+    @Query("SELECT * FROM etf_collection_history WHERE startedAt BETWEEN :startMs AND :endMs ORDER BY startedAt DESC")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<EtfCollectionHistoryEntity>
+
     @Insert
     suspend fun insert(history: EtfCollectionHistoryEntity): Long
 

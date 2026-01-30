@@ -318,4 +318,18 @@ interface EtfConstituentDao {
      */
     @Query("SELECT DISTINCT etfCode FROM etf_constituents WHERE collectedDate = :date")
     suspend fun getDistinctEtfCodesByDate(date: String): List<String>
+
+    // ==================== Backup Queries ====================
+
+    /**
+     * Get all constituents for backup.
+     */
+    @Query("SELECT * FROM etf_constituents")
+    suspend fun getAllOnce(): List<EtfConstituentEntity>
+
+    /**
+     * Get constituents in date range for filtered backup.
+     */
+    @Query("SELECT * FROM etf_constituents WHERE collectedDate BETWEEN :startDate AND :endDate")
+    suspend fun getInDateRange(startDate: String, endDate: String): List<EtfConstituentEntity>
 }

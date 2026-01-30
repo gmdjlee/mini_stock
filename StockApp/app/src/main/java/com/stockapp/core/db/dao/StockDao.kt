@@ -15,6 +15,9 @@ interface StockDao {
     @Query("SELECT * FROM stocks ORDER BY name ASC LIMIT :limit")
     suspend fun getAllOnce(limit: Int = 10000): List<StockEntity>
 
+    @Query("SELECT * FROM stocks WHERE updatedAt BETWEEN :startMs AND :endMs ORDER BY name ASC")
+    suspend fun getInDateRange(startMs: Long, endMs: Long): List<StockEntity>
+
     @Query("SELECT * FROM stocks WHERE ticker = :ticker")
     suspend fun getByTicker(ticker: String): StockEntity?
 

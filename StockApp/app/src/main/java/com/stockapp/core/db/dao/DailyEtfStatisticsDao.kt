@@ -21,6 +21,9 @@ interface DailyEtfStatisticsDao {
     @Query("SELECT * FROM daily_etf_statistics ORDER BY date DESC LIMIT :limit")
     suspend fun getRecent(limit: Int): List<DailyEtfStatisticsEntity>
 
+    @Query("SELECT * FROM daily_etf_statistics ORDER BY date DESC")
+    suspend fun getAllOnce(): List<DailyEtfStatisticsEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(statistics: DailyEtfStatisticsEntity)
 

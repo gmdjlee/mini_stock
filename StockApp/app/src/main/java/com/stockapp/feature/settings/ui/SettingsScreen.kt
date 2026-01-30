@@ -100,6 +100,9 @@ fun SettingsScreen(
                     val etfSettingsVm: EtfSettingsVm = hiltViewModel()
                     EtfKeywordTab(viewModel = etfSettingsVm)
                 }
+                SettingsTab.DB_BACKUP -> {
+                    DbBackupTab()
+                }
             }
         }
     }
