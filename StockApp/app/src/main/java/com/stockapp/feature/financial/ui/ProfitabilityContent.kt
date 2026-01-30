@@ -29,6 +29,9 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.stockapp.core.ui.component.chart.GrowthRateMarkerView
+import com.stockapp.core.ui.component.chart.IncomeBarMarkerView
+import com.stockapp.core.ui.component.chart.setupCommonChartProperties
 import com.stockapp.feature.financial.domain.model.FinancialSummary
 
 /**
@@ -255,6 +258,18 @@ private fun IncomeBarChart(
 
                 setFitBars(true)
                 animateY(500)
+
+                // Enable interactivity (zoom, drag, touch)
+                setupCommonChartProperties()
+
+                // Marker for touch labeling
+                marker = IncomeBarMarkerView(
+                    context,
+                    periods,
+                    revenues,
+                    operatingProfits,
+                    netIncomes
+                )
             }
         },
         update = { chart ->
@@ -336,6 +351,17 @@ private fun GrowthRateLineChart(
                 axisRight.isEnabled = false
 
                 animateX(500)
+
+                // Enable interactivity (zoom, drag, touch)
+                setupCommonChartProperties()
+
+                // Marker for touch labeling
+                marker = GrowthRateMarkerView(
+                    context,
+                    periods,
+                    listOf("매출액 증가율", "영업이익 증가율", "순이익 증가율"),
+                    listOf(revenueGrowth, operatingProfitGrowth, netIncomeGrowth)
+                )
             }
         },
         update = { chart ->
@@ -422,6 +448,17 @@ private fun AssetGrowthLineChart(
                 axisRight.isEnabled = false
 
                 animateX(500)
+
+                // Enable interactivity (zoom, drag, touch)
+                setupCommonChartProperties()
+
+                // Marker for touch labeling
+                marker = GrowthRateMarkerView(
+                    context,
+                    periods,
+                    listOf("자기자본 증가율", "총자산 증가율"),
+                    listOf(equityGrowth, totalAssetsGrowth)
+                )
             }
         },
         update = { chart ->

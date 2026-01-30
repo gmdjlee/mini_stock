@@ -294,3 +294,163 @@ class SupplyDemandMarkerView(
         return MPPointF(-(width / 2f), -height.toFloat())
     }
 }
+
+/**
+ * IncomeBarMarkerView - Financial income bar chart marker
+ * Shows period with revenue, operating profit, net income values
+ */
+@SuppressLint("ViewConstructor")
+class IncomeBarMarkerView(
+    context: Context,
+    private val periods: List<String>,
+    private val revenues: List<Long>,
+    private val operatingProfits: List<Long>,
+    private val netIncomes: List<Long>
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView? = findViewById(R.id.tvContent)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        e?.let { entry ->
+            val index = entry.x.toInt()
+            val period = if (index >= 0 && index < periods.size) periods[index] else ""
+
+            val revenue = if (index >= 0 && index < revenues.size) {
+                formatFinancialValue(revenues[index])
+            } else "N/A"
+            val opProfit = if (index >= 0 && index < operatingProfits.size) {
+                formatFinancialValue(operatingProfits[index])
+            } else "N/A"
+            val netIncome = if (index >= 0 && index < netIncomes.size) {
+                formatFinancialValue(netIncomes[index])
+            } else "N/A"
+
+            tvContent?.text = "$period\n매출: $revenue\n영업이익: $opProfit\n순이익: $netIncome"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+
+    private fun formatFinancialValue(value: Long): String {
+        val absValue = kotlin.math.abs(value)
+        val sign = if (value < 0) "-" else ""
+        return when {
+            absValue >= 10000 -> String.format("%s%.1f조", sign, absValue / 10000.0)
+            absValue >= 1000 -> String.format("%s%.1f천억", sign, absValue / 1000.0)
+            else -> "${sign}${absValue}억"
+        }
+    }
+}
+
+/**
+ * GrowthRateMarkerView - Financial growth rate line chart marker
+ * Shows period with multiple growth rate percentages
+ */
+@SuppressLint("ViewConstructor")
+class GrowthRateMarkerView(
+    context: Context,
+    private val periods: List<String>,
+    private val labels: List<String>,
+    private val valuesList: List<List<Double>>
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView? = findViewById(R.id.tvContent)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        e?.let { entry ->
+            val index = entry.x.toInt()
+            val period = if (index >= 0 && index < periods.size) periods[index] else ""
+
+            val valuesText = labels.mapIndexed { seriesIndex, label ->
+                val values = valuesList.getOrNull(seriesIndex) ?: emptyList()
+                val value = if (index >= 0 && index < values.size) {
+                    String.format("%.1f%%", values[index])
+                } else "N/A"
+                "$label: $value"
+            }.joinToString("\n")
+
+            tvContent?.text = "$period\n$valuesText"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+}
+
+/**
+ * StabilityRatioMarkerView - Financial stability ratio marker
+ * Shows period with debt ratio, current ratio, borrowing dependency
+ */
+@SuppressLint("ViewConstructor")
+class StabilityRatioMarkerView(
+    context: Context,
+    private val periods: List<String>,
+    private val debtRatios: List<Double>,
+    private val currentRatios: List<Double>,
+    private val borrowingDependencies: List<Double>
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView? = findViewById(R.id.tvContent)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        e?.let { entry ->
+            val index = entry.x.toInt()
+            val period = if (index >= 0 && index < periods.size) periods[index] else ""
+
+            val debt = if (index >= 0 && index < debtRatios.size) {
+                String.format("%.1f%%", debtRatios[index])
+            } else "N/A"
+            val current = if (index >= 0 && index < currentRatios.size) {
+                String.format("%.1f%%", currentRatios[index])
+            } else "N/A"
+            val borrowing = if (index >= 0 && index < borrowingDependencies.size) {
+                String.format("%.1f%%", borrowingDependencies[index])
+            } else "N/A"
+
+            tvContent?.text = "$period\n부채비율: $debt\n유동비율: $current\n차입금의존도: $borrowing"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+}
+
+/**
+ * SingleRatioMarkerView - Single financial ratio marker
+ * Shows period with a single ratio value and its label
+ */
+@SuppressLint("ViewConstructor")
+class SingleRatioMarkerView(
+    context: Context,
+    private val periods: List<String>,
+    private val values: List<Double>,
+    private val ratioLabel: String
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView? = findViewById(R.id.tvContent)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        e?.let { entry ->
+            val index = entry.x.toInt()
+            val period = if (index >= 0 && index < periods.size) periods[index] else ""
+
+            val value = if (index >= 0 && index < values.size) {
+                String.format("%.1f%%", values[index])
+            } else "N/A"
+
+            tvContent?.text = "$period\n$ratioLabel: $value"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+}

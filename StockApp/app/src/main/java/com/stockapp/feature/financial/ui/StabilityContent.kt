@@ -25,6 +25,9 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.stockapp.core.ui.component.chart.SingleRatioMarkerView
+import com.stockapp.core.ui.component.chart.StabilityRatioMarkerView
+import com.stockapp.core.ui.component.chart.setupCommonChartProperties
 import com.stockapp.feature.financial.domain.model.FinancialSummary
 
 /**
@@ -228,6 +231,18 @@ private fun StabilityLineChart(
                 axisRight.isEnabled = false
 
                 animateX(500)
+
+                // Enable interactivity (zoom, drag, touch)
+                setupCommonChartProperties()
+
+                // Marker for touch labeling
+                marker = StabilityRatioMarkerView(
+                    context,
+                    periods,
+                    debtRatios,
+                    currentRatios,
+                    borrowingDependencies
+                )
             }
         },
         update = { chart ->
@@ -318,6 +333,17 @@ private fun SingleRatioLineChart(
                 axisRight.isEnabled = false
 
                 animateX(500)
+
+                // Enable interactivity (zoom, drag, touch)
+                setupCommonChartProperties()
+
+                // Marker for touch labeling
+                marker = SingleRatioMarkerView(
+                    context,
+                    periods,
+                    values,
+                    label
+                )
             }
         },
         update = { chart ->
