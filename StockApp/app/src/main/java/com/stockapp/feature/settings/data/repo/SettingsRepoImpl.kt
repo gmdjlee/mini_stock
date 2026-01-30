@@ -184,8 +184,8 @@ class SettingsRepoImpl @Inject constructor(
                 prefs.clear()
             }
 
-            // Clear KIS token cache
-            kisApiClient.clearToken()
+            // Clear all KIS token cache
+            kisApiClient.clearTokens()
         }
     }
 
@@ -225,8 +225,8 @@ class SettingsRepoImpl @Inject constructor(
                 prefs[Keys.KIS_IS_PRODUCTION] = config.investmentMode == InvestmentMode.PRODUCTION
             }
 
-            // Clear token cache when config changes
-            kisApiClient.clearToken()
+            // Clear all token cache when config changes
+            kisApiClient.clearTokens()
         }
     }
 
