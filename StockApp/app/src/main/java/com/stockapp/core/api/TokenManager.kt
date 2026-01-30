@@ -175,7 +175,7 @@ class TokenManager @Inject constructor(
             val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
             val expiresAt = LocalDateTime.parse(expiresDt, formatter)
 
-            Result.success(TokenInfo(token, expiresAt, tokenResponse.tokenType ?: "bearer"))
+            return Result.success(TokenInfo(token, expiresAt, tokenResponse.tokenType ?: "bearer"))
         } catch (e: Exception) {
             Log.e(TAG, "Token fetch exception", e)
             return Result.failure(

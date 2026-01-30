@@ -184,7 +184,7 @@ class KisApiClient @Inject constructor(
                 LocalDateTime.now().plusHours(24)
             }
 
-            Result.success(
+            return Result.success(
                 KisTokenInfo(
                     token = tokenResponse.access_token,
                     expiresAt = expiresAt,
@@ -302,7 +302,7 @@ class KisApiClient @Inject constructor(
 
             // Parse the response
             val parsed = parser(responseBody)
-            Result.success(parsed)
+            return Result.success(parsed)
         } catch (e: Exception) {
             Log.e(TAG, "KIS API call exception: ${e.javaClass.simpleName} - ${e.message}", e)
             return Result.failure(

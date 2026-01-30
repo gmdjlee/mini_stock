@@ -144,7 +144,7 @@ class KiwoomApiClient @Inject constructor(
 
             // Parse the response
             val parsed = parser(responseBody)
-            Result.success(parsed)
+            return Result.success(parsed)
         } catch (e: Exception) {
             return Result.failure(mapException(e))
         }
@@ -297,7 +297,7 @@ class KiwoomApiClient @Inject constructor(
             // Parse the response
             val parsed = parser(responseBody)
 
-            Result.success(
+            return Result.success(
                 PaginatedResponse(
                     data = parsed,
                     pagination = PaginationInfo(
