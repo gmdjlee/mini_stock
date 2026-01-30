@@ -83,22 +83,24 @@ class KisApiClient @Inject constructor(
     private var lastCallTime = 0L
     private val rateLimitMutex = Mutex()
 
-    // Token cache
-    private var tokenCache: KisTokenInfo? = null
+    // Token cache per baseUrl (supports mock/production mode switching)
+    private val tokenCache = mutableMapOf<String, KisTokenInfo>()
     private val tokenMutex = Mutex()
 
     /**
      * Get valid token, fetching new one if needed.
+     * Token is cached per baseUrl to support mock/production mode switching.
      */
     suspend fun getToken(config: KisApiConfig): Result<KisTokenInfo> = tokenMutex.withLock {
-        val cached = tokenCache
+        val cacheKey = config.baseUrl
+        val cached = tokenCache[cacheKey]
         if (cached != null && !cached.isExpired()) {
             return@withLock Result.success(cached)
         }
 
         return@withLock fetchToken(config).also { result ->
             result.onSuccess { token ->
-                tokenCache = token
+                tokenCache[cacheKey] = token
             }
         }
     }
@@ -335,16 +337,17 @@ class KisApiClient @Inject constructor(
     }
 
     /**
-     * Force refresh token.
+     * Force refresh token for the given config's baseUrl.
      * Invalidates existing token and fetches a new one.
      */
     suspend fun refreshToken(config: KisApiConfig): Result<KisTokenInfo> = tokenMutex.withLock {
-        tokenCache = null
+        val cacheKey = config.baseUrl
+        tokenCache.remove(cacheKey)
 
         return@withLock fetchToken(config).also { result ->
             result.onSuccess { token ->
-                tokenCache = token
-                Log.d(TAG, "KIS token refreshed successfully")
+                tokenCache[cacheKey] = token
+                Log.d(TAG, "KIS token refreshed successfully for: $cacheKey")
             }
         }
     }
@@ -364,10 +367,19 @@ class KisApiClient @Inject constructor(
     }
 
     /**
-     * Clear cached token.
+     * Clear all cached tokens.
      */
-    suspend fun clearToken() = tokenMutex.withLock {
-        tokenCache = null
+    suspend fun clearTokens() = tokenMutex.withLock {
+        tokenCache.clear()
+        Log.d(TAG, "All KIS tokens cleared")
+    }
+
+    /**
+     * Clear cached token for a specific baseUrl.
+     */
+    suspend fun clearToken(baseUrl: String) = tokenMutex.withLock {
+        tokenCache.remove(baseUrl)
+        Log.d(TAG, "KIS token cleared for: $baseUrl")
     }
 
     companion object {
