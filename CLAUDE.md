@@ -1293,29 +1293,56 @@ data class MissingDatesResult(
 | 테마목록 | ThemeListTab | 키워드 기반 테마 필터링 |
 | ETF설정 | EtfSettingsTab | 키워드 관리, 수집 설정 |
 
-#### 종목랭킹 테이블 정렬
+#### 종목랭킹 테이블 정렬 (다중 컬럼 정렬)
 
-종목랭킹 탭에서는 테이블 컬럼별 정렬 기능을 지원합니다:
+종목랭킹 탭에서는 **다중 컬럼 정렬**을 지원합니다 (최대 3개 컬럼):
 
-| 컬럼 | 정렬 대상 | 기본값 |
-|------|----------|--------|
-| 합산금액 | totalAmount | 내림차순 (기본 정렬) |
-| ETF수 | etfCount | - |
-| 변동 | amountChange | - |
+| 컬럼 | 정렬 대상 | 설명 |
+|------|----------|------|
+| 합산금액 | totalAmount | 기본 정렬 (내림차순) |
+| ETF수 | etfCount | 포함된 ETF 개수 |
+| 변동 | amountChange | 전일 대비 변동금액 |
 
-**동작 방식**:
-- 컬럼 헤더 클릭 시 해당 컬럼 기준 내림차순 정렬
-- 동일 컬럼 재클릭 시 오름차순/내림차순 토글
-- 정렬 중인 컬럼은 primary color + 화살표 아이콘으로 표시
+**사용자 인터랙션**:
+
+| 동작 | 결과 |
+|------|------|
+| 비활성 컬럼 클릭 | 정렬 목록 끝에 추가 (최대 3개), 내림차순 |
+| 활성 컬럼 클릭 | 방향 토글 (오름차순/내림차순) |
+| 활성 컬럼 롱프레스 | 정렬 목록에서 제거 |
+| "초기화" 버튼 | 기본값으로 리셋 (합산금액 내림차순) |
+| 최대 3개 상태에서 새 컬럼 클릭 | 마지막 컬럼을 새 컬럼으로 교체 |
+
+**시각적 피드백**:
+- **우선순위 배지**: 원형 배지에 숫자 (1, 2, 3) 표시
+- **활성 컬럼**: 굵은 텍스트 + primary 색상
+- **방향 화살표**: 컬럼 텍스트 옆에 ↑/↓ 표시
+- **정렬 정보 바**: 다중 정렬 시 "정렬: 합산금액 > ETF수 > 변동" 형식으로 표시
 
 ```kotlin
 // 정렬 모델 (EtfModels.kt)
 enum class RankingSortColumn { TOTAL_AMOUNT, ETF_COUNT, AMOUNT_CHANGE }
 enum class SortDirection { ASCENDING, DESCENDING }
-data class RankingSortState(
-    val column: RankingSortColumn = RankingSortColumn.TOTAL_AMOUNT,
+
+// 개별 정렬 기준
+data class SortCriteria(
+    val column: RankingSortColumn,
     val direction: SortDirection = SortDirection.DESCENDING
 )
+
+// 다중 컬럼 정렬 상태 (최대 3개, 선택 순서가 우선순위)
+data class RankingSortState(
+    val criteria: List<SortCriteria> = listOf(
+        SortCriteria(RankingSortColumn.TOTAL_AMOUNT, SortDirection.DESCENDING)
+    )
+) {
+    companion object { const val MAX_SORT_COLUMNS = 3 }
+    fun getPriority(column: RankingSortColumn): Int?  // 우선순위 (1, 2, 3)
+    fun getDirection(column: RankingSortColumn): SortDirection?
+    fun onColumnClick(column: RankingSortColumn): RankingSortState
+    fun removeColumn(column: RankingSortColumn): RankingSortState
+    fun reset(): RankingSortState
+}
 ```
 
 #### 핵심 모델

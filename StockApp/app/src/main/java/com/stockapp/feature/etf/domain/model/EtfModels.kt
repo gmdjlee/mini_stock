@@ -506,20 +506,100 @@ enum class SortDirection {
 }
 
 /**
- * Ranking sort state combining column and direction.
+ * Individual sort criterion with column and direction.
+ * Used as part of multi-column sorting.
+ */
+data class SortCriteria(
+    val column: RankingSortColumn,
+    val direction: SortDirection = SortDirection.DESCENDING
+)
+
+/**
+ * Multi-column ranking sort state.
+ * Supports up to 3 columns with priority order (first = primary sort key).
  */
 data class RankingSortState(
-    val column: RankingSortColumn = RankingSortColumn.TOTAL_AMOUNT,
-    val direction: SortDirection = SortDirection.DESCENDING
+    val criteria: List<SortCriteria> = listOf(
+        SortCriteria(RankingSortColumn.TOTAL_AMOUNT, SortDirection.DESCENDING)
+    )
 ) {
+    companion object {
+        const val MAX_SORT_COLUMNS = 3
+    }
+
     /**
-     * Toggle sort direction if same column, otherwise switch to new column with descending order.
+     * Get priority (1-based) for a column, null if not in sort list.
+     */
+    fun getPriority(column: RankingSortColumn): Int? {
+        val index = criteria.indexOfFirst { it.column == column }
+        return if (index >= 0) index + 1 else null
+    }
+
+    /**
+     * Get direction for a column, null if not in sort list.
+     */
+    fun getDirection(column: RankingSortColumn): SortDirection? {
+        return criteria.find { it.column == column }?.direction
+    }
+
+    /**
+     * Check if column is actively sorted.
+     */
+    fun isActive(column: RankingSortColumn): Boolean {
+        return criteria.any { it.column == column }
+    }
+
+    /**
+     * Handle column click: add to list, toggle direction, or replace last if at max.
      */
     fun onColumnClick(clickedColumn: RankingSortColumn): RankingSortState {
-        return if (column == clickedColumn) {
-            copy(direction = direction.toggle())
-        } else {
-            RankingSortState(column = clickedColumn, direction = SortDirection.DESCENDING)
+        val existingIndex = criteria.indexOfFirst { it.column == clickedColumn }
+
+        return when {
+            // Column not in list: add at end (if under max) or replace last
+            existingIndex < 0 -> {
+                if (criteria.size < MAX_SORT_COLUMNS) {
+                    copy(criteria = criteria + SortCriteria(clickedColumn))
+                } else {
+                    // At max: replace last column
+                    copy(criteria = criteria.dropLast(1) + SortCriteria(clickedColumn))
+                }
+            }
+            // Column in list: toggle direction
+            else -> {
+                val current = criteria[existingIndex]
+                val updated = current.copy(direction = current.direction.toggle())
+                copy(criteria = criteria.toMutableList().apply {
+                    set(existingIndex, updated)
+                })
+            }
         }
+    }
+
+    /**
+     * Remove a column from sort list.
+     * If list becomes empty, reset to default.
+     */
+    fun removeColumn(column: RankingSortColumn): RankingSortState {
+        val filtered = criteria.filter { it.column != column }
+        return if (filtered.isEmpty()) {
+            // Always have at least one sort column - reset to default
+            RankingSortState()
+        } else {
+            copy(criteria = filtered)
+        }
+    }
+
+    /**
+     * Reset to default sort (TOTAL_AMOUNT descending).
+     */
+    fun reset(): RankingSortState = RankingSortState()
+
+    /**
+     * Get formatted sort description for display.
+     * Example: "합산금액 > ETF수 > 변동"
+     */
+    fun getDisplayDescription(): String {
+        return criteria.joinToString(" > ") { it.column.displayName }
     }
 }
