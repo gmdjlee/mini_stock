@@ -225,7 +225,7 @@ class EtfCollectorRepoImpl @Inject constructor(
                 volume = parseLong(item.acmlVol),
                 tradingValue = parseLong(item.acmlTrPbmn),
                 marketCap = parseLong(item.htsAvls),
-                weight = parseRate(item.cmpWt),
+                weight = parseRate(item.etfCnfgIssuRlim),
                 evaluationAmount = parseLong(item.etfVltnAmt),
                 businessDate = TradingDayUtil.apiToDbFormat(item.stckBsopDate)
             )
