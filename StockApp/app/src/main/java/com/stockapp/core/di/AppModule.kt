@@ -61,17 +61,13 @@ object AppModule {
             .writeTimeout(30, TimeUnit.SECONDS)
 
         if (BuildConfig.DEBUG) {
-            // Debug: Enable HTTP logging, skip certificate pinning
             val loggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
             builder.addInterceptor(loggingInterceptor)
-            // Add certificate hash extractor to log SPKI hashes for pinning
-            // Check Logcat with tag "CertHash" to get actual hashes
+            // Log SPKI hashes for pinning (check Logcat tag "CertHash")
             builder.addNetworkInterceptor(CertificateHashExtractor())
-            // Note: Certificate pinning disabled in debug for proxy tools
         } else {
-            // Release: Enable certificate pinning for API security (if configured)
             CertificatePinningConfig.createPinner()?.let { pinner ->
                 builder.certificatePinner(pinner)
             }

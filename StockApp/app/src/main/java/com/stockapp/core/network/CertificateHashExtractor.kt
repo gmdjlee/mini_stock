@@ -43,23 +43,22 @@ class CertificateHashExtractor : Interceptor {
                 Log.d(TAG, "───────────────────────────────────────────────────────")
 
                 certificates.forEachIndexed { index, cert ->
-                    if (cert is X509Certificate) {
-                        val hash = extractSpkiHash(cert)
-                        val subject = cert.subjectX500Principal.name
-                        val issuer = cert.issuerX500Principal.name
-                        val notAfter = cert.notAfter
+                    val x509 = cert as? X509Certificate ?: return@forEachIndexed
+                    val hash = extractSpkiHash(x509)
 
-                        Log.d(TAG, "[$index] Subject: $subject")
-                        Log.d(TAG, "    Issuer: $issuer")
-                        Log.d(TAG, "    Expires: $notAfter")
-                        Log.d(TAG, "    SHA256 Pin: sha256/$hash")
-                        Log.d(TAG, "")
+                    Log.d(TAG, "[$index] Subject: ${x509.subjectX500Principal.name}")
+                    Log.d(TAG, "    Issuer: ${x509.issuerX500Principal.name}")
+                    Log.d(TAG, "    Expires: ${x509.notAfter}")
+                    Log.d(TAG, "    SHA256 Pin: sha256/$hash")
+                    Log.d(TAG, "")
 
-                        // Also log in copy-paste friendly format
-                        if (index == 0) {
+                    // Copy-paste friendly format for leaf and root
+                    when (index) {
+                        0 -> {
                             Log.i(TAG, "=== COPY THIS FOR $host ===")
                             Log.i(TAG, "\"sha256/$hash\" // Leaf certificate")
-                        } else if (index == certificates.size - 1) {
+                        }
+                        certificates.lastIndex -> {
                             Log.i(TAG, "\"sha256/$hash\" // Root CA")
                         }
                     }

@@ -22,13 +22,18 @@ object CertificatePinningConfig {
 
     private const val TAG = "CertPinning"
 
-    // Kiwoom API domains
+    // API domains
     private const val KIWOOM_PRODUCTION = "api.kiwoom.com"
     private const val KIWOOM_MOCK = "mockapi.kiwoom.com"
-
-    // KIS API domains
     private const val KIS_PRODUCTION = "openapi.koreainvestment.com"
     private const val KIS_MOCK = "openapivts.koreainvestment.com"
+
+    private val PINNED_HOSTS = setOf(
+        KIWOOM_PRODUCTION,
+        KIWOOM_MOCK,
+        KIS_PRODUCTION,
+        KIS_MOCK
+    )
 
     /**
      * Whether certificate pinning is enabled.
@@ -110,10 +115,5 @@ object CertificatePinningConfig {
     /**
      * Check if a hostname should have certificate pinning applied.
      */
-    fun isPinnedHost(hostname: String): Boolean {
-        return hostname == KIWOOM_PRODUCTION ||
-            hostname == KIWOOM_MOCK ||
-            hostname == KIS_PRODUCTION ||
-            hostname == KIS_MOCK
-    }
+    fun isPinnedHost(hostname: String): Boolean = hostname in PINNED_HOSTS
 }
