@@ -578,9 +578,9 @@ private fun List<EnhancedStockRanking>.applySorting(
         null
     ) { acc, criteria ->
         val columnComparator: Comparator<EnhancedStockRanking> = when (criteria.column) {
-            RankingSortColumn.TOTAL_AMOUNT -> compareBy { it.totalAmount }
-            RankingSortColumn.ETF_COUNT -> compareBy { it.etfCount }
-            RankingSortColumn.AMOUNT_CHANGE -> compareBy { it.amountChange ?: Long.MIN_VALUE }
+            RankingSortColumn.TOTAL_AMOUNT -> compareBy<EnhancedStockRanking> { it.totalAmount }
+            RankingSortColumn.ETF_COUNT -> compareBy<EnhancedStockRanking> { it.etfCount }
+            RankingSortColumn.AMOUNT_CHANGE -> compareBy<EnhancedStockRanking> { it.amountChange ?: Long.MIN_VALUE }
         }.let { base ->
             if (criteria.direction == SortDirection.DESCENDING) {
                 base.reversed()
