@@ -12,7 +12,6 @@ import com.stockapp.core.backup.RestoreProgress
 import com.stockapp.core.backup.RestoreResult
 import com.stockapp.core.backup.ValidationResult
 import com.stockapp.feature.settings.domain.usecase.CreateBackupUC
-import com.stockapp.feature.settings.domain.usecase.LoadBackupMetadataUC
 import com.stockapp.feature.settings.domain.usecase.RestoreBackupUC
 import com.stockapp.feature.settings.domain.usecase.ValidateBackupUC
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -74,8 +73,7 @@ sealed class RestoreResultState {
 class DbBackupVm @Inject constructor(
     private val createBackupUC: CreateBackupUC,
     private val restoreBackupUC: RestoreBackupUC,
-    private val validateBackupUC: ValidateBackupUC,
-    private val loadBackupMetadataUC: LoadBackupMetadataUC
+    private val validateBackupUC: ValidateBackupUC
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DbBackupUiState())
