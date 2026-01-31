@@ -1,17 +1,23 @@
 package com.stockapp.feature.etf.domain.usecase
 
+import android.util.Log
+import com.stockapp.feature.etf.domain.model.CollectionStatus
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.FullCollectionResult
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
+import com.stockapp.feature.etf.domain.repo.EtfRepository
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+
+private const val TAG = "CollectAllEtfDataUC"
 
 /**
  * Use case for collecting all filtered ETF data.
  */
 class CollectAllEtfDataUC @Inject constructor(
-    private val repo: EtfCollectorRepo
+    private val repo: EtfCollectorRepo,
+    private val etfRepository: EtfRepository
 ) {
     private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
@@ -38,6 +44,20 @@ class CollectAllEtfDataUC @Inject constructor(
 
         // Collect all filtered ETFs
         val result = repo.collectAllFilteredEtfs(progressCallback)
+
+        // Calculate daily statistics after successful collection
+        if (result.status == CollectionStatus.SUCCESS || result.status == CollectionStatus.PARTIAL) {
+            val collectedDateStr = result.collectedDate.format(dateFormat)
+            Log.d(TAG, "Calculating daily statistics for date: $collectedDateStr")
+            etfRepository.calculateDailyStatistics(collectedDateStr).fold(
+                onSuccess = {
+                    Log.d(TAG, "Daily statistics calculated successfully")
+                },
+                onFailure = { error ->
+                    Log.e(TAG, "Failed to calculate daily statistics: ${error.message}")
+                }
+            )
+        }
 
         // Cleanup old data
         if (cleanupDays > 0) {
