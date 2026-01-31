@@ -13,6 +13,8 @@ import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.FilterType
 import com.stockapp.feature.etf.domain.model.MissingDatesResult
+import com.stockapp.feature.etf.domain.model.RankingSortColumn
+import com.stockapp.feature.etf.domain.model.RankingSortState
 import com.stockapp.feature.etf.ui.detail.EtfDetailState
 import com.stockapp.feature.etf.ui.detail.StockDetailData
 import com.stockapp.feature.etf.ui.detail.StockDetailState
@@ -158,6 +160,10 @@ class EtfVm @Inject constructor(
     // Stock ranking state
     private val _rankingState = MutableStateFlow<RankingState>(RankingState.Loading)
     val rankingState: StateFlow<RankingState> = _rankingState.asStateFlow()
+
+    // Stock ranking sort state
+    private val _rankingSortState = MutableStateFlow(RankingSortState())
+    val rankingSortState: StateFlow<RankingSortState> = _rankingSortState.asStateFlow()
 
     // Stock changes state
     private val _changesState = MutableStateFlow<ChangesState>(ChangesState.Loading)
@@ -590,6 +596,13 @@ class EtfVm @Inject constructor(
             loadRankingData()
             _isRefreshing.value = false
         }
+    }
+
+    /**
+     * Handle ranking column header click for sorting.
+     */
+    fun onRankingSortColumnClick(column: RankingSortColumn) {
+        _rankingSortState.value = _rankingSortState.value.onColumnClick(column)
     }
 
     fun onRankingItemClick(item: EnhancedStockRanking) {

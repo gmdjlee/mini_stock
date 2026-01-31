@@ -1,6 +1,7 @@
 package com.stockapp.feature.etf.ui.tabs
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.NewReleases
@@ -39,6 +43,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.stockapp.core.ui.theme.LocalExtendedColors
+import com.stockapp.feature.etf.domain.model.RankingSortColumn
+import com.stockapp.feature.etf.domain.model.RankingSortState
+import com.stockapp.feature.etf.domain.model.SortDirection
 import com.stockapp.feature.etf.domain.usecase.EnhancedStockRanking
 import com.stockapp.feature.etf.ui.EtfVm
 import com.stockapp.feature.etf.ui.RankingState
@@ -53,6 +60,7 @@ fun StockRankingTab(
 ) {
     val rankingState by viewModel.rankingState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val sortState by viewModel.rankingSortState.collectAsState()
 
     when (val state = rankingState) {
         is RankingState.Loading -> {
@@ -80,6 +88,10 @@ fun StockRankingTab(
             ) {
                 RankingContent(
                     result = state.result,
+                    sortState = sortState,
+                    onSortColumnClick = { column ->
+                        viewModel.onRankingSortColumnClick(column)
+                    },
                     onItemClick = { item ->
                         viewModel.showStockDetail(item.stockCode, item.stockName)
                     },
@@ -96,9 +108,14 @@ fun StockRankingTab(
 @Composable
 private fun RankingContent(
     result: com.stockapp.feature.etf.domain.usecase.StockRankingResult,
+    sortState: RankingSortState,
+    onSortColumnClick: (RankingSortColumn) -> Unit,
     onItemClick: (EnhancedStockRanking) -> Unit,
     onItemLongClick: (EnhancedStockRanking) -> Unit
 ) {
+    // Apply sorting to rankings
+    val sortedRankings = result.rankings.applySorting(sortState)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -140,13 +157,17 @@ private fun RankingContent(
 
         // Table header
         item {
-            RankingTableHeader()
+            RankingTableHeader(
+                sortState = sortState,
+                onSortColumnClick = onSortColumnClick
+            )
             HorizontalDivider()
         }
 
-        // Ranking items
-        items(result.rankings) { item ->
+        // Ranking items (with display rank)
+        itemsIndexed(sortedRankings) { index, item ->
             RankingRow(
+                displayRank = index + 1,
                 item = item,
                 onClick = { onItemClick(item) },
                 onLongClick = { onItemLongClick(item) }
@@ -161,13 +182,17 @@ private fun RankingContent(
 }
 
 @Composable
-private fun RankingTableHeader() {
+private fun RankingTableHeader(
+    sortState: RankingSortState,
+    onSortColumnClick: (RankingSortColumn) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Rank column (non-sortable)
         Text(
             text = "#",
             style = MaterialTheme.typography.labelMedium,
@@ -176,6 +201,8 @@ private fun RankingTableHeader() {
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        // Stock name column (non-sortable)
         Text(
             text = "종목명",
             style = MaterialTheme.typography.labelMedium,
@@ -183,42 +210,96 @@ private fun RankingTableHeader() {
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text(
+
+        // Total amount column (sortable)
+        SortableColumnHeader(
             text = "합산금액",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(80.dp),
-            textAlign = TextAlign.End,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            column = RankingSortColumn.TOTAL_AMOUNT,
+            sortState = sortState,
+            onClick = onSortColumnClick,
+            modifier = Modifier.width(80.dp)
         )
-        Text(
+
+        // ETF count column (sortable)
+        SortableColumnHeader(
             text = "ETF수",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(50.dp),
-            textAlign = TextAlign.End,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            column = RankingSortColumn.ETF_COUNT,
+            sortState = sortState,
+            onClick = onSortColumnClick,
+            modifier = Modifier.width(50.dp)
         )
-        Text(
+
+        // Amount change column (sortable)
+        SortableColumnHeader(
             text = "변동",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(70.dp),
-            textAlign = TextAlign.End,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            column = RankingSortColumn.AMOUNT_CHANGE,
+            sortState = sortState,
+            onClick = onSortColumnClick,
+            modifier = Modifier.width(70.dp)
         )
+    }
+}
+
+@Composable
+private fun SortableColumnHeader(
+    text: String,
+    column: RankingSortColumn,
+    sortState: RankingSortState,
+    onClick: (RankingSortColumn) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isActive = sortState.column == column
+    val color = if (isActive) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = modifier
+            .clickable { onClick(column) }
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+            textAlign = TextAlign.End,
+            color = color,
+            modifier = Modifier.weight(1f)
+        )
+
+        if (isActive) {
+            Spacer(modifier = Modifier.width(2.dp))
+            Icon(
+                imageVector = if (sortState.direction == SortDirection.DESCENDING) {
+                    Icons.Default.KeyboardArrowDown
+                } else {
+                    Icons.Default.KeyboardArrowUp
+                },
+                contentDescription = if (sortState.direction == SortDirection.DESCENDING) {
+                    "내림차순 정렬"
+                } else {
+                    "오름차순 정렬"
+                },
+                tint = color,
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RankingRow(
+    displayRank: Int,
     item: EnhancedStockRanking,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
     val extendedColors = LocalExtendedColors.current
-    val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
     Row(
         modifier = Modifier
@@ -230,9 +311,9 @@ private fun RankingRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Rank
+        // Rank (use displayRank for sorted order)
         Text(
-            text = item.rank.toString(),
+            text = displayRank.toString(),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(32.dp),
@@ -401,5 +482,22 @@ private fun formatAmountChange(change: Long): String {
         kotlin.math.abs(change) >= 100_000_000 -> String.format("%s%.0f억", sign, change / 100_000_000.0)
         kotlin.math.abs(change) >= 10_000 -> String.format("%s%.0f만", sign, change / 10_000.0)
         else -> sign + NumberFormat.getNumberInstance(Locale.KOREA).format(change)
+    }
+}
+
+/**
+ * Apply sorting to rankings list based on sort state.
+ */
+private fun List<EnhancedStockRanking>.applySorting(sortState: RankingSortState): List<EnhancedStockRanking> {
+    val comparator: Comparator<EnhancedStockRanking> = when (sortState.column) {
+        RankingSortColumn.TOTAL_AMOUNT -> compareBy { it.totalAmount }
+        RankingSortColumn.ETF_COUNT -> compareBy { it.etfCount }
+        RankingSortColumn.AMOUNT_CHANGE -> compareBy { it.amountChange ?: Long.MIN_VALUE }
+    }
+
+    return if (sortState.direction == SortDirection.DESCENDING) {
+        sortedWith(comparator.reversed())
+    } else {
+        sortedWith(comparator)
     }
 }
