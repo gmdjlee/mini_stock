@@ -600,9 +600,25 @@ class EtfVm @Inject constructor(
 
     /**
      * Handle ranking column header click for sorting.
+     * - If column is not in sort list: add it
+     * - If column is in sort list: toggle direction
      */
     fun onRankingSortColumnClick(column: RankingSortColumn) {
         _rankingSortState.value = _rankingSortState.value.onColumnClick(column)
+    }
+
+    /**
+     * Handle ranking column header long-click to remove from sort list.
+     */
+    fun onRankingSortColumnLongClick(column: RankingSortColumn) {
+        _rankingSortState.value = _rankingSortState.value.removeColumn(column)
+    }
+
+    /**
+     * Reset ranking sort to default (TOTAL_AMOUNT descending).
+     */
+    fun resetRankingSort() {
+        _rankingSortState.value = _rankingSortState.value.reset()
     }
 
     fun onRankingItemClick(item: EnhancedStockRanking) {
