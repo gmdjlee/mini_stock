@@ -550,7 +550,8 @@ data class RankingSortState(
     }
 
     /**
-     * Handle column click: add to list, toggle direction, or replace last if at max.
+     * Handle column click: add to list, toggle direction, remove if ascending, or replace last if at max.
+     * Click cycle: OFF → DESCENDING → ASCENDING → OFF (removed)
      */
     fun onColumnClick(clickedColumn: RankingSortColumn): RankingSortState {
         val existingIndex = criteria.indexOfFirst { it.column == clickedColumn }
@@ -565,13 +566,19 @@ data class RankingSortState(
                     copy(criteria = criteria.dropLast(1) + SortCriteria(clickedColumn))
                 }
             }
-            // Column in list: toggle direction
+            // Column in list with ASCENDING: remove from list (해제)
             else -> {
                 val current = criteria[existingIndex]
-                val updated = current.copy(direction = current.direction.toggle())
-                copy(criteria = criteria.toMutableList().apply {
-                    set(existingIndex, updated)
-                })
+                if (current.direction == SortDirection.ASCENDING) {
+                    // Remove column - this is the "해제" action
+                    removeColumn(clickedColumn)
+                } else {
+                    // Toggle direction (DESCENDING -> ASCENDING)
+                    val updated = current.copy(direction = current.direction.toggle())
+                    copy(criteria = criteria.toMutableList().apply {
+                        set(existingIndex, updated)
+                    })
+                }
             }
         }
     }

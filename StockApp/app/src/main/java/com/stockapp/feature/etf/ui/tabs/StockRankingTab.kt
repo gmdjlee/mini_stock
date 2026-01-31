@@ -214,11 +214,19 @@ private fun RankingTableHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "정렬: ${sortState.getDisplayDescription()}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "정렬: ${sortState.getDisplayDescription()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "↓클릭→↑클릭→해제",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = 10.sp
+                    )
+                }
                 TextButton(
                     onClick = onResetSort,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
@@ -303,11 +311,14 @@ private fun SortableColumnHeader(
     val priority = sortState.getPriority(column)
     val direction = sortState.getDirection(column)
     val isActive = priority != null
+    // Check if next click will remove (when ASCENDING)
+    val willRemoveOnClick = direction == SortDirection.ASCENDING
 
-    val color = if (isActive) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+    // Use tertiary color to hint that removal is next
+    val color = when {
+        willRemoveOnClick -> MaterialTheme.colorScheme.tertiary
+        isActive -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Row(
@@ -326,7 +337,11 @@ private fun SortableColumnHeader(
                 modifier = Modifier
                     .size(16.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (willRemoveOnClick) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -334,7 +349,11 @@ private fun SortableColumnHeader(
                 Text(
                     text = priority.toString(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = if (willRemoveOnClick) {
+                        MaterialTheme.colorScheme.onTertiary
+                    } else {
+                        MaterialTheme.colorScheme.onPrimary
+                    },
                     fontSize = 10.sp
                 )
             }
@@ -358,10 +377,9 @@ private fun SortableColumnHeader(
                 } else {
                     Icons.Default.KeyboardArrowUp
                 },
-                contentDescription = if (direction == SortDirection.DESCENDING) {
-                    "내림차순 정렬 (우선순위 $priority)"
-                } else {
-                    "오름차순 정렬 (우선순위 $priority)"
+                contentDescription = when {
+                    willRemoveOnClick -> "오름차순 정렬 - 클릭 시 해제 (우선순위 $priority)"
+                    else -> "내림차순 정렬 (우선순위 $priority)"
                 },
                 tint = color,
                 modifier = Modifier.size(16.dp)
