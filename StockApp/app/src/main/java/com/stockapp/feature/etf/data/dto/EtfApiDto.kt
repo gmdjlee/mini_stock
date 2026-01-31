@@ -100,7 +100,7 @@ data class EtfConstituentItemDto(
     @SerialName("acml_vol") val acmlVol: String? = null,               // 누적거래량
     @SerialName("acml_tr_pbmn") val acmlTrPbmn: String? = null,        // 누적거래대금
     @SerialName("hts_avls") val htsAvls: String? = null,               // 시가총액
-    @SerialName("cmp_wt") val cmpWt: String? = null,                   // 구성비중
+    @SerialName("etf_cnfg_issu_rlim") val etfCnfgIssuRlim: String? = null, // 구성비중 (weight %)
     @SerialName("etf_vltn_amt") val etfVltnAmt: String? = null         // ETF평가금액
 )
 
