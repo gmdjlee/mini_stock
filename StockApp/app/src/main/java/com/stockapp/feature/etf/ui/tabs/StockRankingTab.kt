@@ -217,7 +217,7 @@ private fun RankingTableHeader(
             column = RankingSortColumn.TOTAL_AMOUNT,
             sortState = sortState,
             onClick = onSortColumnClick,
-            modifier = Modifier.width(80.dp)
+            modifier = Modifier.width(96.dp)
         )
 
         // ETF count column (sortable)
@@ -226,7 +226,7 @@ private fun RankingTableHeader(
             column = RankingSortColumn.ETF_COUNT,
             sortState = sortState,
             onClick = onSortColumnClick,
-            modifier = Modifier.width(50.dp)
+            modifier = Modifier.width(96.dp)
         )
 
         // Amount change column (sortable)
@@ -235,7 +235,7 @@ private fun RankingTableHeader(
             column = RankingSortColumn.AMOUNT_CHANGE,
             sortState = sortState,
             onClick = onSortColumnClick,
-            modifier = Modifier.width(70.dp)
+            modifier = Modifier.width(96.dp)
         )
     }
 }
@@ -356,7 +356,7 @@ private fun RankingRow(
         Text(
             text = formatAmount(item.totalAmount),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(80.dp),
+            modifier = Modifier.width(96.dp),
             textAlign = TextAlign.End
         )
 
@@ -364,7 +364,7 @@ private fun RankingRow(
         Text(
             text = "${item.etfCount}개",
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(50.dp),
+            modifier = Modifier.width(96.dp),
             textAlign = TextAlign.End,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -381,7 +381,7 @@ private fun RankingRow(
         Text(
             text = if (item.isNew) "NEW" else changeText,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(70.dp),
+            modifier = Modifier.width(96.dp),
             textAlign = TextAlign.End,
             color = changeColor,
             fontWeight = if (item.isNew) FontWeight.Bold else FontWeight.Normal
