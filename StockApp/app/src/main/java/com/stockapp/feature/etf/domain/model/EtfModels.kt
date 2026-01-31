@@ -98,7 +98,9 @@ data class ConstituentStock(
     val tradingValue: Long,
     val marketCap: Long,
     val weight: Double,
-    val evaluationAmount: Long
+    val evaluationAmount: Long,
+    /** API's business date (stck_bsop_date) in DB format (YYYY-MM-DD) */
+    val businessDate: String? = null
 )
 
 /**
@@ -133,7 +135,9 @@ data class EtfCollectionResult(
     val etfCode: String,
     val etfName: String,
     val constituents: List<ConstituentStock>,
-    val collectedAt: LocalDateTime
+    val collectedAt: LocalDateTime,
+    /** API's business date (stck_bsop_date) in DB format (YYYY-MM-DD) */
+    val businessDate: String? = null
 )
 
 /**
@@ -442,4 +446,37 @@ data class EtfDetailInfo(
 
     val totalAmountInEok: Double
         get() = totalEvaluationAmount / 100_000_000.0
+}
+
+// ==================== Missing Date Analysis Models ====================
+
+/**
+ * Result of missing collection date analysis.
+ * Used to identify gaps in ETF data collection history.
+ */
+data class MissingDatesResult(
+    /** First date in collected data range (YYYY-MM-DD) */
+    val dataStartDate: String?,
+    /** Last date in collected data range (YYYY-MM-DD) */
+    val dataEndDate: String?,
+    /** List of missing trading dates in YYYY-MM-DD format */
+    val missingDates: List<String>,
+    /** Total number of trading days in the range */
+    val totalTradingDays: Int,
+    /** Number of days with collected data */
+    val collectedDays: Int
+) {
+    /** Data collection coverage percentage (0-100) */
+    val coveragePercent: Double
+        get() = if (totalTradingDays > 0) {
+            (collectedDays.toDouble() / totalTradingDays) * 100
+        } else 0.0
+
+    /** True if there are missing dates */
+    val hasMissingDates: Boolean
+        get() = missingDates.isNotEmpty()
+
+    /** Number of missing days */
+    val missingDaysCount: Int
+        get() = missingDates.size
 }

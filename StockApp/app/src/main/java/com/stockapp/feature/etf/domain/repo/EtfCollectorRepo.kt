@@ -9,6 +9,7 @@ import com.stockapp.feature.etf.domain.model.EtfCollectionResult
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfInfo
 import com.stockapp.feature.etf.domain.model.FullCollectionResult
+import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -136,6 +137,19 @@ interface EtfCollectorRepo {
      * Get the previous collection date before the given date.
      */
     suspend fun getPreviousCollectionDate(date: String): String?
+
+    /**
+     * Get all collected dates in ascending order.
+     * @return List of dates in YYYY-MM-DD format
+     */
+    suspend fun getCollectedDates(): List<String>
+
+    /**
+     * Find missing trading days within the collected data range.
+     * Compares collected dates against expected trading days (excluding weekends and holidays).
+     * @return Analysis result with missing dates and coverage statistics
+     */
+    suspend fun findMissingCollectionDates(): MissingDatesResult
 
     /**
      * Delete old data beyond retention period.

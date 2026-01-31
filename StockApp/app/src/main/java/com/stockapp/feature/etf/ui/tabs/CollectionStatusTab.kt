@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.feature.etf.domain.model.CollectionStatus
+import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import com.stockapp.feature.etf.ui.CollectionHistoryItem
 import com.stockapp.feature.etf.ui.CollectionState
 import com.stockapp.feature.etf.ui.EtfVm
@@ -50,6 +51,7 @@ fun CollectionStatusTab(
 ) {
     val collectionState by viewModel.collectionState.collectAsState()
     val collectionHistory by viewModel.collectionHistory.collectAsState()
+    val missingDatesResult by viewModel.missingDatesResult.collectAsState()
 
     LazyColumn(
         modifier = Modifier
@@ -103,6 +105,13 @@ fun CollectionStatusTab(
         if (collectionHistory.isNotEmpty()) {
             item {
                 LastCollectionCard(history = collectionHistory.first())
+            }
+        }
+
+        // Missing dates card
+        if (missingDatesResult != null && missingDatesResult!!.dataStartDate != null) {
+            item {
+                MissingDatesCard(result = missingDatesResult!!)
             }
         }
 
@@ -483,6 +492,151 @@ private fun CollectionHistoryCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissingDatesCard(
+    result: MissingDatesResult
+) {
+    val extendedColors = LocalExtendedColors.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Storage,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "데이터 수집 현황",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Date range
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "데이터 범위",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${result.dataStartDate} ~ ${result.dataEndDate}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Coverage
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "수집률",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${result.collectedDays}/${result.totalTradingDays}일",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = String.format("(%.1f%%)", result.coveragePercent),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (result.coveragePercent >= 90) extendedColors.success
+                               else if (result.coveragePercent >= 70) MaterialTheme.colorScheme.tertiary
+                               else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            // Missing dates info
+            if (result.hasMissingDates) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "미수집일",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "${result.missingDaysCount}일",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                // Show first few missing dates
+                if (result.missingDates.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val displayDates = result.missingDates.take(5)
+                    val hasMore = result.missingDates.size > 5
+
+                    Text(
+                        text = buildString {
+                            append(displayDates.joinToString(", "))
+                            if (hasMore) {
+                                append(" 외 ${result.missingDates.size - 5}일")
+                            }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (result.totalTradingDays > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = extendedColors.success,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "모든 거래일 데이터가 수집되었습니다",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = extendedColors.success
+                    )
+                }
             }
         }
     }

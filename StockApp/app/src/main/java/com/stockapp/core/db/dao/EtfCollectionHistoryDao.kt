@@ -53,6 +53,13 @@ interface EtfCollectionHistoryDao {
         completedAt: Long
     )
 
+    /**
+     * Update the collected date (business date from API).
+     * Used when API returns the actual trading date different from collection date.
+     */
+    @Query("UPDATE etf_collection_history SET collectedDate = :date WHERE id = :id")
+    suspend fun updateCollectedDate(id: Long, date: String)
+
     @Query("DELETE FROM etf_collection_history WHERE id = :id")
     suspend fun deleteById(id: Long)
 
