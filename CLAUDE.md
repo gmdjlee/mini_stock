@@ -1288,10 +1288,35 @@ data class MissingDatesResult(
 | 탭 | 컴포넌트 | 기능 |
 |----|----------|------|
 | 수집현황 | CollectionStatusTab | 수집 진행률, 통계 요약 |
-| 종목랭킹 | StockRankingTab | 구성종목 비중 순위 |
+| 종목랭킹 | StockRankingTab | 구성종목 비중 순위 (컬럼 정렬 지원) |
 | 종목변동 | StockChangesTab | 편입/편출 종목 추적 |
 | 테마목록 | ThemeListTab | 키워드 기반 테마 필터링 |
 | ETF설정 | EtfSettingsTab | 키워드 관리, 수집 설정 |
+
+#### 종목랭킹 테이블 정렬
+
+종목랭킹 탭에서는 테이블 컬럼별 정렬 기능을 지원합니다:
+
+| 컬럼 | 정렬 대상 | 기본값 |
+|------|----------|--------|
+| 합산금액 | totalAmount | 내림차순 (기본 정렬) |
+| ETF수 | etfCount | - |
+| 변동 | amountChange | - |
+
+**동작 방식**:
+- 컬럼 헤더 클릭 시 해당 컬럼 기준 내림차순 정렬
+- 동일 컬럼 재클릭 시 오름차순/내림차순 토글
+- 정렬 중인 컬럼은 primary color + 화살표 아이콘으로 표시
+
+```kotlin
+// 정렬 모델 (EtfModels.kt)
+enum class RankingSortColumn { TOTAL_AMOUNT, ETF_COUNT, AMOUNT_CHANGE }
+enum class SortDirection { ASCENDING, DESCENDING }
+data class RankingSortState(
+    val column: RankingSortColumn = RankingSortColumn.TOTAL_AMOUNT,
+    val direction: SortDirection = SortDirection.DESCENDING
+)
+```
 
 #### 핵심 모델
 ```kotlin

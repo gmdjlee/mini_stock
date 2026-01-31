@@ -480,3 +480,46 @@ data class MissingDatesResult(
     val missingDaysCount: Int
         get() = missingDates.size
 }
+
+// ==================== Ranking Sort Models ====================
+
+/**
+ * Sorting column options for stock ranking table.
+ */
+enum class RankingSortColumn(val displayName: String) {
+    TOTAL_AMOUNT("합산금액"),
+    ETF_COUNT("ETF수"),
+    AMOUNT_CHANGE("변동")
+}
+
+/**
+ * Sorting direction.
+ */
+enum class SortDirection {
+    ASCENDING,
+    DESCENDING;
+
+    fun toggle(): SortDirection = when (this) {
+        ASCENDING -> DESCENDING
+        DESCENDING -> ASCENDING
+    }
+}
+
+/**
+ * Ranking sort state combining column and direction.
+ */
+data class RankingSortState(
+    val column: RankingSortColumn = RankingSortColumn.TOTAL_AMOUNT,
+    val direction: SortDirection = SortDirection.DESCENDING
+) {
+    /**
+     * Toggle sort direction if same column, otherwise switch to new column with descending order.
+     */
+    fun onColumnClick(clickedColumn: RankingSortColumn): RankingSortState {
+        return if (column == clickedColumn) {
+            copy(direction = direction.toggle())
+        } else {
+            RankingSortState(column = clickedColumn, direction = SortDirection.DESCENDING)
+        }
+    }
+}
