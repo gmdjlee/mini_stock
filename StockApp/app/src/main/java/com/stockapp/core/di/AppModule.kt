@@ -1,6 +1,7 @@
 package com.stockapp.core.di
 
 import com.stockapp.BuildConfig
+import com.stockapp.core.network.CertificateHashExtractor
 import com.stockapp.core.network.CertificatePinningConfig
 import com.stockapp.core.state.SelectedStockManager
 import dagger.Module
@@ -60,15 +61,16 @@ object AppModule {
             .writeTimeout(30, TimeUnit.SECONDS)
 
         if (BuildConfig.DEBUG) {
-            // Debug: Enable HTTP logging, skip certificate pinning
             val loggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
             builder.addInterceptor(loggingInterceptor)
-            // Note: Certificate pinning disabled in debug for proxy tools
+            // Log SPKI hashes for pinning (check Logcat tag "CertHash")
+            builder.addNetworkInterceptor(CertificateHashExtractor())
         } else {
-            // Release: Enable certificate pinning for API security
-            builder.certificatePinner(CertificatePinningConfig.createPinner())
+            CertificatePinningConfig.createPinner()?.let { pinner ->
+                builder.certificatePinner(pinner)
+            }
         }
 
         return builder.build()
