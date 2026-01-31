@@ -248,8 +248,8 @@ class FinancialRepoImpl @Inject constructor(
                 trId = trId,
                 params = mapOf(
                     "FID_DIV_CLS_CODE" to "1",
-                    "fid_cond_mrkt_div_code" to "J",
-                    "fid_input_iscd" to ticker
+                    "FID_COND_MRKT_DIV_CODE" to "J",
+                    "FID_INPUT_ISCD" to ticker
                 )
             )
             response.mapNotNull { mapper(it) }
