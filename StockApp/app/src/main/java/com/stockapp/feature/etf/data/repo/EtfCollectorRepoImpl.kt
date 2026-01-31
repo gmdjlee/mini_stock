@@ -26,8 +26,10 @@ import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfInfo
 import com.stockapp.feature.etf.domain.model.EtfType
 import com.stockapp.feature.etf.domain.model.FullCollectionResult
+import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
+import com.stockapp.core.util.TradingDayUtil
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -205,6 +207,10 @@ class EtfCollectorRepoImpl @Inject constructor(
             )
         }
 
+        // Extract business date from first constituent (all items share the same date)
+        val firstItem = response.output2?.firstOrNull()
+        val businessDate = TradingDayUtil.apiToDbFormat(firstItem?.stckBsopDate)
+
         val constituents = response.output2?.mapNotNull { item ->
             val stockCode = item.stckShrnIscd?.trim() ?: return@mapNotNull null
             val stockName = item.htsKorIsnm?.trim() ?: return@mapNotNull null
@@ -220,7 +226,8 @@ class EtfCollectorRepoImpl @Inject constructor(
                 tradingValue = parseLong(item.acmlTrPbmn),
                 marketCap = parseLong(item.htsAvls),
                 weight = parseRate(item.cmpWt),
-                evaluationAmount = parseLong(item.etfVltnAmt)
+                evaluationAmount = parseLong(item.etfVltnAmt),
+                businessDate = TradingDayUtil.apiToDbFormat(item.stckBsopDate)
             )
         } ?: emptyList()
 
@@ -228,7 +235,8 @@ class EtfCollectorRepoImpl @Inject constructor(
             etfCode = etfCode,
             etfName = etfName,
             constituents = constituents,
-            collectedAt = LocalDateTime.now()
+            collectedAt = LocalDateTime.now(),
+            businessDate = businessDate
         )
     }
 
@@ -236,13 +244,13 @@ class EtfCollectorRepoImpl @Inject constructor(
         progressCallback: ((current: Int, total: Int) -> Unit)?
     ): FullCollectionResult {
         val startedAt = LocalDateTime.now()
-        val collectedDate = LocalDate.now()
-        val dateStr = collectedDate.format(dateFormat)
+        val fallbackDate = LocalDate.now()
+        val fallbackDateStr = fallbackDate.format(dateFormat)
 
-        // Start history record
+        // Start history record with fallback date (will be updated later with actual business date)
         val historyId = historyDao.insert(
             EtfCollectionHistoryEntity(
-                collectedDate = dateStr,
+                collectedDate = fallbackDateStr,
                 totalEtfs = 0,
                 totalConstituents = 0,
                 status = "IN_PROGRESS",
@@ -259,6 +267,9 @@ class EtfCollectorRepoImpl @Inject constructor(
         var totalConstituents = 0
         val errors = mutableListOf<String>()
 
+        // Track actual business date from API responses
+        var actualBusinessDate: String? = null
+
         filteredEtfs.forEachIndexed { index, etf ->
             progressCallback?.invoke(index + 1, total)
 
@@ -266,6 +277,17 @@ class EtfCollectorRepoImpl @Inject constructor(
 
             result.fold(
                 onSuccess = { collectionResult ->
+                    // Extract business date from first successful collection
+                    if (actualBusinessDate == null && collectionResult.businessDate != null) {
+                        actualBusinessDate = collectionResult.businessDate
+                        Log.d(TAG, "Using business date from API: $actualBusinessDate")
+                    }
+
+                    // Use API business date, or fallback to collection date
+                    val dateStr = collectionResult.businessDate
+                        ?: actualBusinessDate
+                        ?: fallbackDateStr
+
                     // Convert to entities and save
                     val entities = collectionResult.constituents.map { stock ->
                         EtfConstituentEntity(
@@ -282,7 +304,7 @@ class EtfCollectorRepoImpl @Inject constructor(
                             marketCap = stock.marketCap,
                             weight = stock.weight,
                             evaluationAmount = stock.evaluationAmount,
-                            collectedDate = dateStr,
+                            collectedDate = stock.businessDate ?: dateStr,
                             collectedAt = System.currentTimeMillis()
                         )
                     }
@@ -308,7 +330,12 @@ class EtfCollectorRepoImpl @Inject constructor(
             else -> CollectionStatus.PARTIAL
         }
 
-        // Update history
+        // Determine final business date
+        val finalDateStr = actualBusinessDate ?: fallbackDateStr
+        val finalDate = TradingDayUtil.parseDbDate(finalDateStr) ?: fallbackDate
+
+        // Update history with actual business date
+        historyDao.updateCollectedDate(historyId, finalDateStr)
         historyDao.updateCompletion(
             id = historyId,
             status = status.value,
@@ -319,7 +346,7 @@ class EtfCollectorRepoImpl @Inject constructor(
         )
 
         return FullCollectionResult(
-            collectedDate = collectedDate,
+            collectedDate = finalDate,
             totalEtfs = successCount,
             totalConstituents = totalConstituents,
             successCount = successCount,
@@ -387,6 +414,50 @@ class EtfCollectorRepoImpl @Inject constructor(
 
     override suspend fun getPreviousCollectionDate(date: String): String? {
         return constituentDao.getPreviousDate(date)
+    }
+
+    override suspend fun getCollectedDates(): List<String> {
+        return constituentDao.getCollectionDates().sortedDescending()
+    }
+
+    override suspend fun findMissingCollectionDates(): MissingDatesResult {
+        val dateRange = getDataDateRange()
+
+        // If no data exists, return empty result
+        if (dateRange == null || dateRange.startDate == null || dateRange.endDate == null) {
+            return MissingDatesResult(
+                dataStartDate = null,
+                dataEndDate = null,
+                missingDates = emptyList(),
+                totalTradingDays = 0,
+                collectedDays = 0
+            )
+        }
+
+        val startDate = TradingDayUtil.parseDbDate(dateRange.startDate)
+        val endDate = TradingDayUtil.parseDbDate(dateRange.endDate)
+
+        if (startDate == null || endDate == null) {
+            return MissingDatesResult(
+                dataStartDate = dateRange.startDate,
+                dataEndDate = dateRange.endDate,
+                missingDates = emptyList(),
+                totalTradingDays = 0,
+                collectedDays = 0
+            )
+        }
+
+        val collectedDates = getCollectedDates().toSet()
+        val missingDates = TradingDayUtil.findMissingTradingDays(collectedDates, startDate, endDate)
+        val (collectedCount, totalDays) = TradingDayUtil.calculateCoverage(collectedDates, startDate, endDate)
+
+        return MissingDatesResult(
+            dataStartDate = dateRange.startDate,
+            dataEndDate = dateRange.endDate,
+            missingDates = missingDates,
+            totalTradingDays = totalDays,
+            collectedDays = collectedCount
+        )
     }
 
     override suspend fun deleteOldData(cutoffDate: String) {

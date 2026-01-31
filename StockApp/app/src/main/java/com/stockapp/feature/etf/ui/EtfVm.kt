@@ -12,6 +12,7 @@ import com.stockapp.feature.etf.domain.model.EtfConstituent
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.EtfKeyword
 import com.stockapp.feature.etf.domain.model.FilterType
+import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import com.stockapp.feature.etf.ui.detail.EtfDetailState
 import com.stockapp.feature.etf.ui.detail.StockDetailData
 import com.stockapp.feature.etf.ui.detail.StockDetailState
@@ -150,6 +151,10 @@ class EtfVm @Inject constructor(
         .map { entities -> entities.map { it.toHistoryItem() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Missing dates analysis result
+    private val _missingDatesResult = MutableStateFlow<MissingDatesResult?>(null)
+    val missingDatesResult: StateFlow<MissingDatesResult?> = _missingDatesResult.asStateFlow()
+
     // Stock ranking state
     private val _rankingState = MutableStateFlow<RankingState>(RankingState.Loading)
     val rankingState: StateFlow<RankingState> = _rankingState.asStateFlow()
@@ -263,6 +268,7 @@ class EtfVm @Inject constructor(
         loadRankingData()
         loadChangesData()
         loadDateInfo()
+        loadMissingDates()
     }
 
     private fun loadDateInfo() {
@@ -277,6 +283,21 @@ class EtfVm @Inject constructor(
                 }
             } catch (e: Exception) {
                 // Date info load error is not critical
+            }
+        }
+    }
+
+    /**
+     * Load missing collection dates analysis.
+     */
+    fun loadMissingDates() {
+        viewModelScope.launch {
+            try {
+                val result = etfCollectorRepo.findMissingCollectionDates()
+                _missingDatesResult.value = result
+            } catch (e: Exception) {
+                // Missing dates analysis error is not critical
+                _missingDatesResult.value = null
             }
         }
     }

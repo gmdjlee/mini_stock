@@ -570,6 +570,8 @@ StockApp/
 │   │   │   ├── TokenManager.kt     # OAuth 토큰 관리
 │   │   │   ├── KiwoomApiClient.kt  # Kiwoom REST API 클라이언트
 │   │   │   └── KisApiClient.kt     # KIS REST API 클라이언트
+│   │   ├── util/                   # 유틸리티
+│   │   │   └── TradingDayUtil.kt   # 한국 주식시장 거래일 계산
 │   │   └── di/                     # DI Modules
 │   │       ├── AppModule.kt
 │   │       ├── DbModule.kt
@@ -1250,8 +1252,36 @@ sealed class FinancialState {
 - 키워드 기반 ETF 필터링
 - 일별 ETF 통계 (현금예탁금, 신규종목)
 - 종목 상세 분석 (BottomSheet)
+- **실제 거래일 기준 데이터 저장** (API의 `stck_bsop_date` 사용)
+- **미수집일 분석 및 표시** (수집 현황 탭)
 
 **기술 스택**: WorkManager (백그라운드 수집), Room DB (15 entities)
+
+#### ETF 데이터 날짜 처리
+
+ETF 데이터는 **실제 거래일 기준**으로 저장됩니다:
+- API 응답의 `stck_bsop_date` 필드에서 기준일자 추출
+- `TradingDayUtil`을 통한 거래일 판단 (주말/공휴일 제외)
+- 미수집일 분석 및 수집률 표시
+
+```kotlin
+// 거래일 유틸리티 (core/util/TradingDayUtil.kt)
+object TradingDayUtil {
+    fun apiToDbFormat(apiDate: String?): String?  // YYYYMMDD → YYYY-MM-DD
+    fun isTradingDay(date: LocalDate): Boolean    // 거래일 여부 확인
+    fun findMissingTradingDays(...)               // 미수집 거래일 탐지
+}
+
+// 미수집일 분석 결과
+data class MissingDatesResult(
+    val dataStartDate: String?,
+    val dataEndDate: String?,
+    val missingDates: List<String>,
+    val totalTradingDays: Int,
+    val collectedDays: Int,
+    val coveragePercent: Double
+)
+```
 
 #### ETF 탭 구조
 
