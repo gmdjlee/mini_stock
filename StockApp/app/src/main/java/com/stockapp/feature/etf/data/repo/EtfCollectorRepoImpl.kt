@@ -30,6 +30,7 @@ import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.core.util.TradingDayUtil
+import com.stockapp.feature.etf.data.CashItemUtil
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -212,8 +213,18 @@ class EtfCollectorRepoImpl @Inject constructor(
         val businessDate = TradingDayUtil.apiToDbFormat(firstItem?.stckBsopDate)
 
         val constituents = response.output2?.mapNotNull { item ->
-            val stockCode = item.stckShrnIscd?.trim() ?: return@mapNotNull null
+            val rawStockCode = item.stckShrnIscd?.trim()
             val stockName = item.htsKorIsnm?.trim() ?: return@mapNotNull null
+
+            // Handle cash items with null/empty stock codes
+            val stockCode = when {
+                !rawStockCode.isNullOrBlank() -> rawStockCode
+                CashItemUtil.isCashItem(stockName) -> {
+                    Log.d(TAG, "Cash item detected: $stockName in ETF $etfCode")
+                    CashItemUtil.generateCashCode(etfCode, stockName)
+                }
+                else -> return@mapNotNull null // Non-cash item with no code - skip
+            }
 
             ConstituentStock(
                 stockCode = stockCode,
