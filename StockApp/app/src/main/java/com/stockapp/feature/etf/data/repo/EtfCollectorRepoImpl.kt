@@ -215,15 +215,20 @@ class EtfCollectorRepoImpl @Inject constructor(
         val constituents = response.output2?.mapNotNull { item ->
             val rawStockCode = item.stckShrnIscd?.trim()
             val stockName = item.htsKorIsnm?.trim() ?: return@mapNotNull null
+            val evaluationAmount = parseLong(item.etfVltnAmt)
 
             // Handle cash items with null/empty stock codes
             val stockCode = when {
                 !rawStockCode.isNullOrBlank() -> rawStockCode
                 CashItemUtil.isCashItem(stockName) -> {
-                    Log.d(TAG, "Cash item detected: $stockName in ETF $etfCode")
                     CashItemUtil.generateCashCode(etfCode, stockName)
                 }
                 else -> return@mapNotNull null // Non-cash item with no code - skip
+            }
+
+            // Log cash item detection for keyword analysis
+            if (CashItemUtil.isCashItemByCodeOrName(stockCode, stockName)) {
+                CashItemUtil.logCashDetection(etfCode, rawStockCode, stockName, evaluationAmount)
             }
 
             ConstituentStock(
@@ -237,7 +242,7 @@ class EtfCollectorRepoImpl @Inject constructor(
                 tradingValue = parseLong(item.acmlTrPbmn),
                 marketCap = parseLong(item.htsAvls),
                 weight = parseRate(item.etfCnfgIssuRlim),
-                evaluationAmount = parseLong(item.etfVltnAmt),
+                evaluationAmount = evaluationAmount,
                 businessDate = TradingDayUtil.apiToDbFormat(item.stckBsopDate)
             )
         } ?: emptyList()

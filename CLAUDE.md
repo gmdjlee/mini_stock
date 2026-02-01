@@ -1283,6 +1283,36 @@ data class MissingDatesResult(
 )
 ```
 
+#### 현금/예금 항목 감지 (Cash Detection)
+
+ETF 구성종목 중 현금/예금 항목은 `CashItemUtil`에서 감지됩니다:
+
+**감지 방식**:
+1. **코드 기반**: 알려진 현금 종목코드와 일치하는지 확인
+2. **이름 기반**: 종목명에 현금 관련 키워드가 포함되어 있는지 확인
+
+**지원 종목코드** (`CASH_STOCK_CODES`):
+| 코드 | 설명 |
+|------|------|
+| `010010` | KRW 현금/예금 (단축 코드) |
+| `KRD010010001` | 원화현금/원화예금 (ISIN 형식) |
+
+**지원 키워드** (`CASH_NAME_KEYWORDS`):
+- 원화현금, 원화예금, 현금, cash, 예금, krw, 원화, 예치금, mmf, 머니마켓, money market
+
+**로깅 기능**:
+- 현금 항목 수집 시 자동으로 로그 기록
+- Logcat 태그: `CashItemUtil`
+- 기록 내용: ETF코드, 종목코드, 종목명, 평가금액, 매칭된 코드/키워드
+
+```kotlin
+// 로그 예시
+// Cash detected: ETF=069500, code=KRD010010001, name=원화현금,
+//   amount=123.45억, matchedByCode=true, matchedKeyword=null
+```
+
+**파일 위치**: `feature/etf/data/CashItemUtil.kt`
+
 #### ETF 탭 구조
 
 | 탭 | 컴포넌트 | 기능 |
