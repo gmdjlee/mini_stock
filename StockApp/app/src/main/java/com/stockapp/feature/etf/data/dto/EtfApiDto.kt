@@ -106,13 +106,14 @@ data class EtfConstituentItemDto(
 
 /**
  * Request parameters for KIS API FHKST121600C0.
+ * Note: Parameter names do NOT use _1 suffix for this endpoint.
  */
 data class EtfConstituentParams(
     val etfCode: String
 ) {
     fun toQueryParams(): Map<String, String> = mapOf(
-        "FID_COND_MRKT_DIV_CODE_1" to "J",
-        "FID_INPUT_ISCD_1" to etfCode,
-        "FID_COND_SCR_DIV_CODE_1" to "11216"
+        "FID_COND_MRKT_DIV_CODE" to "J",
+        "FID_INPUT_ISCD" to etfCode,
+        "FID_COND_SCR_DIV_CODE" to "11216"
     )
 }
