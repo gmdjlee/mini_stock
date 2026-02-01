@@ -8,8 +8,8 @@ package com.stockapp.feature.etf.data
  */
 object CashItemUtil {
 
-    // Keywords that identify cash/deposit items
-    private val CASH_KEYWORDS = listOf(
+    // Keywords that identify cash/deposit items by name
+    private val CASH_NAME_KEYWORDS = listOf(
         "원화예금",
         "현금",
         "cash",
@@ -22,6 +22,12 @@ object CashItemUtil {
         "money market"
     )
 
+    // Stock codes known to represent cash/deposit items
+    // 010010: Common code for KRW cash/deposit in ETF PDF
+    private val CASH_STOCK_CODES = setOf(
+        "010010"
+    )
+
     /**
      * Checks if the stock name indicates a cash/deposit item.
      *
@@ -31,7 +37,29 @@ object CashItemUtil {
     fun isCashItem(stockName: String?): Boolean {
         if (stockName.isNullOrBlank()) return false
         val lowerName = stockName.lowercase()
-        return CASH_KEYWORDS.any { lowerName.contains(it) }
+        return CASH_NAME_KEYWORDS.any { lowerName.contains(it) }
+    }
+
+    /**
+     * Checks if the stock code represents a known cash/deposit item.
+     *
+     * @param stockCode The stock code to check
+     * @return true if the code is a known cash code
+     */
+    fun isCashStockCode(stockCode: String?): Boolean {
+        if (stockCode.isNullOrBlank()) return false
+        return stockCode in CASH_STOCK_CODES
+    }
+
+    /**
+     * Checks if either stock code or name indicates a cash/deposit item.
+     *
+     * @param stockCode The stock code
+     * @param stockName The stock name
+     * @return true if the item is identified as cash/deposit
+     */
+    fun isCashItemByCodeOrName(stockCode: String?, stockName: String?): Boolean {
+        return isCashStockCode(stockCode) || isCashItem(stockName)
     }
 
     /**

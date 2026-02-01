@@ -494,7 +494,7 @@ class EtfRepositoryImpl @Inject constructor(
     override suspend fun getEtfCashDetails(date: String): Result<List<EtfCashDetail>> = runCatching {
         val constituents = constituentDao.getByDate(date)
         constituents
-            .filter { isCashDeposit(it.stockName) }
+            .filter { isCashDeposit(it.stockCode, it.stockName) }
             .map { entity ->
                 EtfCashDetail(
                     etfCode = entity.etfCode,
@@ -608,11 +608,11 @@ class EtfRepositoryImpl @Inject constructor(
 
         // Calculate cash deposit
         val currentCash = currentConstituents
-            .filter { isCashDeposit(it.stockName) }
+            .filter { isCashDeposit(it.stockCode, it.stockName) }
             .sumOf { it.evaluationAmount }
 
         val previousCash = previousConstituents
-            .filter { isCashDeposit(it.stockName) }
+            .filter { isCashDeposit(it.stockCode, it.stockName) }
             .sumOf { it.evaluationAmount }
 
         val cashChange = currentCash - previousCash
@@ -670,8 +670,8 @@ class EtfRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun isCashDeposit(stockName: String): Boolean {
-        return CashItemUtil.isCashItem(stockName)
+    private fun isCashDeposit(stockCode: String, stockName: String): Boolean {
+        return CashItemUtil.isCashItemByCodeOrName(stockCode, stockName)
     }
 
     private fun DailyEtfStatisticsEntity.toDomain() = DailyEtfStatistics(
