@@ -33,6 +33,7 @@ import com.stockapp.feature.etf.domain.model.StockChange
 import com.stockapp.feature.etf.domain.model.StockRanking
 import com.stockapp.feature.etf.domain.model.WeightHistory
 import com.stockapp.feature.etf.domain.repo.EtfRepository
+import com.stockapp.feature.etf.data.CashItemUtil
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -670,12 +671,7 @@ class EtfRepositoryImpl @Inject constructor(
     }
 
     private fun isCashDeposit(stockName: String): Boolean {
-        val lowerName = stockName.lowercase()
-        return lowerName.contains("원화예금") ||
-            lowerName.contains("현금") ||
-            lowerName.contains("cash") ||
-            lowerName.contains("예금") ||
-            lowerName.contains("krw")
+        return CashItemUtil.isCashItem(stockName)
     }
 
     private fun DailyEtfStatisticsEntity.toDomain() = DailyEtfStatistics(
