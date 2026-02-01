@@ -24,9 +24,11 @@ import javax.inject.Singleton
 class PyClient @Inject constructor(
     @ApplicationContext private val ctx: Context
 ) {
-    // Thread-safe client state: Mutex protects all writes, simple vars for state
-    // P1 fix: Removed redundant AtomicReference/AtomicBoolean since Mutex already provides thread safety
+    // Thread-safe client state: @Volatile ensures visibility across threads
+    // Mutex protects initialization sequence, volatile ensures read visibility
+    @Volatile
     private var kiwoomClient: PyObject? = null
+    @Volatile
     private var initialized: Boolean = false
     private val initMutex = Mutex()
 
@@ -92,6 +94,15 @@ class PyClient @Inject constructor(
                 )
             }
 
+            // Safety check: Ensure Python is actually started before proceeding
+            // This prevents native crashes if there's a race condition
+            if (!Python.isStarted()) {
+                Log.e(TAG, "call() failed: Python interpreter not started")
+                return@withContext Result.failure(
+                    PyError.NotInitialized("Python interpreter not started. Please restart the app.")
+                )
+            }
+
             withTimeout(timeoutMs) {
                 val py = Python.getInstance()
                 val pyModule = py.getModule(module)
@@ -133,6 +144,14 @@ class PyClient @Inject constructor(
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
         try {
+            // Safety check: Ensure Python is started
+            if (!Python.isStarted()) {
+                Log.e(TAG, "callDirect() failed: Python interpreter not started")
+                return@withContext Result.failure(
+                    PyError.NotInitialized("Python interpreter not started. Please restart the app.")
+                )
+            }
+
             withTimeout(timeoutMs) {
                 val py = Python.getInstance()
                 val pyModule = py.getModule(module)
@@ -171,6 +190,14 @@ class PyClient @Inject constructor(
                 )
             }
 
+            // Safety check: Ensure Python is started
+            if (!Python.isStarted()) {
+                Log.e(TAG, "callRaw() failed: Python interpreter not started")
+                return@withContext Result.failure(
+                    PyError.NotInitialized("Python interpreter not started. Please restart the app.")
+                )
+            }
+
             withTimeout(timeoutMs) {
                 val py = Python.getInstance()
                 val pyModule = py.getModule(module)
@@ -202,8 +229,11 @@ class PyClient @Inject constructor(
         baseUrl: String = "https://api.kiwoom.com"
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!Python.isStarted()) {
-                Python.start(AndroidPlatform(ctx))
+            // Start Python if not already started (with proper synchronization)
+            initMutex.withLock {
+                if (!Python.isStarted()) {
+                    Python.start(AndroidPlatform(ctx))
+                }
             }
 
             val py = Python.getInstance()
