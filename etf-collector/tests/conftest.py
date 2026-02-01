@@ -188,3 +188,177 @@ def sample_etf_infos():
             total_assets=456.7,
         ),
     ]
+
+
+# =============================================================================
+# Cash/Deposit Item Fixtures (Won Deposit Detection Tests)
+# =============================================================================
+
+
+@pytest.fixture
+def mock_constituent_response_with_cash():
+    """Mock constituent response containing cash/deposit items (FHKST121600C0).
+
+    Contains:
+    - 2 regular stock items (삼성전자, SK하이닉스)
+    - 1 cash item with KRD code (KRD010010001, 원화현금)
+    - 1 cash item with short code (010010, 원화예금)
+    - 1 cash item with empty code (현금및예치금) - name-based detection
+    """
+    return {
+        "output1": {
+            "stck_prpr": "35250",
+            "prdy_vrss": "500",
+            "prdy_ctrt": "1.44",
+            "nav": "35248.50",
+            "etf_ntas_ttam": "58234500000000",
+            "etf_cu_unit_scrt_cnt": "50000",
+            "etf_cnfg_issu_cnt": "205",
+        },
+        "output2": [
+            # Regular stock 1
+            {
+                "stck_shrn_iscd": "005930",
+                "hts_kor_isnm": "삼성전자",
+                "stck_prpr": "71500",
+                "prdy_vrss": "500",
+                "prdy_vrss_sign": "2",
+                "prdy_ctrt": "0.70",
+                "acml_vol": "15000000",
+                "acml_tr_pbmn": "1072500000000",
+                "hts_avls": "427000000000000",
+                "etf_vltn_amt": "15625000000",
+                "etf_cnfg_issu_rlim": "31.25",
+            },
+            # Regular stock 2
+            {
+                "stck_shrn_iscd": "000660",
+                "hts_kor_isnm": "SK하이닉스",
+                "stck_prpr": "135000",
+                "prdy_vrss": "2000",
+                "prdy_vrss_sign": "2",
+                "prdy_ctrt": "1.50",
+                "acml_vol": "5000000",
+                "acml_tr_pbmn": "675000000000",
+                "hts_avls": "98000000000000",
+                "etf_vltn_amt": "4210000000",
+                "etf_cnfg_issu_rlim": "8.42",
+            },
+            # Cash item with KRD code
+            {
+                "stck_shrn_iscd": "KRD010010001",
+                "hts_kor_isnm": "원화현금",
+                "stck_prpr": "0",
+                "prdy_vrss": "0",
+                "prdy_vrss_sign": "3",
+                "prdy_ctrt": "0.00",
+                "acml_vol": "0",
+                "acml_tr_pbmn": "0",
+                "hts_avls": "0",
+                "etf_vltn_amt": "500000000",
+                "etf_cnfg_issu_rlim": "1.00",
+            },
+            # Cash item with short code
+            {
+                "stck_shrn_iscd": "010010",
+                "hts_kor_isnm": "원화예금",
+                "stck_prpr": "0",
+                "prdy_vrss": "0",
+                "prdy_vrss_sign": "3",
+                "prdy_ctrt": "0.00",
+                "acml_vol": "0",
+                "acml_tr_pbmn": "0",
+                "hts_avls": "0",
+                "etf_vltn_amt": "300000000",
+                "etf_cnfg_issu_rlim": "0.60",
+            },
+            # Cash item with empty code (name-based detection)
+            {
+                "stck_shrn_iscd": "",
+                "hts_kor_isnm": "현금및예치금",
+                "stck_prpr": "0",
+                "prdy_vrss": "0",
+                "prdy_vrss_sign": "3",
+                "prdy_ctrt": "0.00",
+                "acml_vol": "0",
+                "acml_tr_pbmn": "0",
+                "hts_avls": "0",
+                "etf_vltn_amt": "200000000",
+                "etf_cnfg_issu_rlim": "0.40",
+            },
+        ],
+        "rt_cd": "0",
+        "msg_cd": "0000",
+        "msg1": "정상처리",
+    }
+
+
+@pytest.fixture
+def mock_cash_only_constituent():
+    """Mock single cash/deposit constituent item.
+
+    Represents a typical cash item found in ETF portfolios with KRD code format.
+    """
+    return {
+        "stck_shrn_iscd": "KRD010010001",
+        "hts_kor_isnm": "원화현금",
+        "stck_prpr": "0",
+        "prdy_vrss": "0",
+        "prdy_vrss_sign": "3",
+        "prdy_ctrt": "0.00",
+        "acml_vol": "0",
+        "acml_tr_pbmn": "0",
+        "hts_avls": "0",
+        "etf_vltn_amt": "500000000",
+        "etf_cnfg_issu_rlim": "1.00",
+    }
+
+
+@pytest.fixture
+def mock_constituent_response_cash_only():
+    """Mock constituent response with only cash items (edge case).
+
+    Some ETFs may have significant cash holdings, especially during rebalancing.
+    """
+    return {
+        "output1": {
+            "stck_prpr": "10000",
+            "prdy_vrss": "0",
+            "prdy_ctrt": "0.00",
+            "nav": "10000.00",
+            "etf_ntas_ttam": "1000000000",
+            "etf_cu_unit_scrt_cnt": "10000",
+            "etf_cnfg_issu_cnt": "2",
+        },
+        "output2": [
+            {
+                "stck_shrn_iscd": "KRD010010001",
+                "hts_kor_isnm": "원화현금",
+                "stck_prpr": "0",
+                "prdy_vrss": "0",
+                "prdy_vrss_sign": "3",
+                "prdy_ctrt": "0.00",
+                "acml_vol": "0",
+                "acml_tr_pbmn": "0",
+                "hts_avls": "0",
+                "etf_vltn_amt": "800000000",
+                "etf_cnfg_issu_rlim": "80.00",
+            },
+            {
+                "stck_shrn_iscd": "010010",
+                "hts_kor_isnm": "원화예금",
+                "stck_prpr": "0",
+                "prdy_vrss": "0",
+                "prdy_vrss_sign": "3",
+                "prdy_ctrt": "0.00",
+                "acml_vol": "0",
+                "acml_tr_pbmn": "0",
+                "hts_avls": "0",
+                "etf_vltn_amt": "200000000",
+                "etf_cnfg_issu_rlim": "20.00",
+            },
+        ],
+        "rt_cd": "0",
+        "msg_cd": "0000",
+        "msg1": "정상처리",
+    }
