@@ -13,6 +13,7 @@ from ..limiter.rate_limiter import SlidingWindowRateLimiter
 from ..utils.helpers import to_int, to_float, now_iso
 from ..utils.logger import log_info, log_err, log_debug, log_warn
 from ..utils.validators import validate_etf_code, validate_api_response, validate_list_response
+from ..utils.cash_detector import is_cash_item, is_cash_code, generate_cash_code, log_cash_detection
 from .etf_list import EtfInfo
 
 MODULE = "constituent"
@@ -40,6 +41,15 @@ class ConstituentStock:
     def __post_init__(self):
         if not self.collected_at:
             self.collected_at = now_iso()
+
+    @property
+    def is_cash(self) -> bool:
+        """Check if this constituent is a cash/deposit item.
+
+        Returns:
+            True if this is a cash/deposit item (detected by code or name)
+        """
+        return is_cash_item(self.stock_code, self.stock_name)
 
 
 @dataclass
@@ -320,11 +330,23 @@ class ConstituentCollector:
         # Parse ETF summary from output1
         constituents = []
         for item in output2:
+            stock_code = item.get("stck_shrn_iscd", "")
+            stock_name = item.get("hts_kor_isnm", "")
+
+            # Handle cash items with empty codes - generate synthetic code
+            if not stock_code and is_cash_item(None, stock_name):
+                stock_code = generate_cash_code(etf_code, stock_name)
+                log_debug(MODULE, f"Generated synthetic code for cash item", {
+                    "etf_code": etf_code,
+                    "stock_name": stock_name,
+                    "synthetic_code": stock_code,
+                })
+
             stock = ConstituentStock(
                 etf_code=etf_code,
                 etf_name=etf_name,
-                stock_code=item.get("stck_shrn_iscd", ""),
-                stock_name=item.get("hts_kor_isnm", ""),
+                stock_code=stock_code,
+                stock_name=stock_name,
                 current_price=to_int(item.get("stck_prpr", 0)),
                 price_change=to_int(item.get("prdy_vrss", 0)),
                 price_change_sign=item.get("prdy_vrss_sign", "3"),
@@ -335,7 +357,17 @@ class ConstituentCollector:
                 weight=to_float(item.get("etf_cnfg_issu_rlim", 0)),
                 evaluation_amount=to_int(item.get("etf_vltn_amt", 0)),
             )
-            if stock.stock_code:  # Skip empty entries
+
+            # Skip truly empty entries (no code and not a cash item)
+            if stock.stock_code:
+                # Log cash item detection for tracking
+                if stock.is_cash:
+                    log_cash_detection(
+                        etf_code,
+                        stock.stock_code,
+                        stock.stock_name,
+                        stock.evaluation_amount,
+                    )
                 constituents.append(stock)
 
         return EtfConstituentSummary(
