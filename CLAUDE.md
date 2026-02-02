@@ -10,8 +10,54 @@
 |-----------|--------|------|
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
+| **Kotlin Native Migration** | 📋 **PLANNED** | Python → Kotlin 전환 예정 |
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
+
+---
+
+## 🔄 Kotlin Native Migration (계획됨)
+
+### 개요
+
+Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트입니다.
+
+**상세 명세서**: `docs/KOTLIN_MIGRATION_SPEC.md`
+
+### 전환 대상
+
+| 기능 | 현재 (Python) | 전환 후 (Kotlin) | 상태 |
+|------|---------------|------------------|------|
+| 종목 검색 | `stock/search.py` | `NativeSearchRepo` | 📋 계획됨 |
+| 수급 분석 | `stock/analysis.py` | `NativeAnalysisRepo` | 📋 계획됨 |
+| OHLCV 조회 | `stock/ohlcv.py` | `OhlcvService` | 📋 계획됨 |
+| Trend Signal | `indicator/trend.py` | `TrendCalculator` | 📋 계획됨 |
+| Elder Impulse | `indicator/elder.py` | `ElderCalculator` | 📋 계획됨 |
+| DeMark TD | `indicator/demark.py` | `DemarkCalculator` | 📋 계획됨 |
+| **실시간 수급** (신규) | - | `RealtimeSupplyRepo` | 📋 계획됨 |
+
+### 전환 이점
+
+| 항목 | Python (현재) | Kotlin (전환 후) |
+|------|---------------|------------------|
+| APK 크기 | ~80-100MB | ~15-25MB |
+| 앱 시작 속도 | Python 초기화 2-5초 | 즉시 |
+| 코드베이스 | 2개 언어 | 1개 언어 |
+| 디버깅 | 제한적 | 완전 지원 |
+
+### 구현 일정 (예정)
+
+| Phase | 기간 | 내용 |
+|-------|------|------|
+| Phase 1 | 2일 | 핵심 인프라 (MathUtil, FeatureFlags) |
+| Phase 2 | 2일 | 종목 검색 전환 |
+| Phase 3 | 4일 | OHLCV, 수급 분석 전환 |
+| Phase 4 | 6일 | 기술 지표 전환 |
+| Phase 5 | 3일 | 실시간 수급 기능 (신규) |
+| Phase 6 | 3일 | 통합 테스트 |
+| Phase 7 | 1일 | 문서화, 정리 |
+
+**총 예상 기간**: 21일 (3주)
 
 ---
 
@@ -1510,6 +1556,7 @@ feature/settings/
 
 - Android 사전 준비: `docs/ANDROID_PREPARATION.md`
 - 상세 명세서: `docs/STOCK_APP_SPEC.md`
+- **Kotlin 전환 명세서**: `docs/KOTLIN_MIGRATION_SPEC.md`
 - 코드 리뷰: `docs/CODE_REVIEW_REPORT.md`
 - UI 디자인 리뷰: `docs/UI_DESIGN_REVIEW.md`
 - 키움 API 문서: `docs/kiwoom_api_docs/`
