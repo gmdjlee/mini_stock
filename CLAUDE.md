@@ -50,7 +50,7 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | Phase | 기간 | 내용 | 상태 |
 |-------|------|------|------|
 | Phase 1 | 2일 | 핵심 인프라 (MathUtil, FeatureFlags) | ✅ 완료 |
-| Phase 2 | 2일 | 종목 검색 전환 | 📋 예정 |
+| Phase 2 | 2일 | 종목 검색 전환 | ✅ 완료 |
 | Phase 3 | 4일 | OHLCV, 수급 분석 전환 | 📋 예정 |
 | Phase 4 | 6일 | 기술 지표 전환 | 📋 예정 |
 | Phase 5 | 3일 | 실시간 수급 기능 (신규) | 📋 예정 |
@@ -70,6 +70,18 @@ Phase 1에서 다음 핵심 인프라가 구현되었습니다:
 | `core/stock/api/StockApiModels.kt` | API 요청/응답 DTO 모델 |
 | `core/config/FeatureFlags.kt` | Feature Flag 시스템 (Native/Python 전환용) |
 | `core/config/ConfigModule.kt` | Feature Flag DI 모듈 |
+
+### Phase 2 구현 내용
+
+Phase 2에서 종목 검색 기능이 Kotlin으로 전환되었습니다:
+
+| 파일 | 설명 |
+|------|------|
+| `feature/search/data/repo/NativeSearchRepoImpl.kt` | Kotlin Native 검색 구현 |
+| `feature/search/data/repo/SearchRepoSelector.kt` | Python/Kotlin 구현 선택자 |
+| `feature/search/di/SearchModule.kt` | DI 모듈 업데이트 |
+
+**Feature Flag**: `USE_NATIVE_SEARCH` - 활성화 시 Kotlin 구현 사용
 
 ---
 
