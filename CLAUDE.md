@@ -10,7 +10,7 @@
 |-----------|--------|------|
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
-| **Kotlin Native Migration** | 📋 **PLANNED** | Python → Kotlin 전환 예정 |
+| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 1 완료) |
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
@@ -45,19 +45,31 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | 코드베이스 | 2개 언어 | 1개 언어 |
 | 디버깅 | 제한적 | 완전 지원 |
 
-### 구현 일정 (예정)
+### 구현 일정
 
-| Phase | 기간 | 내용 |
-|-------|------|------|
-| Phase 1 | 2일 | 핵심 인프라 (MathUtil, FeatureFlags) |
-| Phase 2 | 2일 | 종목 검색 전환 |
-| Phase 3 | 4일 | OHLCV, 수급 분석 전환 |
-| Phase 4 | 6일 | 기술 지표 전환 |
-| Phase 5 | 3일 | 실시간 수급 기능 (신규) |
-| Phase 6 | 3일 | 통합 테스트 |
-| Phase 7 | 1일 | 문서화, 정리 |
+| Phase | 기간 | 내용 | 상태 |
+|-------|------|------|------|
+| Phase 1 | 2일 | 핵심 인프라 (MathUtil, FeatureFlags) | ✅ 완료 |
+| Phase 2 | 2일 | 종목 검색 전환 | 📋 예정 |
+| Phase 3 | 4일 | OHLCV, 수급 분석 전환 | 📋 예정 |
+| Phase 4 | 6일 | 기술 지표 전환 | 📋 예정 |
+| Phase 5 | 3일 | 실시간 수급 기능 (신규) | 📋 예정 |
+| Phase 6 | 3일 | 통합 테스트 | 📋 예정 |
+| Phase 7 | 1일 | 문서화, 정리 | 📋 예정 |
 
 **총 예상 기간**: 21일 (3주)
+
+### Phase 1 구현 내용
+
+Phase 1에서 다음 핵심 인프라가 구현되었습니다:
+
+| 파일 | 설명 |
+|------|------|
+| `core/stock/calc/MathUtil.kt` | 수학 유틸리티 (rollingSum, SMA, EMA, CMF, std) |
+| `core/stock/calc/OhlcvResampler.kt` | OHLCV 리샘플링 (일봉 → 주봉/월봉) |
+| `core/stock/api/StockApiModels.kt` | API 요청/응답 DTO 모델 |
+| `core/config/FeatureFlags.kt` | Feature Flag 시스템 (Native/Python 전환용) |
+| `core/config/ConfigModule.kt` | Feature Flag DI 모듈 |
 
 ---
 
