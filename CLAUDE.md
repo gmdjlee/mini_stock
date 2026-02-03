@@ -514,7 +514,18 @@ result = osc_chart.plot(osc_data)                       # 오실레이터 차트
 ### API 응답 필드명 (실제 API 기준)
 
 **차트 API (ka10081/82/83)**
+
+요청 파라미터:
+| 파라미터 | 설명 | 필수 |
+|----------|------|------|
+| `stk_cd` | 종목코드 | Required |
+| `base_dt` | 기준일자 (YYYYMMDD) - API는 이 날짜부터 과거 데이터 반환 | Required |
+| `upd_stkpc_tp` | 수정주가구분 ("0": No, "1": Yes) | Required |
+
 ```python
+# 요청 예시
+{"stk_cd": "005930", "base_dt": "20260203", "upd_stkpc_tp": "1"}
+
 # 응답 구조
 {
     "stk_dt_pole_chart_qry": [  # 일봉: stk_dt_pole_chart_qry

@@ -84,15 +84,14 @@ class OhlcvService @Inject constructor(
         return try {
             val config = getApiConfig()
 
-            // Calculate date range
-            val endDate = LocalDate.now()
-            val startDate = endDate.minusDays(days.toLong())
+            // API uses base_dt (base date) - returns data from this date backwards
+            // Note: days parameter is not used by API but kept for interface compatibility
+            val baseDate = LocalDate.now()
             val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
             val request = OhlcvRequest(
                 stkCd = ticker,
-                inqrStrtDt = startDate.format(dateFormatter),
-                inqrEndDt = endDate.format(dateFormatter)
+                baseDt = baseDate.format(dateFormatter)
             )
 
             when (period) {
