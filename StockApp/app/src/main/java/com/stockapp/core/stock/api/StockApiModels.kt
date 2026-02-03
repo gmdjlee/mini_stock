@@ -197,20 +197,25 @@ data class OhlcvItem(
 
 /**
  * Realtime supply request parameters.
+ * Based on ka10063 API docs: 장중투자자별매매요청
  */
 data class RealtimeSupplyRequest(
     val stkCd: String,
-    val mrktTp: String = "000",    // 000: 전체
-    val invsr: String = "6",       // 6: 전체 투자자
-    val stexTp: String = "3",      // 3: KRX (모의)
-    val amtQtyTp: String = "1"     // 1: 금액
+    val mrktTp: String = "000",       // 000: 전체
+    val invsr: String = "6",          // 6: 전체 투자자
+    val stexTp: String = "3",         // 3: KRX (모의)
+    val amtQtyTp: String = "1",       // 1: 금액
+    val frgnAll: String = "0",        // 0: 외국계 전체 아님
+    val smtmNetprpsTp: String = "0"   // 0: 동시순매수 구분 없음
 ) {
     fun toRequestBody(): Map<String, String> = mapOf(
         "stk_cd" to stkCd,
         "mrkt_tp" to mrktTp,
         "invsr" to invsr,
         "stex_tp" to stexTp,
-        "amt_qty_tp" to amtQtyTp
+        "amt_qty_tp" to amtQtyTp,
+        "frgn_all" to frgnAll,
+        "smtm_netprps_tp" to smtmNetprpsTp
     )
 }
 
@@ -305,7 +310,7 @@ object StockApiEndpoints {
     const val DAILY_CHART = "/api/dostk/chart"        // ka10081
     const val WEEKLY_CHART = "/api/dostk/chart"       // ka10082
     const val MONTHLY_CHART = "/api/dostk/chart"      // ka10083
-    const val REALTIME_SUPPLY = "/api/dostk/stkinfo"  // ka10063
+    const val REALTIME_SUPPLY = "/api/dostk/mrkcond"  // ka10063 (장중투자자별매매요청)
 }
 
 /**

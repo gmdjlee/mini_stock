@@ -134,8 +134,11 @@ class KiwoomApiClient @Inject constructor(
                 )
             }
 
+            // Preprocess response to handle non-standard JSON (e.g., "+12345" numbers)
+            val normalizedBody = normalizeJsonNumbers(responseBody)
+
             // Check for API error in response
-            val apiResponse = json.decodeFromString<ApiResponse>(responseBody)
+            val apiResponse = json.decodeFromString<ApiResponse>(normalizedBody)
             if (apiResponse.returnCode != 0) {
                 return Result.failure(
                     ApiError.ApiCallError(apiResponse.returnCode, apiResponse.returnMsg ?: "API 오류")
@@ -143,7 +146,7 @@ class KiwoomApiClient @Inject constructor(
             }
 
             // Parse the response
-            val parsed = parser(responseBody)
+            val parsed = parser(normalizedBody)
             return Result.success(parsed)
         } catch (e: Exception) {
             return Result.failure(mapException(e))
@@ -282,8 +285,11 @@ class KiwoomApiClient @Inject constructor(
                 )
             }
 
+            // Preprocess response to handle non-standard JSON (e.g., "+12345" numbers)
+            val normalizedBody = normalizeJsonNumbers(responseBody)
+
             // Check for API error in response
-            val apiResponse = json.decodeFromString<ApiResponse>(responseBody)
+            val apiResponse = json.decodeFromString<ApiResponse>(normalizedBody)
             if (apiResponse.returnCode != 0) {
                 return Result.failure(
                     ApiError.ApiCallError(apiResponse.returnCode, apiResponse.returnMsg ?: "API 오류")
@@ -295,7 +301,7 @@ class KiwoomApiClient @Inject constructor(
             val respNextKey = response.header("next-key") ?: ""
 
             // Parse the response
-            val parsed = parser(responseBody)
+            val parsed = parser(normalizedBody)
 
             return Result.success(
                 PaginatedResponse(
@@ -471,6 +477,25 @@ class KiwoomApiClient @Inject constructor(
             is kotlinx.serialization.SerializationException -> ApiError.ParseError("응답 파싱 오류: ${e.message}")
             is ApiError -> e
             else -> ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류")
+        }
+    }
+
+    /**
+     * Normalize JSON numbers by removing leading '+' signs from numeric values.
+     * Kiwoom API sometimes returns numbers like "+12345" which is invalid JSON.
+     *
+     * This regex matches patterns like: ":+123" or ": +123" (with optional whitespace)
+     * and replaces them with ":123" or ": 123"
+     */
+    private fun normalizeJsonNumbers(json: String): String {
+        // Match colon, optional whitespace, plus sign, followed by digits
+        // Replace with colon, same whitespace, digits (removing the plus sign)
+        return json.replace(Regex("\":\\s*\\+(-?\\d)")) { match ->
+            val digit = match.groupValues[1]
+            "\":$digit"
+        }.replace(Regex(",\\s*\\+(-?\\d)")) { match ->
+            val digit = match.groupValues[1]
+            ",$digit"
         }
     }
 
