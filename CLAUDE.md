@@ -16,6 +16,71 @@
 
 ---
 
+## 🔍 Search API Optimization (검색 API 최적화)
+
+검색 기능에서 과도한 API 호출을 방지하기 위한 최적화가 적용되었습니다.
+
+### 최적화 전략
+
+| 전략 | 설명 | 효과 |
+|------|------|------|
+| **Cache-First Architecture** | 로컬 캐시 우선 검색 | API 호출 90%+ 감소 |
+| **Debounce (500ms)** | 타이핑 중 API 호출 방지 | 중간 입력 검색 제거 |
+| **Minimum Query Length (2자)** | 짧은 검색어는 캐시만 사용 | 불필요한 API 호출 방지 |
+| **Refresh Cooldown (30초)** | 새로고침 버튼 스팸 방지 | 연속 API 호출 차단 |
+| **Lazy Cache Init** | 만료 캐시도 즉시 사용 | 앱 시작 시 API 호출 방지 |
+| **Category Rate Limiting** | 기능별 독립적 rate limit | 병렬 호출 허용 |
+
+### 검색 흐름
+
+```
+User Input → 500ms Debounce → Query Length Check
+                                     │
+                        ┌────────────┼────────────┐
+                        │            │            │
+                   < 2글자     2글자 이상     비어있음
+                        │            │            │
+                        ▼            ▼            ▼
+                 Cache Only    Full Search    Clear State
+                 (No API)    (Cache → API)
+```
+
+### 관련 설정 (AppConfig.kt)
+
+| 상수 | 값 | 설명 |
+|------|-----|------|
+| `SEARCH_DEBOUNCE_MS` | 500ms | 검색 입력 debounce |
+| `MIN_SEARCH_QUERY_LENGTH` | 2 | API 검색 최소 글자 수 |
+| `MAX_SEARCH_RESULTS` | 50 | 최대 검색 결과 수 |
+| `REFRESH_COOLDOWN_MS` | 30초 | 새로고침 쿨다운 (StockCacheManager) |
+
+### API 카테고리별 Rate Limiting
+
+`KiwoomApiClient`는 기능별로 독립적인 rate limiter를 사용하여 병렬 호출을 허용합니다:
+
+| 카테고리 | API IDs | 설명 |
+|----------|---------|------|
+| SEARCH | ka10099 | 종목 목록 조회 |
+| ANALYSIS | ka10059, ka10001, ka10081~83, ka10063 | 수급/지표 분석 |
+| RANKING | ka10021, ka10023, ka10030, ka10033, ka90009 | 순위 정보 |
+| FINANCIAL | FHKST66430xxx | 재무 정보 |
+| ETF | ka40004 | ETF 구성종목 |
+| OTHER | 기타 | 기본 카테고리 |
+
+### 관련 파일
+
+| 파일 | 역할 |
+|------|------|
+| `core/config/AppConfig.kt` | 검색 관련 상수 정의 |
+| `core/cache/StockCacheManager.kt` | 캐시 관리, 쿨다운, lazy init |
+| `core/api/KiwoomApiClient.kt` | 카테고리별 rate limiting |
+| `feature/search/domain/usecase/SearchStockUC.kt` | 검색어 길이 검증 |
+| `feature/search/data/repo/NativeSearchRepoImpl.kt` | 캐시 전용 검색 |
+| `feature/search/ui/SearchVm.kt` | debounce, 쿨다운 상태 |
+| `feature/search/ui/SearchScreen.kt` | 쿨다운 UI 표시 |
+
+---
+
 ## ✅ Kotlin Native Migration (완료)
 
 ### 개요

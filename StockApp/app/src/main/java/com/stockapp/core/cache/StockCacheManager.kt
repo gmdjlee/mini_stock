@@ -18,6 +18,9 @@ import javax.inject.Singleton
 
 private const val TAG = "StockCacheManager"
 
+/** Refresh cooldown period in milliseconds (30 seconds). */
+private const val REFRESH_COOLDOWN_MS = 30_000L
+
 /**
  * Stock cache state.
  */
@@ -25,8 +28,14 @@ sealed class CacheState {
     data object Idle : CacheState()
     data object Loading : CacheState()
     data class Ready(val count: Int) : CacheState()
+    data class Stale(val count: Int) : CacheState()
     data class Error(val message: String) : CacheState()
 }
+
+/**
+ * Exception thrown when refresh is called during cooldown period.
+ */
+class RefreshCooldownException(message: String) : Exception(message)
 
 /**
  * Manages stock cache initialization and refresh.
@@ -40,9 +49,13 @@ class StockCacheManager @Inject constructor(
     private val _state = MutableStateFlow<CacheState>(CacheState.Idle)
     val state: StateFlow<CacheState> = _state.asStateFlow()
 
+    /** Last time refresh was attempted (for cooldown). */
+    private var lastRefreshAttempt = 0L
+
     /**
      * Initialize cache if needed.
      * Call this on app startup.
+     * Note: This method blocks if cache is expired. For non-blocking init, use initializeLazy().
      */
     suspend fun initializeIfNeeded(): Result<Int> {
         Log.d(TAG, "initializeIfNeeded() called")
@@ -68,15 +81,85 @@ class StockCacheManager @Inject constructor(
             return Result.success(count)
         }
 
-        // Refresh cache
-        return refreshCache()
+        // Refresh cache (bypass cooldown for initialization)
+        return refreshCache(bypassCooldown = true)
     }
 
     /**
-     * Force refresh the stock cache.
+     * Initialize cache lazily without blocking.
+     * Returns immediately with existing cache (even if stale) to improve startup time.
+     * Only calls API if no cache exists at all.
+     *
+     * Use this for app startup to avoid slow initialization when cache is expired.
      */
-    suspend fun refreshCache(): Result<Int> {
-        Log.d(TAG, "refreshCache() started")
+    suspend fun initializeLazy(): Result<CacheStats> {
+        Log.d(TAG, "initializeLazy() called")
+
+        val count = stockDao.count()
+        val lastUpdated = stockDao.lastUpdated() ?: 0L
+        val now = System.currentTimeMillis()
+        val cacheAge = now - lastUpdated
+        val isStale = cacheAge > AppDb.STOCK_CACHE_TTL
+
+        Log.d(TAG, "initializeLazy() count=$count, age=${cacheAge / 1000 / 60}min, stale=$isStale")
+
+        val stats = CacheStats(
+            count = count,
+            lastUpdatedMs = lastUpdated,
+            isExpired = isStale
+        )
+
+        // If cache exists (even if stale), return immediately without API call
+        if (count > 0) {
+            _state.value = if (isStale) {
+                Log.d(TAG, "initializeLazy() cache is stale but available, using it")
+                CacheState.Stale(count)
+            } else {
+                Log.d(TAG, "initializeLazy() cache is fresh")
+                CacheState.Ready(count)
+            }
+            return Result.success(stats)
+        }
+
+        // No cache at all - this is the only case we call API
+        Log.d(TAG, "initializeLazy() no cache, calling API")
+
+        // Check if PyClient is ready before API call
+        if (!pyClient.isReady()) {
+            Log.w(TAG, "initializeLazy() PyClient not ready, skipping API call")
+            return Result.success(stats) // Return empty stats, UI will handle
+        }
+
+        return refreshCache(bypassCooldown = true).map {
+            CacheStats(
+                count = it,
+                lastUpdatedMs = System.currentTimeMillis(),
+                isExpired = false
+            )
+        }
+    }
+
+    /**
+     * Force refresh the stock cache with cooldown protection.
+     * @param bypassCooldown If true, bypasses cooldown check (for internal use).
+     * @return Result.failure with RefreshCooldownException if cooldown not elapsed.
+     */
+    suspend fun refreshCache(bypassCooldown: Boolean = false): Result<Int> {
+        Log.d(TAG, "refreshCache() started, bypassCooldown=$bypassCooldown")
+
+        // Check cooldown (unless bypassed for internal initialization)
+        if (!bypassCooldown) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastRefreshAttempt
+            if (elapsed < REFRESH_COOLDOWN_MS) {
+                val remainingSec = (REFRESH_COOLDOWN_MS - elapsed) / 1000
+                Log.d(TAG, "refreshCache() cooldown active, ${remainingSec}s remaining")
+                return Result.failure(
+                    RefreshCooldownException("잠시 후 다시 시도해주세요 (${remainingSec}초)")
+                )
+            }
+            lastRefreshAttempt = now
+        }
 
         // Check if PyClient is ready
         if (!pyClient.isReady()) {
@@ -169,6 +252,21 @@ class StockCacheManager @Inject constructor(
             lastUpdatedMs = lastUpdated,
             isExpired = System.currentTimeMillis() - lastUpdated > AppDb.STOCK_CACHE_TTL
         )
+    }
+
+    /**
+     * Check if refresh is available (cooldown elapsed).
+     */
+    fun isRefreshAvailable(): Boolean {
+        return System.currentTimeMillis() - lastRefreshAttempt >= REFRESH_COOLDOWN_MS
+    }
+
+    /**
+     * Get remaining cooldown time in seconds.
+     */
+    fun getRemainingCooldownSec(): Int {
+        val elapsed = System.currentTimeMillis() - lastRefreshAttempt
+        return maxOf(0, ((REFRESH_COOLDOWN_MS - elapsed) / 1000).toInt())
     }
 
     private fun parseStockList(jsonStr: String): List<StockEntity> {

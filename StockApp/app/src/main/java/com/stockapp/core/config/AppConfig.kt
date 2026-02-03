@@ -33,11 +33,19 @@ object AppConfig {
 
     // ========== UI Configuration (milliseconds) ==========
 
-    /** Debounce delay for search input */
-    const val SEARCH_DEBOUNCE_MS = 300L
+    /** Debounce delay for search input (increased from 300ms for API optimization) */
+    const val SEARCH_DEBOUNCE_MS = 500L
 
     /** Delay between retry attempts */
     const val RETRY_DELAY_MS = 500L
+
+    // ========== Search Configuration ==========
+
+    /** Minimum query length for full search (API or cache). Shorter queries use cache-only. */
+    const val MIN_SEARCH_QUERY_LENGTH = 2
+
+    /** Maximum number of search results to return */
+    const val MAX_SEARCH_RESULTS = 50
 
     // ========== Cache TTL Configuration (milliseconds) ==========
 

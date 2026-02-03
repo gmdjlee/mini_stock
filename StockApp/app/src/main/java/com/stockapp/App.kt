@@ -68,17 +68,17 @@ class App : Application(), Configuration.Provider {
                         if (initialized) {
                             Log.d(TAG, "PyClient initialized successfully")
 
-                            // 2. Initialize stock cache after PyClient is ready
-                            // Small delay to ensure PyClient is fully ready
-                            delay(500)
+                            // 2. Initialize stock cache lazily (non-blocking)
+                            // Uses stale cache if available to improve startup time
+                            delay(500) // Small delay to ensure PyClient is fully ready
 
-                            Log.d(TAG, "Initializing stock cache...")
+                            Log.d(TAG, "Initializing stock cache (lazy)...")
                             val cacheManager = entryPoint.stockCacheManager()
-                            val cacheResult = cacheManager.initializeIfNeeded()
+                            val cacheResult = cacheManager.initializeLazy()
 
                             cacheResult.fold(
-                                onSuccess = { count ->
-                                    Log.d(TAG, "Stock cache initialized with $count stocks")
+                                onSuccess = { stats ->
+                                    Log.d(TAG, "Stock cache ready: ${stats.count} stocks, stale=${stats.isExpired}")
                                 },
                                 onFailure = { e ->
                                     Log.w(TAG, "Stock cache initialization failed: ${e.message}")

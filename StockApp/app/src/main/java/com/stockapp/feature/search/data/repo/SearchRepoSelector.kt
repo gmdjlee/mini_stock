@@ -68,4 +68,8 @@ class SearchRepoSelector @Inject constructor(
     override suspend fun getCacheCount(): Int {
         return selectRepo().getCacheCount()
     }
+
+    override suspend fun searchCacheOnly(query: String): Result<List<Stock>> {
+        return selectRepo().searchCacheOnly(query)
+    }
 }
