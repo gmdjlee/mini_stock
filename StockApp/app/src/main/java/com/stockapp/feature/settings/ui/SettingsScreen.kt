@@ -20,9 +20,12 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,8 +37,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -103,8 +108,229 @@ fun SettingsScreen(
                 SettingsTab.DB_BACKUP -> {
                     DbBackupTab()
                 }
+                SettingsTab.ADVANCED -> {
+                    AdvancedSettingsTab(viewModel)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AdvancedSettingsTab(viewModel: SettingsVm) {
+    val featureFlagsState by viewModel.featureFlagsState.collectAsState()
+    val extendedColors = LocalExtendedColors.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Info card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Speed,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Kotlin Native 모드",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Python 대신 Kotlin으로 계산을 수행합니다. 더 빠르고 효율적입니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Feature flag toggles
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "기능별 설정",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                FeatureFlagToggle(
+                    title = "종목 검색",
+                    description = "Native Kotlin 검색 사용",
+                    checked = featureFlagsState.useNativeSearch,
+                    onCheckedChange = { viewModel.toggleNativeSearch(it) }
+                )
+
+                FeatureFlagToggle(
+                    title = "수급 분석",
+                    description = "Native Kotlin 수급 분석 사용",
+                    checked = featureFlagsState.useNativeAnalysis,
+                    onCheckedChange = { viewModel.toggleNativeAnalysis(it) }
+                )
+
+                FeatureFlagToggle(
+                    title = "기술 지표",
+                    description = "Native Kotlin 지표 계산 (Trend, Elder, DeMark)",
+                    checked = featureFlagsState.useNativeIndicator,
+                    onCheckedChange = { viewModel.toggleNativeIndicator(it) }
+                )
+
+                FeatureFlagToggle(
+                    title = "실시간 수급",
+                    description = "장중 실시간 투자자별 매매 데이터",
+                    checked = featureFlagsState.enableRealtimeSupply,
+                    onCheckedChange = { viewModel.toggleRealtimeSupply(it) }
+                )
+            }
+        }
+
+        // Quick action buttons
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "빠른 설정",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.enableAllNative() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = extendedColors.successContainer,
+                            contentColor = extendedColors.onSuccessContainer
+                        )
+                    ) {
+                        Text("전체 활성화")
+                    }
+
+                    Button(
+                        onClick = { viewModel.disableAllNative() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("전체 비활성화")
+                    }
+                }
+
+                TextButton(
+                    onClick = { viewModel.resetToDefaults() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("기본값으로 복원")
+                }
+            }
+        }
+
+        // Performance comparison info
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Kotlin Native 모드 장점",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "• APK 크기 감소 (~80MB → ~25MB)\n" +
+                        "• 앱 시작 속도 개선 (Python 초기화 제거)\n" +
+                        "• 더 빠른 계산 속도\n" +
+                        "• 디버깅 및 프로파일링 지원",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun FeatureFlagToggle(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
     }
 }
 
