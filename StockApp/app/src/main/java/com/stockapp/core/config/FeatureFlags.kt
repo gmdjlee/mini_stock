@@ -32,13 +32,14 @@ object FeatureFlags {
 
     /**
      * Default values for feature flags.
-     * Initially all native features are disabled (Python fallback).
+     * All native features are enabled by default (Phase 7 completion).
+     * Python fallback is available via Settings if needed.
      */
     val DEFAULTS = mapOf(
-        USE_NATIVE_SEARCH to false,
-        USE_NATIVE_ANALYSIS to false,
-        USE_NATIVE_INDICATOR to false,
-        ENABLE_REALTIME_SUPPLY to false
+        USE_NATIVE_SEARCH to true,
+        USE_NATIVE_ANALYSIS to true,
+        USE_NATIVE_INDICATOR to true,
+        ENABLE_REALTIME_SUPPLY to true
     )
 }
 
