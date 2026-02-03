@@ -166,6 +166,12 @@ Phase 3에서 OHLCV 조회 및 수급 분석 기능이 Kotlin으로 전환되었
 - `NativeAnalysisRepoImpl`: 투자자별 매매 데이터 조회, 5일 롤링 합계 계산, 수급 분석
 - 캐시 관리: 24시간 TTL, Room DB 캐싱
 
+**시가총액 계산 방식** (Python 참조 구현과 동일):
+- `StockApiModels.kt`: ka10001 API의 `flo_stk` (유통주식수, 천주 단위) 필드 사용
+- 일별 시가총액 = `유통주식수 × 종가(OHLCV close)`
+- OHLCV 데이터가 없을 경우 ka10059 API의 `mrkt_tot_amt` 또는 `mac` 필드로 폴백
+- 이 방식으로 시가총액이 주가 변동에 따라 변화하는 차트 표시 (수평선 방지)
+
 ### Phase 4 구현 내용
 
 Phase 4에서 3개의 기술 지표 계산 로직이 Kotlin으로 전환되었습니다:
@@ -1408,6 +1414,25 @@ sealed class RankingState {
 | 성장성비율 | FHKST66430800 | 매출액증가율, 순이익증가율 |
 
 **API 명세서**: `docs/KIS_FINANCIAL_API.md`
+
+#### 손익계산서 데이터 처리
+
+**단위 변환**:
+- KIS API 응답값: 억원 단위
+- 앱 표시 단위: 억원
+- 변환 없이 그대로 사용
+
+**분기 데이터 변환 (YTD → 분기별)**:
+- KIS API는 분기 누적(Year-to-Date) 데이터를 반환합니다:
+  - Q1 (3월): 1~3월 합계
+  - Q2 (6월): 1~6월 합계 (Q1+Q2)
+  - Q3 (9월): 1~9월 합계 (Q1+Q2+Q3)
+  - Q4 (12월): 연간 합계 (Full Year)
+- `convertYtdToQuarterly()` 함수로 분기별 독립 데이터로 변환:
+  - Q1 = Q1 YTD
+  - Q2 = Q2 YTD - Q1 YTD
+  - Q3 = Q3 YTD - Q2 YTD
+  - Q4 = Q4 YTD - Q3 YTD
 
 #### 탭 구조
 

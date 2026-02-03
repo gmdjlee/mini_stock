@@ -216,11 +216,82 @@ data class FinancialSummary(
 }
 
 /**
+ * Convert YTD (Year-to-Date) cumulative values to standalone quarterly values.
+ *
+ * KIS API returns cumulative values for quarterly data:
+ * - Q1 (3월): 1~3월 합계
+ * - Q2 (6월): 1~6월 합계 (Q1+Q2)
+ * - Q3 (9월): 1~9월 합계 (Q1+Q2+Q3)
+ * - Q4 (12월): 연간 합계 (Full Year)
+ *
+ * This function converts to standalone quarterly values:
+ * - Q1 = Q1 YTD
+ * - Q2 = Q2 YTD - Q1 YTD
+ * - Q3 = Q3 YTD - Q2 YTD
+ * - Q4 = Q4 YTD - Q3 YTD
+ *
+ * @param periods Sorted list of period strings (YYYYMM, oldest first)
+ * @param ytdValues Corresponding YTD values
+ * @return Standalone quarterly values
+ */
+private fun convertYtdToQuarterly(periods: List<String>, ytdValues: List<Long>): List<Long> {
+    if (periods.isEmpty()) return emptyList()
+
+    val result = mutableListOf<Long>()
+    // Track previous YTD value by year for each year
+    val prevYtdByYear = mutableMapOf<Int, Long>()
+
+    for (i in periods.indices) {
+        val period = FinancialPeriod.fromYearMonth(periods[i])
+        val ytdValue = ytdValues[i]
+        val year = period.year
+        val quarter = period.quarter
+
+        when (quarter) {
+            1 -> {
+                // Q1: YTD value is already standalone
+                result.add(ytdValue)
+                prevYtdByYear[year] = ytdValue
+            }
+            in 2..4 -> {
+                // Q2/Q3/Q4: Standalone = Current YTD - Previous quarter's YTD (same year)
+                val prevYtd = prevYtdByYear[year] ?: 0L
+                val standaloneValue = ytdValue - prevYtd
+                result.add(standaloneValue)
+                prevYtdByYear[year] = ytdValue
+            }
+            else -> {
+                // Annual data (quarter=0) or unknown: keep as-is
+                result.add(ytdValue)
+            }
+        }
+    }
+    return result
+}
+
+/**
  * Extension to convert FinancialData to FinancialSummary.
  */
 fun FinancialData.toSummary(): FinancialSummary {
     // Sort periods oldest to newest
     val sortedPeriods = periods.sorted()
+
+    // Extract raw YTD income statement data
+    // KIS API returns values in 억원 (100 million KRW), use as-is
+    val rawRevenues = sortedPeriods.map { period ->
+        incomeStatements[period]?.revenue ?: 0L
+    }
+    val rawOperatingProfits = sortedPeriods.map { period ->
+        incomeStatements[period]?.operatingProfit ?: 0L
+    }
+    val rawNetIncomes = sortedPeriods.map { period ->
+        incomeStatements[period]?.netIncome ?: 0L
+    }
+
+    // Convert YTD cumulative data to standalone quarterly values
+    val quarterlyRevenues = convertYtdToQuarterly(sortedPeriods, rawRevenues)
+    val quarterlyOperatingProfits = convertYtdToQuarterly(sortedPeriods, rawOperatingProfits)
+    val quarterlyNetIncomes = convertYtdToQuarterly(sortedPeriods, rawNetIncomes)
 
     return FinancialSummary(
         ticker = ticker,
@@ -228,17 +299,10 @@ fun FinancialData.toSummary(): FinancialSummary {
         periods = sortedPeriods,
         displayPeriods = sortedPeriods.map { FinancialPeriod.fromYearMonth(it).toDisplayString(short = true) },
 
-        // Income statement data (convert from 백만원 to 억원)
-        // KIS API returns values in millions of KRW, divide by 100 to get 억원
-        revenues = sortedPeriods.map { period ->
-            incomeStatements[period]?.revenue?.let { it / 100 } ?: 0L
-        },
-        operatingProfits = sortedPeriods.map { period ->
-            incomeStatements[period]?.operatingProfit?.let { it / 100 } ?: 0L
-        },
-        netIncomes = sortedPeriods.map { period ->
-            incomeStatements[period]?.netIncome?.let { it / 100 } ?: 0L
-        },
+        // Standalone quarterly income statement data (억원)
+        revenues = quarterlyRevenues,
+        operatingProfits = quarterlyOperatingProfits,
+        netIncomes = quarterlyNetIncomes,
 
         // Growth rates
         revenueGrowthRates = sortedPeriods.map { period ->

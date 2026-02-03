@@ -8,11 +8,13 @@ import com.stockapp.core.db.dao.AnalysisCacheDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
 import com.stockapp.core.stock.api.InvestorTrendRequest
 import com.stockapp.core.stock.api.InvestorTrendResponse
+import com.stockapp.core.stock.api.OhlcvData
 import com.stockapp.core.stock.api.StockApiEndpoints
 import com.stockapp.core.stock.api.StockApiIds
 import com.stockapp.core.stock.api.StockInfoRequest
 import com.stockapp.core.stock.api.StockInfoResponse
 import com.stockapp.core.stock.calc.MathUtil
+import com.stockapp.core.stock.data.OhlcvService
 import com.stockapp.feature.analysis.domain.model.StockData
 import com.stockapp.feature.analysis.domain.repo.AnalysisRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
@@ -40,6 +42,7 @@ class NativeAnalysisRepoImpl @Inject constructor(
     private val apiClient: KiwoomApiClient,
     private val settingsRepo: SettingsRepo,
     private val cacheDao: AnalysisCacheDao,
+    private val ohlcvService: OhlcvService,
     private val json: Json
 ) : AnalysisRepo {
 
@@ -97,8 +100,12 @@ class NativeAnalysisRepoImpl @Inject constructor(
                 return Result.failure(error)
             }
 
+            // Step 2.5: Fetch OHLCV data for daily market cap calculation
+            // This ensures market cap varies with stock price, avoiding flat lines
+            val ohlcvData = fetchOhlcv(ticker, days)
+
             // Step 3: Build StockData from responses
-            val stockData = buildStockData(ticker, stockInfo, investorTrend)
+            val stockData = buildStockData(ticker, stockInfo, investorTrend, ohlcvData)
 
             // Step 4: Cache the result
             cacheAnalysis(ticker, stockData)
@@ -161,10 +168,30 @@ class NativeAnalysisRepoImpl @Inject constructor(
             baseUrl = config.baseUrl
         ) { responseJson ->
             val response = json.decodeFromString<StockInfoResponse>(responseJson)
+            // flo_stk is in 천주 (thousands of shares), convert to actual shares
+            val floStk = response.floStk.toLongSafe()
+            val floatingShares = if (floStk > 0) floStk * 1000 else 0L
             StockInfo(
                 name = response.stkNm ?: ticker,
-                marketCap = response.mac.toLongSafe() // mac is in 억원, may have sign prefix
+                marketCap = response.mac.toLongSafe(), // mac is in 억원, may have sign prefix
+                floatingShares = floatingShares // actual number of shares
             )
+        }
+    }
+
+    /**
+     * Fetch OHLCV data for daily market cap calculation.
+     * Returns null if fetch fails (allows fallback to API market cap).
+     */
+    private suspend fun fetchOhlcv(
+        ticker: String,
+        days: Int
+    ): OhlcvData? {
+        return try {
+            ohlcvService.getOhlcv(ticker, days, OhlcvService.Period.DAILY).getOrNull()
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchOhlcv() failed for ticker=$ticker: ${e.message}")
+            null
         }
     }
 
@@ -232,12 +259,17 @@ class NativeAnalysisRepoImpl @Inject constructor(
      * Key calculations:
      * - for5d: 5-day rolling sum of foreign net buying
      * - ins5d: 5-day rolling sum of institution net buying
-     * - mcap: Market cap from investor trend (preferred) or stock info
+     * - mcap: Market cap calculated from OHLCV close prices × floating shares (Python parity)
+     *
+     * Market cap calculation (matching Python analysis.py):
+     * - Primary: shares × close_price[date] for each date
+     * - Fallback: API's mrkt_tot_amt or stock info's mac
      */
     private fun buildStockData(
         ticker: String,
         stockInfo: StockInfo,
-        investorTrend: List<InvestorTrendData>
+        investorTrend: List<InvestorTrendData>,
+        ohlcvData: OhlcvData?
     ): StockData {
         if (investorTrend.isEmpty()) {
             return StockData(
@@ -250,19 +282,36 @@ class NativeAnalysisRepoImpl @Inject constructor(
             )
         }
 
+        // Build date -> close price map from OHLCV data
+        // Normalize OHLCV dates to match investor trend format (YYYYMMDD)
+        val dateToClose: Map<String, Int> = ohlcvData?.let { ohlcv ->
+            ohlcv.dates.zip(ohlcv.closes).toMap()
+        } ?: emptyMap()
+
+        val shares = stockInfo.floatingShares
+
+        Log.d(TAG, "buildStockData() ticker=$ticker, shares=$shares, ohlcvDates=${dateToClose.size}")
+
         // Extract data from investor trend (newest-first order)
         val dates = investorTrend.map { it.date }
         val foreignNet = investorTrend.map { it.foreignNet }
         val institutionNet = investorTrend.map { it.institutionNet }
 
-        // Market cap: use from investor trend (in 백만원), convert to 원 for consistency
-        // Note: ka10059 returns marketCap in 백만원, so multiply by 1,000,000
-        val mcap = investorTrend.map { trendItem ->
-            if (trendItem.marketCap > 0) {
-                trendItem.marketCap * 1_000_000 // 백만원 → 원
+        // Calculate daily market cap from OHLCV close prices (matching Python logic)
+        // This ensures market cap varies with stock price, avoiding flat lines
+        val mcap = investorTrend.mapIndexed { idx, trendItem ->
+            val date = trendItem.date
+            val closePrice = dateToClose[date]
+
+            if (shares > 0 && closePrice != null && closePrice > 0) {
+                // Primary: shares × close_price (matching Python analysis.py line 134-135)
+                shares * closePrice.toLong()
+            } else if (trendItem.marketCap > 0) {
+                // Fallback 1: API's mrkt_tot_amt (in 백만원)
+                trendItem.marketCap * 1_000_000
             } else {
-                // Fallback to stock info mac (in 억원)
-                stockInfo.marketCap * 100_000_000 // 억원 → 원
+                // Fallback 2: stock info mac (in 억원)
+                stockInfo.marketCap * 100_000_000
             }
         }
 
@@ -271,7 +320,8 @@ class NativeAnalysisRepoImpl @Inject constructor(
         val ins5d = MathUtil.rollingSum(institutionNet, 5)
 
         Log.d(TAG, "buildStockData() ticker=$ticker, dates=${dates.size}, " +
-            "latestMcap=${mcap.firstOrNull()}, latestFor5d=${for5d.firstOrNull()}")
+            "latestMcap=${mcap.firstOrNull()}, latestFor5d=${for5d.firstOrNull()}, " +
+            "usedOhlcv=${shares > 0 && dateToClose.isNotEmpty()}")
 
         return StockData(
             ticker = ticker,
@@ -308,7 +358,8 @@ class NativeAnalysisRepoImpl @Inject constructor(
      */
     private data class StockInfo(
         val name: String,
-        val marketCap: Long // in 억원
+        val marketCap: Long, // in 억원
+        val floatingShares: Long = 0L // actual number of shares (converted from 천주)
     )
 
     /**

@@ -87,7 +87,8 @@ data class StockInfoResponse(
     @SerialName("return_msg") val returnMsg: String? = null,
     @SerialName("stk_nm") val stkNm: String? = null,    // 종목명
     @SerialName("cur_prc") val curPrc: String? = null,  // 현재가 (may have sign prefix)
-    @SerialName("mac") val mac: String? = null          // 시가총액 억원 (may have sign prefix)
+    @SerialName("mac") val mac: String? = null,         // 시가총액 억원 (may have sign prefix)
+    @SerialName("flo_stk") val floStk: String? = null   // 유통주식수 (천주 단위)
 )
 
 // ============================================================================
