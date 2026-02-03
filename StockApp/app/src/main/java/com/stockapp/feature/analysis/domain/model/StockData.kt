@@ -128,6 +128,14 @@ enum class SupplySignal {
 }
 
 /**
+ * Analysis screen tab types.
+ */
+enum class AnalysisTab(val label: String) {
+    SUPPLY_DEMAND("수급 분석"),
+    REALTIME("실시간 수급")
+}
+
+/**
  * Convert StockData to AnalysisSummary for UI.
  * Note: API returns for_5d/ins_5d in 백만원 (million KRW), convert to 억원 by dividing by 100.
  */

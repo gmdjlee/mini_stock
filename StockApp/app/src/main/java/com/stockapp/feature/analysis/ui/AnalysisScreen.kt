@@ -25,6 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -47,7 +49,9 @@ import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.core.ui.component.chart.MarketCapOscillatorChart
 import com.stockapp.core.ui.component.chart.SupplyDemandBarChart
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
+import com.stockapp.feature.analysis.domain.model.AnalysisTab
 import com.stockapp.feature.analysis.domain.model.SupplySignal
+import com.stockapp.feature.realtime.ui.RealtimeSupplyTab
 import java.text.DecimalFormat
 
 /**
@@ -71,19 +75,21 @@ fun AnalysisScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val selectedTab by viewModel.selectedTab.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     val title = when (val s = state) {
-                        is AnalysisState.Success -> "${s.summary.name} 수급 분석"
+                        is AnalysisState.Success -> s.summary.name
                         else -> "수급 분석"
                     }
                     Text(title)
                 },
                 actions = {
-                    if (state is AnalysisState.Success || state is AnalysisState.Error) {
+                    if (selectedTab == AnalysisTab.SUPPLY_DEMAND &&
+                        (state is AnalysisState.Success || state is AnalysisState.Error)) {
                         IconButton(
                             onClick = viewModel::refresh,
                             enabled = !isRefreshing
@@ -99,46 +105,78 @@ fun AnalysisScreen(
             )
         }
     ) { paddingValues ->
-        when (val currentState = state) {
-            is AnalysisState.NoStock -> {
-                NoStockContent(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                )
-            }
-
-            is AnalysisState.Loading -> {
-                LoadingContent(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                )
-            }
-
-            is AnalysisState.Success -> {
-                PullToRefreshBox(
-                    isRefreshing = isRefreshing,
-                    onRefresh = viewModel::refresh,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Tab Row - only show when stock is selected
+            if (state !is AnalysisState.NoStock) {
+                TabRow(
+                    selectedTabIndex = AnalysisTab.entries.indexOf(selectedTab),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    AnalysisContent(
-                        summary = currentState.summary,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    AnalysisTab.entries.forEach { tab ->
+                        Tab(
+                            selected = selectedTab == tab,
+                            onClick = { viewModel.selectTab(tab) },
+                            text = { Text(tab.label) }
+                        )
+                    }
                 }
             }
 
-            is AnalysisState.Error -> {
-                ErrorContent(
-                    message = currentState.msg,
-                    onRetry = viewModel::retry,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                )
+            // Content based on state and tab
+            when (val currentState = state) {
+                is AnalysisState.NoStock -> {
+                    NoStockContent(
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                is AnalysisState.Loading -> {
+                    if (selectedTab == AnalysisTab.SUPPLY_DEMAND) {
+                        LoadingContent(
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Realtime tab - show RealtimeSupplyTab
+                        RealtimeSupplyTab()
+                    }
+                }
+
+                is AnalysisState.Success -> {
+                    when (selectedTab) {
+                        AnalysisTab.SUPPLY_DEMAND -> {
+                            PullToRefreshBox(
+                                isRefreshing = isRefreshing,
+                                onRefresh = viewModel::refresh,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                AnalysisContent(
+                                    summary = currentState.summary,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                        AnalysisTab.REALTIME -> {
+                            RealtimeSupplyTab()
+                        }
+                    }
+                }
+
+                is AnalysisState.Error -> {
+                    if (selectedTab == AnalysisTab.SUPPLY_DEMAND) {
+                        ErrorContent(
+                            message = currentState.msg,
+                            onRetry = viewModel::retry,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Realtime tab - show RealtimeSupplyTab
+                        RealtimeSupplyTab()
+                    }
+                }
             }
         }
     }

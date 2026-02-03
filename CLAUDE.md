@@ -10,7 +10,7 @@
 |-----------|--------|------|
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
-| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 4 완료) |
+| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 5 완료) |
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
@@ -34,7 +34,7 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | Trend Signal | `indicator/trend.py` | `TrendCalculator` | ✅ 완료 |
 | Elder Impulse | `indicator/elder.py` | `ElderCalculator` | ✅ 완료 |
 | DeMark TD | `indicator/demark.py` | `DemarkCalculator` | ✅ 완료 |
-| **실시간 수급** (신규) | - | `RealtimeSupplyRepo` | 📋 계획됨 |
+| **실시간 수급** (신규) | - | `RealtimeSupplyRepo` | ✅ 완료 |
 
 ### 전환 이점
 
@@ -53,7 +53,7 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | Phase 2 | 2일 | 종목 검색 전환 | ✅ 완료 |
 | Phase 3 | 4일 | OHLCV, 수급 분석 전환 | ✅ 완료 |
 | Phase 4 | 6일 | 기술 지표 전환 | ✅ 완료 |
-| Phase 5 | 3일 | 실시간 수급 기능 (신규) | 📋 예정 |
+| Phase 5 | 3일 | 실시간 수급 기능 (신규) | ✅ 완료 |
 | Phase 6 | 3일 | 통합 테스트 | 📋 예정 |
 | Phase 7 | 1일 | 문서화, 정리 | 📋 예정 |
 
@@ -121,6 +121,34 @@ Phase 4에서 3개의 기술 지표 계산 로직이 Kotlin으로 전환되었�
 - `ElderCalculator`: EMA13, MACD(12,26,9), slope 기반 impulse color (green/red/blue)
 - `DemarkCalculator`: TD Setup 카운팅 (Sell: Close > Close[4], Buy: Close < Close[4])
 - 캐시 관리: 24시간 TTL, Room DB 캐싱
+
+### Phase 5 구현 내용
+
+Phase 5에서 실시간 수급 기능이 Kotlin으로 구현되었습니다:
+
+| 파일 | 설명 |
+|------|------|
+| `feature/realtime/domain/model/RealtimeModels.kt` | 실시간 수급 도메인 모델 |
+| `feature/realtime/domain/repo/RealtimeSupplyRepo.kt` | 저장소 인터페이스 |
+| `feature/realtime/domain/usecase/GetRealtimeSupplyUC.kt` | UseCase (조회, 새로고침) |
+| `feature/realtime/data/repo/NativeRealtimeSupplyRepoImpl.kt` | Kotlin Native 실시간 수급 구현 (ka10063) |
+| `feature/realtime/data/repo/RealtimeSupplyRepoSelector.kt` | Feature Flag 선택자 |
+| `feature/realtime/ui/RealtimeSupplyVm.kt` | ViewModel (자동 새로고침 지원) |
+| `feature/realtime/ui/RealtimeSupplyTab.kt` | UI 탭 컴포넌트 |
+| `feature/realtime/di/RealtimeSupplyModule.kt` | DI 모듈 |
+| `core/db/entity/RealtimeSupplyCacheEntity.kt` | Room DB Entity |
+| `core/db/dao/RealtimeSupplyCacheDao.kt` | Room DB DAO |
+
+**Feature Flag**: `ENABLE_REALTIME_SUPPLY` - 활성화 시 실시간 수급 기능 사용
+
+**주요 기능**:
+- `NativeRealtimeSupplyRepoImpl`: ka10063 API를 통한 장중 투자자별 매매 데이터 조회
+- `RealtimeSupplyTab`: Analysis 화면에 탭으로 통합 (수급 분석 / 실시간 수급)
+- 자동 새로고침: 장중(09:00-15:30) 1분 간격 자동 갱신 지원
+- 캐시 관리: 1분 TTL (실시간 데이터 특성상 짧은 캐시)
+- 거래시간 표시: 장중/장외 상태 표시
+
+**DB 업데이트**: v9 → v10 (realtime_supply_cache 테이블 추가)
 
 ---
 
@@ -650,7 +678,7 @@ StockApp/
 │   ├── App.kt                      # Hilt Application
 │   ├── MainActivity.kt             # Main Activity
 │   ├── core/
-│   │   ├── db/                     # Room Database (v9)
+│   │   ├── db/                     # Room Database (v10)
 │   │   │   ├── AppDb.kt
 │   │   │   ├── entity/*.kt         # 15개 Entity (Stock, Analysis, Search, Indicator, Scheduling, ETF 등)
 │   │   │   └── dao/*.kt            # 12개 DAO
@@ -1637,7 +1665,7 @@ feature/settings/
 
 ## Database Schema
 
-### Room Database (v9, 15 entities, 12 DAOs)
+### Room Database (v10, 16 entities, 13 DAOs)
 
 | Entity | 용도 | 주요 필드 |
 |--------|------|----------|
@@ -1655,6 +1683,7 @@ feature/settings/
 | `EtfKeywordEntity` | ETF 키워드 필터 | keyword, filterType, isEnabled |
 | `EtfCollectionHistoryEntity` | ETF 수집 이력 | collectedDate, totalEtfs, status |
 | `DailyEtfStatisticsEntity` | ETF 일별 통계 | date, newStockCount, cashDepositAmount |
+| `RealtimeSupplyCacheEntity` | 실시간 수급 캐시 | ticker, name, data (JSON), cachedAt |
 
 ### 캐시 정책
 
@@ -1665,6 +1694,7 @@ feature/settings/
 | 기술 지표 | 24시간 | 요청 시 갱신 |
 | 재무정보 | 24시간 | 요청 시 갱신 |
 | 검색 히스토리 | 무제한 | 최대 50개 유지 |
+| 실시간 수급 | 1분 | 장중 자동 갱신 |
 
 ---
 
@@ -1675,7 +1705,7 @@ feature/settings/
 | Kotlin | 2.1.0 | 앱 개발 언어 |
 | Jetpack Compose | BOM 2024.12.01 | UI 프레임워크 |
 | Hilt | 2.54 | 의존성 주입 |
-| Room | 2.8.3 | 로컬 데이터베이스 (v9, 15 entities, 12 DAOs) |
+| Room | 2.8.3 | 로컬 데이터베이스 (v10, 16 entities, 13 DAOs) |
 | WorkManager | 2.10.0 | 백그라운드 작업 (스케줄링, ETF 수집) |
 | MPAndroidChart | 3.1.0 | 차트 라이브러리 (모든 차트) |
 | Vico | 2.0.0-alpha.28 | 차트 라이브러리 (미사용, 제거 권장) |

@@ -14,6 +14,7 @@ import com.stockapp.core.db.dao.EtfKeywordDao
 import com.stockapp.core.db.dao.FinancialCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
+import com.stockapp.core.db.dao.RealtimeSupplyCacheDao
 import com.stockapp.core.db.dao.SchedulingConfigDao
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockAnalysisDataDao
@@ -162,7 +163,7 @@ object DbModule {
             AppDb::class.java,
             AppDb.DB_NAME
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, AppDb.MIGRATION_5_6, AppDb.MIGRATION_6_7, AppDb.MIGRATION_7_8, AppDb.MIGRATION_8_9)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, AppDb.MIGRATION_5_6, AppDb.MIGRATION_6_7, AppDb.MIGRATION_7_8, AppDb.MIGRATION_8_9, AppDb.MIGRATION_9_10)
             // Note: Removed destructive fallback to prevent silent data loss.
             // All future schema changes should have explicit migrations.
             // If migration fails, the app will crash with a clear error message,
@@ -214,4 +215,8 @@ object DbModule {
     // Financial data cache DAO
     @Provides
     fun provideFinancialCacheDao(db: AppDb): FinancialCacheDao = db.financialCacheDao()
+
+    // Realtime supply cache DAO (Kotlin Migration Phase 5)
+    @Provides
+    fun provideRealtimeSupplyCacheDao(db: AppDb): RealtimeSupplyCacheDao = db.realtimeSupplyCacheDao()
 }
