@@ -106,36 +106,3 @@ class AnalysisRepoImpl @Inject constructor(
         }
     }
 }
-
-/**
- * Cache serialization wrapper.
- */
-@kotlinx.serialization.Serializable
-private data class CachedStockData(
-    val ticker: String,
-    val name: String,
-    val dates: List<String>,
-    val mcap: List<Long>,
-    val for5d: List<Long>,
-    val ins5d: List<Long>
-) {
-    fun toDomain(): StockData = StockData(
-        ticker = ticker,
-        name = name,
-        dates = dates,
-        mcap = mcap,
-        for5d = for5d,
-        ins5d = ins5d
-    )
-
-    companion object {
-        fun fromDomain(data: StockData): CachedStockData = CachedStockData(
-            ticker = data.ticker,
-            name = data.name,
-            dates = data.dates,
-            mcap = data.mcap,
-            for5d = data.for5d,
-            ins5d = data.ins5d
-        )
-    }
-}

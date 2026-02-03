@@ -18,7 +18,6 @@ import com.stockapp.feature.analysis.domain.repo.AnalysisRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.flow.first
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
@@ -307,37 +306,4 @@ class NativeAnalysisRepoImpl @Inject constructor(
         val individualNet: Long,
         val marketCap: Long // in 백만원
     )
-}
-
-/**
- * Cache serialization wrapper (shared with AnalysisRepoImpl).
- */
-@Serializable
-private data class CachedStockData(
-    val ticker: String,
-    val name: String,
-    val dates: List<String>,
-    val mcap: List<Long>,
-    val for5d: List<Long>,
-    val ins5d: List<Long>
-) {
-    fun toDomain(): StockData = StockData(
-        ticker = ticker,
-        name = name,
-        dates = dates,
-        mcap = mcap,
-        for5d = for5d,
-        ins5d = ins5d
-    )
-
-    companion object {
-        fun fromDomain(data: StockData): CachedStockData = CachedStockData(
-            ticker = data.ticker,
-            name = data.name,
-            dates = data.dates,
-            mcap = data.mcap,
-            for5d = data.for5d,
-            ins5d = data.ins5d
-        )
-    }
 }
