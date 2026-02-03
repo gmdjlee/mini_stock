@@ -78,14 +78,16 @@ data class StockInfoRequest(
 
 /**
  * Stock basic info response.
+ * Note: curPrc and mac may contain sign prefixes like "+117500" from API,
+ * so they are typed as String and converted to Long in the repository layer.
  */
 @Serializable
 data class StockInfoResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
     @SerialName("stk_nm") val stkNm: String? = null,    // 종목명
-    @SerialName("cur_prc") val curPrc: Long? = null,    // 현재가
-    @SerialName("mac") val mac: Long? = null            // 시가총액 (억원)
+    @SerialName("cur_prc") val curPrc: String? = null,  // 현재가 (may have sign prefix)
+    @SerialName("mac") val mac: String? = null          // 시가총액 억원 (may have sign prefix)
 )
 
 // ============================================================================

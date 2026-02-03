@@ -486,17 +486,28 @@ class KiwoomApiClient @Inject constructor(
      *
      * This regex matches patterns like: ":+123" or ": +123" (with optional whitespace)
      * and replaces them with ":123" or ": 123"
+     *
+     * Also handles values inside quoted strings like "cur_prc":"+117500"
      */
     private fun normalizeJsonNumbers(json: String): String {
-        // Match colon, optional whitespace, plus sign, followed by digits
-        // Replace with colon, same whitespace, digits (removing the plus sign)
-        return json.replace(Regex("\":\\s*\\+(-?\\d)")) { match ->
-            val digit = match.groupValues[1]
-            "\":$digit"
-        }.replace(Regex(",\\s*\\+(-?\\d)")) { match ->
-            val digit = match.groupValues[1]
-            ",$digit"
+        // Pattern 1: Remove + sign from quoted string values like "cur_prc":"+117500"
+        // Match quote, plus sign, followed by digits, ending with quote
+        var result = json.replace(Regex("\"\\+(-?\\d+)\"")) { match ->
+            val digits = match.groupValues[1]
+            "\"$digits\""
         }
+
+        // Pattern 2: Remove + sign from unquoted numeric values like ":+123" or ": +123"
+        // Match colon, optional whitespace, plus sign, followed by one or more digits
+        result = result.replace(Regex("\":\\s*\\+(-?\\d+)")) { match ->
+            val digits = match.groupValues[1]
+            "\":$digits"
+        }.replace(Regex(",\\s*\\+(-?\\d+)")) { match ->
+            val digits = match.groupValues[1]
+            ",$digits"
+        }
+
+        return result
     }
 
     companion object {

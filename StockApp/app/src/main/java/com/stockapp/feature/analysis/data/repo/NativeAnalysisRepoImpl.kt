@@ -163,8 +163,23 @@ class NativeAnalysisRepoImpl @Inject constructor(
             val response = json.decodeFromString<StockInfoResponse>(responseJson)
             StockInfo(
                 name = response.stkNm ?: ticker,
-                marketCap = response.mac ?: 0L // mac is in 억원
+                marketCap = response.mac.toLongSafe() // mac is in 억원, may have sign prefix
             )
+        }
+    }
+
+    /**
+     * Safely convert a string value to Long.
+     * Handles sign prefixes like "+117500" from Kiwoom API.
+     * Similar to Python's _to_int() helper.
+     */
+    private fun String?.toLongSafe(): Long {
+        if (this.isNullOrBlank()) return 0L
+        return try {
+            // Remove any leading + sign and parse
+            this.removePrefix("+").toLong()
+        } catch (_: NumberFormatException) {
+            0L
         }
     }
 
