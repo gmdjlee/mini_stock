@@ -10,7 +10,7 @@
 |-----------|--------|------|
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
-| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 1 완료) |
+| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 3 완료) |
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
@@ -28,9 +28,9 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 
 | 기능 | 현재 (Python) | 전환 후 (Kotlin) | 상태 |
 |------|---------------|------------------|------|
-| 종목 검색 | `stock/search.py` | `NativeSearchRepo` | 📋 계획됨 |
-| 수급 분석 | `stock/analysis.py` | `NativeAnalysisRepo` | 📋 계획됨 |
-| OHLCV 조회 | `stock/ohlcv.py` | `OhlcvService` | 📋 계획됨 |
+| 종목 검색 | `stock/search.py` | `NativeSearchRepo` | ✅ 완료 |
+| 수급 분석 | `stock/analysis.py` | `NativeAnalysisRepo` | ✅ 완료 |
+| OHLCV 조회 | `stock/ohlcv.py` | `OhlcvService` | ✅ 완료 |
 | Trend Signal | `indicator/trend.py` | `TrendCalculator` | 📋 계획됨 |
 | Elder Impulse | `indicator/elder.py` | `ElderCalculator` | 📋 계획됨 |
 | DeMark TD | `indicator/demark.py` | `DemarkCalculator` | 📋 계획됨 |
@@ -51,7 +51,7 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 |-------|------|------|------|
 | Phase 1 | 2일 | 핵심 인프라 (MathUtil, FeatureFlags) | ✅ 완료 |
 | Phase 2 | 2일 | 종목 검색 전환 | ✅ 완료 |
-| Phase 3 | 4일 | OHLCV, 수급 분석 전환 | 📋 예정 |
+| Phase 3 | 4일 | OHLCV, 수급 분석 전환 | ✅ 완료 |
 | Phase 4 | 6일 | 기술 지표 전환 | 📋 예정 |
 | Phase 5 | 3일 | 실시간 수급 기능 (신규) | 📋 예정 |
 | Phase 6 | 3일 | 통합 테스트 | 📋 예정 |
@@ -82,6 +82,24 @@ Phase 2에서 종목 검색 기능이 Kotlin으로 전환되었습니다:
 | `feature/search/di/SearchModule.kt` | DI 모듈 업데이트 |
 
 **Feature Flag**: `USE_NATIVE_SEARCH` - 활성화 시 Kotlin 구현 사용
+
+### Phase 3 구현 내용
+
+Phase 3에서 OHLCV 조회 및 수급 분석 기능이 Kotlin으로 전환되었습니다:
+
+| 파일 | 설명 |
+|------|------|
+| `core/stock/data/OhlcvService.kt` | OHLCV 데이터 조회 (ka10081/82/83) |
+| `feature/analysis/data/repo/NativeAnalysisRepoImpl.kt` | Kotlin Native 수급 분석 구현 (ka10059, ka10001) |
+| `feature/analysis/data/repo/AnalysisRepoSelector.kt` | Python/Kotlin 구현 선택자 |
+| `feature/analysis/di/AnalysisModule.kt` | DI 모듈 업데이트 |
+
+**Feature Flag**: `USE_NATIVE_ANALYSIS` - 활성화 시 Kotlin 구현 사용
+
+**주요 기능**:
+- `OhlcvService`: 일봉/주봉/월봉 OHLCV 데이터 조회 및 리샘플링
+- `NativeAnalysisRepoImpl`: 투자자별 매매 데이터 조회, 5일 롤링 합계 계산, 수급 분석
+- 캐시 관리: 24시간 TTL, Room DB 캐싱
 
 ---
 
