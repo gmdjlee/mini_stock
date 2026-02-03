@@ -82,7 +82,7 @@ data class StockInfoResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
     @SerialName("stk_nm") val stkNm: String? = null,    // 종목명
-    @SerialName("cur_prc") val curPrc: Long? = null,    // 현재가
+    @SerialName("cur_prc") val curPrc: String? = null,  // 현재가 (API returns string with sign prefix like "+307500")
     @SerialName("mac") val mac: Long? = null            // 시가총액 (억원)
 )
 
