@@ -29,6 +29,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.github.mikephil.charting.formatter.ValueFormatter
 import com.stockapp.core.ui.component.chart.GrowthRateMarkerView
 import com.stockapp.core.ui.component.chart.IncomeBarMarkerView
 import com.stockapp.core.ui.component.chart.setupCommonChartProperties
@@ -251,10 +252,15 @@ private fun IncomeBarChart(
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
-                    granularity = 1f
+                    granularity = groupWidth
                     textColor = chartTextColor
-                    valueFormatter = IndexAxisValueFormatter(periods)
-                    // Center labels under bar groups for proper alignment
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            // Reverse groupBars() X coordinate transformation
+                            val index = (value / groupWidth).toInt()
+                            return periods.getOrNull(index).orEmpty()
+                        }
+                    }
                     setCenterAxisLabels(true)
                 }
 

@@ -1,6 +1,9 @@
 package com.stockapp.feature.financial.domain.model
 
+import android.util.Log
 import kotlinx.serialization.Serializable
+
+private const val TAG = "FinancialModels"
 
 /**
  * Tab type for Financial Info screen.
@@ -230,6 +233,12 @@ data class FinancialSummary(
  * - Q3 = Q3 YTD - Q2 YTD
  * - Q4 = Q4 YTD - Q3 YTD
  *
+ * IMPORTANT: Periods must be sorted (oldest first) before calling this function.
+ * If a quarter is missing (e.g., Q2 exists but Q1 doesn't), the YTD value will be
+ * used as-is with a warning logged. This may result in incorrect standalone values
+ * for that quarter, but subsequent quarters will be calculated correctly relative
+ * to the available data.
+ *
  * @param periods Sorted list of period strings (YYYYMM, oldest first)
  * @param ytdValues Corresponding YTD values
  * @return Standalone quarterly values
@@ -238,32 +247,32 @@ private fun convertYtdToQuarterly(periods: List<String>, ytdValues: List<Long>):
     if (periods.isEmpty()) return emptyList()
 
     val result = mutableListOf<Long>()
-    // Track previous YTD value by year for each year
-    val prevYtdByYear = mutableMapOf<Int, Long>()
+    // Key: year, Value: (lastQuarter, lastYtdValue)
+    val prevYtdByYear = mutableMapOf<Int, Pair<Int, Long>>()
 
-    for (i in periods.indices) {
+    periods.indices.forEach { i ->
         val period = FinancialPeriod.fromYearMonth(periods[i])
         val ytdValue = ytdValues[i]
         val year = period.year
         val quarter = period.quarter
 
-        when (quarter) {
-            1 -> {
-                // Q1: YTD value is already standalone
-                result.add(ytdValue)
-                prevYtdByYear[year] = ytdValue
+        val standaloneValue = when (quarter) {
+            1 -> ytdValue
+            in 2..4 -> prevYtdByYear[year]?.let { (prevQuarter, prevYtd) ->
+                if (quarter - prevQuarter > 1) {
+                    Log.w(TAG, "Non-consecutive quarters: Q$prevQuarter -> Q$quarter for year $year")
+                }
+                ytdValue - prevYtd
+            } ?: run {
+                Log.w(TAG, "Missing previous quarter for ${periods[i]} (Q$quarter). Using YTD value.")
+                ytdValue
             }
-            in 2..4 -> {
-                // Q2/Q3/Q4: Standalone = Current YTD - Previous quarter's YTD (same year)
-                val prevYtd = prevYtdByYear[year] ?: 0L
-                val standaloneValue = ytdValue - prevYtd
-                result.add(standaloneValue)
-                prevYtdByYear[year] = ytdValue
-            }
-            else -> {
-                // Annual data (quarter=0) or unknown: keep as-is
-                result.add(ytdValue)
-            }
+            else -> ytdValue  // Annual data (quarter=0) or unknown
+        }
+
+        result.add(standaloneValue)
+        if (quarter in 1..4) {
+            prevYtdByYear[year] = quarter to ytdValue
         }
     }
     return result
