@@ -276,16 +276,16 @@ fun FinancialData.toSummary(): FinancialSummary {
     // Sort periods oldest to newest
     val sortedPeriods = periods.sorted()
 
-    // Extract raw YTD income statement data (convert from 천만원 to 억원)
-    // KIS API returns values in 10 million KRW (천만원), divide by 10 to get 억원
+    // Extract raw YTD income statement data
+    // KIS API returns values in 억원 (100 million KRW), use as-is
     val rawRevenues = sortedPeriods.map { period ->
-        incomeStatements[period]?.revenue?.let { it / 10 } ?: 0L
+        incomeStatements[period]?.revenue ?: 0L
     }
     val rawOperatingProfits = sortedPeriods.map { period ->
-        incomeStatements[period]?.operatingProfit?.let { it / 10 } ?: 0L
+        incomeStatements[period]?.operatingProfit ?: 0L
     }
     val rawNetIncomes = sortedPeriods.map { period ->
-        incomeStatements[period]?.netIncome?.let { it / 10 } ?: 0L
+        incomeStatements[period]?.netIncome ?: 0L
     }
 
     // Convert YTD cumulative data to standalone quarterly values
