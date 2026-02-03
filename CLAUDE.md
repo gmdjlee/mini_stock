@@ -10,7 +10,7 @@
 |-----------|--------|------|
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
-| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 3 완료) |
+| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 4 완료) |
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
@@ -31,9 +31,9 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | 종목 검색 | `stock/search.py` | `NativeSearchRepo` | ✅ 완료 |
 | 수급 분석 | `stock/analysis.py` | `NativeAnalysisRepo` | ✅ 완료 |
 | OHLCV 조회 | `stock/ohlcv.py` | `OhlcvService` | ✅ 완료 |
-| Trend Signal | `indicator/trend.py` | `TrendCalculator` | 📋 계획됨 |
-| Elder Impulse | `indicator/elder.py` | `ElderCalculator` | 📋 계획됨 |
-| DeMark TD | `indicator/demark.py` | `DemarkCalculator` | 📋 계획됨 |
+| Trend Signal | `indicator/trend.py` | `TrendCalculator` | ✅ 완료 |
+| Elder Impulse | `indicator/elder.py` | `ElderCalculator` | ✅ 완료 |
+| DeMark TD | `indicator/demark.py` | `DemarkCalculator` | ✅ 완료 |
 | **실시간 수급** (신규) | - | `RealtimeSupplyRepo` | 📋 계획됨 |
 
 ### 전환 이점
@@ -52,7 +52,7 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | Phase 1 | 2일 | 핵심 인프라 (MathUtil, FeatureFlags) | ✅ 완료 |
 | Phase 2 | 2일 | 종목 검색 전환 | ✅ 완료 |
 | Phase 3 | 4일 | OHLCV, 수급 분석 전환 | ✅ 완료 |
-| Phase 4 | 6일 | 기술 지표 전환 | 📋 예정 |
+| Phase 4 | 6일 | 기술 지표 전환 | ✅ 완료 |
 | Phase 5 | 3일 | 실시간 수급 기능 (신규) | 📋 예정 |
 | Phase 6 | 3일 | 통합 테스트 | 📋 예정 |
 | Phase 7 | 1일 | 문서화, 정리 | 📋 예정 |
@@ -99,6 +99,27 @@ Phase 3에서 OHLCV 조회 및 수급 분석 기능이 Kotlin으로 전환되었
 **주요 기능**:
 - `OhlcvService`: 일봉/주봉/월봉 OHLCV 데이터 조회 및 리샘플링
 - `NativeAnalysisRepoImpl`: 투자자별 매매 데이터 조회, 5일 롤링 합계 계산, 수급 분석
+- 캐시 관리: 24시간 TTL, Room DB 캐싱
+
+### Phase 4 구현 내용
+
+Phase 4에서 3개의 기술 지표 계산 로직이 Kotlin으로 전환되었습니다:
+
+| 파일 | 설명 |
+|------|------|
+| `core/stock/calc/TrendCalculator.kt` | Trend Signal 계산 (MA, CMF, Fear/Greed) |
+| `core/stock/calc/ElderCalculator.kt` | Elder Impulse 계산 (EMA13, MACD, color) |
+| `core/stock/calc/DemarkCalculator.kt` | DeMark TD Setup 계산 (4일 전 비교) |
+| `feature/indicator/data/repo/NativeIndicatorRepoImpl.kt` | Kotlin Native 지표 저장소 |
+| `feature/indicator/data/repo/IndicatorRepoSelector.kt` | Python/Kotlin 구현 선택자 |
+| `feature/indicator/di/IndicatorModule.kt` | DI 모듈 업데이트 |
+
+**Feature Flag**: `USE_NATIVE_INDICATOR` - 활성화 시 Kotlin 구현 사용
+
+**주요 기능**:
+- `TrendCalculator`: MA Signal (daily: MA5>MA20>MA60, weekly: 3-condition), CMF, Fear/Greed Index
+- `ElderCalculator`: EMA13, MACD(12,26,9), slope 기반 impulse color (green/red/blue)
+- `DemarkCalculator`: TD Setup 카운팅 (Sell: Close > Close[4], Buy: Close < Close[4])
 - 캐시 관리: 24시간 TTL, Room DB 캐싱
 
 ---
