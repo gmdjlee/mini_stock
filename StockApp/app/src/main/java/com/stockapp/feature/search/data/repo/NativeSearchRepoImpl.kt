@@ -23,6 +23,10 @@ import javax.inject.Singleton
 
 private const val TAG = "NativeSearchRepoImpl"
 
+// Default markets to include (KOSPI and KOSDAQ only, same as Python implementation)
+// This filters out ETN, ETF, and other derivative products
+private val DEFAULT_MARKETS = setOf("KOSPI", "KOSDAQ")
+
 /**
  * Native Kotlin implementation of SearchRepo.
  * Uses KiwoomApiClient directly instead of Python/Chaquopy.
@@ -71,8 +75,11 @@ class NativeSearchRepoImpl @Inject constructor(
             val allStocks = stockDao.getAllOnce()
             val queryLower = query.lowercase()
             val filtered = allStocks.filter { stock ->
-                stock.name.lowercase().contains(queryLower) ||
-                    stock.ticker.lowercase().contains(queryLower)
+                // Filter by market (KOSPI/KOSDAQ only)
+                stock.market in DEFAULT_MARKETS &&
+                // Filter by query
+                (stock.name.lowercase().contains(queryLower) ||
+                    stock.ticker.lowercase().contains(queryLower))
             }.take(50) // Limit results
 
             Log.d(TAG, "search() filtered results: ${filtered.size}")
@@ -175,6 +182,7 @@ class NativeSearchRepoImpl @Inject constructor(
 
     /**
      * Parse stock list response and filter by query.
+     * Also filters by market (KOSPI/KOSDAQ only) to exclude ETN, ETF, etc.
      */
     private fun parseStockListResponse(jsonStr: String, query: String): List<Stock> {
         Log.d(TAG, "parseStockListResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
@@ -188,12 +196,20 @@ class NativeSearchRepoImpl @Inject constructor(
         val stocks = response.stkList?.mapNotNull { item ->
             val ticker = item.stkCd ?: return@mapNotNull null
             val name = item.stkNm ?: return@mapNotNull null
-            val market = item.mrktNm ?: "OTHER"
+            val marketRaw = item.mrktNm ?: "OTHER"
+
+            // Convert market name to standardized format (same logic as Python)
+            val market = normalizeMarketName(marketRaw)
+
+            // Filter by market (KOSPI/KOSDAQ only, exclude ETN, ETF, etc.)
+            if (market.name !in DEFAULT_MARKETS) {
+                return@mapNotNull null
+            }
 
             Stock(
                 ticker = ticker,
                 name = name,
-                market = Market.fromString(market)
+                market = market
             )
         } ?: emptyList()
 
@@ -210,7 +226,24 @@ class NativeSearchRepoImpl @Inject constructor(
     }
 
     /**
-     * Parse all stocks response without filtering.
+     * Normalize market name to standardized format.
+     * Matches Python's _get_market_name() function.
+     */
+    private fun normalizeMarketName(marketName: String): Market {
+        if (marketName.isEmpty()) return Market.OTHER
+
+        val nameUpper = marketName.uppercase()
+        return when {
+            // '거래소' = KOSPI (유가증권시장)
+            marketName.contains("거래소") || marketName.contains("코스피") ||
+                nameUpper.contains("KOSPI") -> Market.KOSPI
+            marketName.contains("코스닥") || nameUpper.contains("KOSDAQ") -> Market.KOSDAQ
+            else -> Market.OTHER
+        }
+    }
+
+    /**
+     * Parse all stocks response with market filtering (KOSPI/KOSDAQ only).
      */
     private fun parseAllStocksResponse(jsonStr: String): List<Stock> {
         Log.d(TAG, "parseAllStocksResponse()")
@@ -224,16 +257,24 @@ class NativeSearchRepoImpl @Inject constructor(
         val stocks = response.stkList?.mapNotNull { item ->
             val ticker = item.stkCd ?: return@mapNotNull null
             val name = item.stkNm ?: return@mapNotNull null
-            val market = item.mrktNm ?: "OTHER"
+            val marketRaw = item.mrktNm ?: "OTHER"
+
+            // Convert market name to standardized format
+            val market = normalizeMarketName(marketRaw)
+
+            // Filter by market (KOSPI/KOSDAQ only, exclude ETN, ETF, etc.)
+            if (market.name !in DEFAULT_MARKETS) {
+                return@mapNotNull null
+            }
 
             Stock(
                 ticker = ticker,
                 name = name,
-                market = Market.fromString(market)
+                market = market
             )
         } ?: emptyList()
 
-        Log.d(TAG, "parseAllStocksResponse() parsed ${stocks.size} stocks")
+        Log.d(TAG, "parseAllStocksResponse() parsed ${stocks.size} stocks (filtered to KOSPI/KOSDAQ)")
 
         return stocks
     }

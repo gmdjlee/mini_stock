@@ -170,22 +170,25 @@ class NativeAnalysisRepoImpl @Inject constructor(
 
     /**
      * Fetch investor trend data using ka10059 API.
+     *
+     * Note: The ka10059 API requires a single date (dt) parameter and returns
+     * historical data in the response. This matches the Python implementation.
      */
     private suspend fun fetchInvestorTrend(
         ticker: String,
         days: Int,
         config: ApiConfig
     ): Result<List<InvestorTrendData>> {
-        // Calculate date range
-        val endDate = LocalDate.now()
-        val startDate = endDate.minusDays(days.toLong())
+        // Use today's date as the base date (API returns historical data in response)
+        val today = LocalDate.now()
         val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
         val request = InvestorTrendRequest(
             stkCd = ticker,
-            inqrStrtDt = startDate.format(dateFormatter),
-            inqrEndDt = endDate.format(dateFormatter)
+            dt = today.format(dateFormatter)
         )
+
+        Log.d(TAG, "fetchInvestorTrend() ticker=$ticker, dt=${request.dt}")
 
         return apiClient.call(
             apiId = StockApiIds.INVESTOR_TREND,
@@ -195,9 +198,11 @@ class NativeAnalysisRepoImpl @Inject constructor(
             secretKey = config.secretKey,
             baseUrl = config.baseUrl
         ) { responseJson ->
+            Log.d(TAG, "fetchInvestorTrend() response (first 500): ${responseJson.take(500)}")
             val response = json.decodeFromString<InvestorTrendResponse>(responseJson)
 
-            response.data?.mapNotNull { item ->
+            // API returns list sorted by date (newest first), take only required days
+            val allData = response.data?.mapNotNull { item ->
                 if (item.date == null) return@mapNotNull null
 
                 InvestorTrendData(
@@ -208,6 +213,9 @@ class NativeAnalysisRepoImpl @Inject constructor(
                     marketCap = item.marketCap ?: 0L // marketCap is in 백만원
                 )
             }?.sortedByDescending { it.date } ?: emptyList()
+
+            // Take only the required number of days
+            allData.take(days)
         }
     }
 
