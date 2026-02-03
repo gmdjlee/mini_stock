@@ -36,7 +36,27 @@ android {
             "\"https://api.kiwoom.com\"")
     }
 
+    // Product flavors for side-by-side installation
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("standard") {
+            dimension = "distribution"
+            // Default - no suffix, uses com.stockapp
+        }
+        create("github") {
+            dimension = "distribution"
+            applicationIdSuffix = ".github"
+            versionNameSuffix = "-github"
+            // Allows side-by-side installation with release version
+            // Package name: com.stockapp.github
+        }
+    }
+
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(

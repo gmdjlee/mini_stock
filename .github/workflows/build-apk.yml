@@ -11,11 +11,30 @@ on:
         options:
           - debug
           - release
+      flavor:
+        description: 'Product Flavor'
+        required: true
+        default: 'github'
+        type: choice
+        options:
+          - github
+          - standard
+
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'StockApp/**'
+      - '.github/workflows/build-apk.yml'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    defaults:
+      run:
+        working-directory: StockApp
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,12 +49,88 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
 
+      - name: Set build variables
+        id: vars
+        run: |
+          # Determine flavor and build type
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FLAVOR="${{ github.event.inputs.flavor }}"
+            BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          else
+            # Default for push events: github flavor, debug build
+            FLAVOR="github"
+            BUILD_TYPE="debug"
+          fi
+
+          # Capitalize first letter for Gradle task
+          FLAVOR_CAP="$(echo ${FLAVOR:0:1} | tr '[:lower:]' '[:upper:]')${FLAVOR:1}"
+          BUILD_TYPE_CAP="$(echo ${BUILD_TYPE:0:1} | tr '[:lower:]' '[:upper:]')${BUILD_TYPE:1}"
+
+          # Generate version info
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BUILD_DATE="$(date +'%Y%m%d')"
+          RUN_NUMBER="${{ github.run_number }}"
+
+          echo "flavor=${FLAVOR}" >> $GITHUB_OUTPUT
+          echo "build_type=${BUILD_TYPE}" >> $GITHUB_OUTPUT
+          echo "flavor_cap=${FLAVOR_CAP}" >> $GITHUB_OUTPUT
+          echo "build_type_cap=${BUILD_TYPE_CAP}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "run_number=${RUN_NUMBER}" >> $GITHUB_OUTPUT
+          echo "variant=${FLAVOR}${BUILD_TYPE_CAP}" >> $GITHUB_OUTPUT
+          echo "artifact_name=stockapp-${FLAVOR}-${BUILD_TYPE}-${BUILD_DATE}-${RUN_NUMBER}" >> $GITHUB_OUTPUT
+
       - name: Build APK
-        run: ./gradlew assemble${{ github.event.inputs.build_type == 'release' && 'Release' || 'Debug' }}
+        run: |
+          ./gradlew assemble${{ steps.vars.outputs.flavor_cap }}${{ steps.vars.outputs.build_type_cap }} \
+            -PversionCode=${{ github.run_number }} \
+            -PversionNameSuffix=".b${{ steps.vars.outputs.run_number }}"
+
+      - name: Rename APK with version info
+        run: |
+          APK_PATH="app/build/outputs/apk/${{ steps.vars.outputs.flavor }}/${{ steps.vars.outputs.build_type }}"
+          APK_FILE=$(find ${APK_PATH} -name "*.apk" | head -1)
+          if [ -n "$APK_FILE" ]; then
+            NEW_NAME="${{ steps.vars.outputs.artifact_name }}-${{ steps.vars.outputs.short_sha }}.apk"
+            cp "$APK_FILE" "${APK_PATH}/${NEW_NAME}"
+            echo "APK renamed to: ${NEW_NAME}"
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-${{ github.event.inputs.build_type }}
-          path: app/build/outputs/apk/**/*.apk
-          retention-days: 7
+          name: ${{ steps.vars.outputs.artifact_name }}
+          path: StockApp/app/build/outputs/apk/${{ steps.vars.outputs.flavor }}/${{ steps.vars.outputs.build_type }}/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Build Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Flavor | ${{ steps.vars.outputs.flavor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Type | ${{ steps.vars.outputs.build_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Variant | ${{ steps.vars.outputs.variant }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Number | ${{ steps.vars.outputs.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ steps.vars.outputs.short_sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Date | ${{ steps.vars.outputs.build_date }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Package Names" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.vars.outputs.flavor }}" = "github" ]; then
+            if [ "${{ steps.vars.outputs.build_type }}" = "debug" ]; then
+              echo "- **Package**: \`com.stockapp.github.debug\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Package**: \`com.stockapp.github\`" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "- **Side-by-side**: Can be installed alongside release version (\`com.stockapp\`)" >> $GITHUB_STEP_SUMMARY
+          else
+            if [ "${{ steps.vars.outputs.build_type }}" = "debug" ]; then
+              echo "- **Package**: \`com.stockapp.debug\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Package**: \`com.stockapp\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
