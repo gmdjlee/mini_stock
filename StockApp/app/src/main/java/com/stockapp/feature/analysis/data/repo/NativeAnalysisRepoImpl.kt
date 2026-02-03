@@ -163,10 +163,17 @@ class NativeAnalysisRepoImpl @Inject constructor(
             val response = json.decodeFromString<StockInfoResponse>(responseJson)
             StockInfo(
                 name = response.stkNm ?: ticker,
-                marketCap = response.mac ?: 0L // mac is in 억원
+                marketCap = response.mac.toLongSafe() // mac is in 억원, may have sign prefix
             )
         }
     }
+
+    /**
+     * Safely convert a string value to Long.
+     * Handles sign prefixes like "+117500" from Kiwoom API.
+     */
+    private fun String?.toLongSafe(): Long =
+        this?.removePrefix("+")?.toLongOrNull() ?: 0L
 
     /**
      * Fetch investor trend data using ka10059 API.

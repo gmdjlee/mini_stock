@@ -481,22 +481,17 @@ class KiwoomApiClient @Inject constructor(
     }
 
     /**
-     * Normalize JSON numbers by removing leading '+' signs from numeric values.
+     * Normalize JSON by removing leading '+' signs from numeric values.
      * Kiwoom API sometimes returns numbers like "+12345" which is invalid JSON.
-     *
-     * This regex matches patterns like: ":+123" or ": +123" (with optional whitespace)
-     * and replaces them with ":123" or ": 123"
      */
     private fun normalizeJsonNumbers(json: String): String {
-        // Match colon, optional whitespace, plus sign, followed by digits
-        // Replace with colon, same whitespace, digits (removing the plus sign)
-        return json.replace(Regex("\":\\s*\\+(-?\\d)")) { match ->
-            val digit = match.groupValues[1]
-            "\":$digit"
-        }.replace(Regex(",\\s*\\+(-?\\d)")) { match ->
-            val digit = match.groupValues[1]
-            ",$digit"
-        }
+        // Remove + from quoted values: "+117500" -> "117500"
+        var result = json.replace(Regex("\"\\+(\\d+)\"")) { "\"${it.groupValues[1]}\"" }
+
+        // Remove + from unquoted values after : or , (e.g., ":+123" -> ":123")
+        result = result.replace(Regex("([,:])\\s*\\+(\\d+)")) { "${it.groupValues[1]}${it.groupValues[2]}" }
+
+        return result
     }
 
     companion object {
