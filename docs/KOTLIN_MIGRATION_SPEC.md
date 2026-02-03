@@ -789,7 +789,7 @@ Phase 7: Documentation & Cleanup
 - [x] **Phase 3**: 수급 분석 결과 Python과 동일 (2026-02-03 완료)
 - [x] **Phase 4**: 3개 지표 모두 Python과 동일 (2026-02-03 완료)
 - [x] **Phase 5**: 실시간 수급 UI 정상 동작 (2026-02-03 완료)
-- [ ] **Phase 6**: 전체 통합 테스트 통과
+- [x] **Phase 6**: 전체 통합 테스트 통과 (2026-02-03 완료)
 - [ ] **Phase 7**: 문서 업데이트 완료
 
 ---
@@ -804,3 +804,4 @@ Phase 7: Documentation & Cleanup
 | 1.3 | 2026-02-03 | Phase 3 완료 - OhlcvService, NativeAnalysisRepoImpl, AnalysisRepoSelector 구현 |
 | 1.4 | 2026-02-03 | Phase 4 완료 - TrendCalculator, ElderCalculator, DemarkCalculator, NativeIndicatorRepoImpl, IndicatorRepoSelector 구현 |
 | 1.5 | 2026-02-03 | Phase 5 완료 - RealtimeSupplyRepo, NativeRealtimeSupplyRepoImpl, RealtimeSupplyTab, DB v10 마이그레이션 구현 |
+| 1.6 | 2026-02-03 | Phase 6 완료 - 통합 테스트: TrendCalculatorTest (21개), ElderCalculatorTest (23개), DemarkCalculatorTest (22개), AnalysisRepoSelectorTest (12개), IndicatorRepoSelectorTest (17개) 추가 (총 205개 테스트) |
