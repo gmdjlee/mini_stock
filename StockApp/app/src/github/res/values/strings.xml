@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- GitHub flavor specific app name for side-by-side installation distinction -->
+    <string name="app_name">StockApp (GitHub)</string>
+</resources>
