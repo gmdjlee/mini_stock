@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
+import com.stockapp.feature.analysis.domain.model.AnalysisTab
 import com.stockapp.feature.analysis.domain.usecase.GetAnalysisSummaryUC
 import com.stockapp.feature.analysis.domain.usecase.RefreshAnalysisUC
 import com.stockapp.feature.analysis.domain.model.toSummary
@@ -37,6 +38,9 @@ class AnalysisVm @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private val _selectedTab = MutableStateFlow(AnalysisTab.SUPPLY_DEMAND)
+    val selectedTab: StateFlow<AnalysisTab> = _selectedTab.asStateFlow()
+
     private var currentTicker: String? = null
 
     init {
@@ -58,6 +62,13 @@ class AnalysisVm @Inject constructor(
      * Get current ticker.
      */
     fun getTicker(): String? = currentTicker
+
+    /**
+     * Select a tab.
+     */
+    fun selectTab(tab: AnalysisTab) {
+        _selectedTab.value = tab
+    }
 
     /**
      * Select a ticker from deep link (P3).

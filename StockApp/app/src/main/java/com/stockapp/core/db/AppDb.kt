@@ -14,6 +14,7 @@ import com.stockapp.core.db.dao.EtfKeywordDao
 import com.stockapp.core.db.dao.FinancialCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
+import com.stockapp.core.db.dao.RealtimeSupplyCacheDao
 import com.stockapp.core.db.dao.SchedulingConfigDao
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockAnalysisDataDao
@@ -28,6 +29,7 @@ import com.stockapp.core.db.entity.EtfKeywordEntity
 import com.stockapp.core.db.entity.FinancialCacheEntity
 import com.stockapp.core.db.entity.IndicatorCacheEntity
 import com.stockapp.core.db.entity.IndicatorDataEntity
+import com.stockapp.core.db.entity.RealtimeSupplyCacheEntity
 import com.stockapp.core.db.entity.SchedulingConfigEntity
 import com.stockapp.core.db.entity.SearchHistoryEntity
 import com.stockapp.core.db.entity.StockAnalysisDataEntity
@@ -52,9 +54,11 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         // ETF Statistics entity (Phase 2)
         DailyEtfStatisticsEntity::class,
         // Financial data cache entity
-        FinancialCacheEntity::class
+        FinancialCacheEntity::class,
+        // Realtime supply cache entity (Kotlin Migration Phase 5)
+        RealtimeSupplyCacheEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -78,6 +82,9 @@ abstract class AppDb : RoomDatabase() {
 
     // Financial data cache DAO
     abstract fun financialCacheDao(): FinancialCacheDao
+
+    // Realtime supply cache DAO (Kotlin Migration Phase 5)
+    abstract fun realtimeSupplyCacheDao(): RealtimeSupplyCacheDao
 
     companion object {
         const val DB_NAME = "stock_app.db"
@@ -224,6 +231,24 @@ abstract class AppDb : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE scheduling_config ADD COLUMN isErrorStopped INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        /**
+         * Migration from version 9 to 10: Add realtime_supply_cache table
+         * For Kotlin Native Migration Phase 5 - Realtime Supply feature
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `realtime_supply_cache` (
+                        `ticker` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `data` TEXT NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`ticker`)
+                    )
+                """.trimIndent())
             }
         }
     }
