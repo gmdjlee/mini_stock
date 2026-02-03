@@ -41,22 +41,24 @@ data class StockListRequest(
 
 /**
  * Stock list response.
+ * Note: API returns 'list' field (not 'stk_list') with items having 'code', 'name', 'marketName'
  */
 @Serializable
 data class StockListResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("stk_list") val stkList: List<StockListItem>? = null
+    @SerialName("list") val stkList: List<StockListItem>? = null
 )
 
 /**
  * Individual stock item in stock list.
+ * Note: API returns 'code', 'name', 'marketName' (not 'stk_cd', 'stk_nm', 'mrkt_nm')
  */
 @Serializable
 data class StockListItem(
-    @SerialName("stk_cd") val stkCd: String? = null, // 종목코드
-    @SerialName("stk_nm") val stkNm: String? = null, // 종목명
-    @SerialName("mrkt_nm") val mrktNm: String? = null // 시장명 (KOSPI/KOSDAQ)
+    @SerialName("code") val stkCd: String? = null, // 종목코드
+    @SerialName("name") val stkNm: String? = null, // 종목명
+    @SerialName("marketName") val mrktNm: String? = null // 시장명 (거래소/코스닥/ETN 등)
 )
 
 // ============================================================================
@@ -92,17 +94,28 @@ data class StockInfoResponse(
 
 /**
  * Investor trend request parameters.
+ *
+ * Required parameters (per Python reference implementation):
+ * - dt: Base date (YYYYMMDD) - required!
+ * - stk_cd: Stock code
+ * - amt_qty_tp: Amount/quantity type (1: Amount, 2: Quantity)
+ * - trde_tp: Trade type (0: Net buy, 1: Buy, 2: Sell)
+ * - unit_tp: Unit type (1000, etc.)
  */
 data class InvestorTrendRequest(
     val stkCd: String,
-    val inqrStrtDt: String? = null, // 조회 시작일 (YYYYMMDD)
-    val inqrEndDt: String? = null   // 조회 종료일 (YYYYMMDD)
+    val dt: String,              // 기준일 (YYYYMMDD) - required
+    val amtQtyTp: String = "1",  // 금액/수량 구분 (1: 금액)
+    val trdeTp: String = "0",    // 매매 구분 (0: 순매수)
+    val unitTp: String = "1000"  // 단위
 ) {
-    fun toRequestBody(): Map<String, String> = buildMap {
-        put("stk_cd", stkCd)
-        inqrStrtDt?.let { put("inqr_strt_dt", it) }
-        inqrEndDt?.let { put("inqr_end_dt", it) }
-    }
+    fun toRequestBody(): Map<String, String> = mapOf(
+        "dt" to dt,
+        "stk_cd" to stkCd,
+        "amt_qty_tp" to amtQtyTp,
+        "trde_tp" to trdeTp,
+        "unit_tp" to unitTp
+    )
 }
 
 /**
