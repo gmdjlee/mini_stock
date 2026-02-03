@@ -298,6 +298,9 @@ class SupplyDemandMarkerView(
 /**
  * IncomeBarMarkerView - Financial income bar chart marker
  * Shows period with revenue, operating profit, net income values
+ *
+ * @param groupWidth The width of each bar group (groupSpace + (barWidth + barSpace) * numDataSets).
+ *                   Used to calculate correct index from x coordinate after groupBars() transformation.
  */
 @SuppressLint("ViewConstructor")
 class IncomeBarMarkerView(
@@ -305,14 +308,17 @@ class IncomeBarMarkerView(
     private val periods: List<String>,
     private val revenues: List<Long>,
     private val operatingProfits: List<Long>,
-    private val netIncomes: List<Long>
+    private val netIncomes: List<Long>,
+    private val groupWidth: Float = 1f
 ) : MarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
     override fun refreshContent(e: Entry?, highlight: Highlight?) {
         e?.let { entry ->
-            val index = entry.x.toInt()
+            // Calculate correct index by reversing groupBars transformation
+            // After groupBars(), bar x-coordinates are transformed based on groupWidth
+            val index = kotlin.math.floor(entry.x / groupWidth).toInt()
             val period = if (index >= 0 && index < periods.size) periods[index] else ""
 
             val revenue = if (index >= 0 && index < revenues.size) {

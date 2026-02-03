@@ -211,6 +211,14 @@ private fun IncomeBarChart(
     val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
     val netIncomeColor = Color(0xFFFF9800).toArgb()  // Orange
 
+    // Chart layout constants for grouped bar chart
+    val groupSpace = 0.08f
+    val barSpace = 0.02f
+    val barWidth = 0.28f
+    val numDataSets = 3
+    // groupWidth = groupSpace + (barWidth + barSpace) * numDataSets
+    val groupWidth = groupSpace + (barWidth + barSpace) * numDataSets  // = 0.98f
+
     // Memoize chart data (P2 fix)
     val revenueEntries = remember(revenues) {
         revenues.mapIndexed { index, value ->
@@ -246,6 +254,8 @@ private fun IncomeBarChart(
                     granularity = 1f
                     textColor = chartTextColor
                     valueFormatter = IndexAxisValueFormatter(periods)
+                    // Center labels under bar groups for proper alignment
+                    setCenterAxisLabels(true)
                 }
 
                 axisLeft.apply {
@@ -262,21 +272,18 @@ private fun IncomeBarChart(
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
 
-                // Marker for touch labeling
+                // Marker for touch labeling - pass groupWidth for correct index calculation
                 marker = IncomeBarMarkerView(
                     context,
                     periods,
                     revenues,
                     operatingProfits,
-                    netIncomes
+                    netIncomes,
+                    groupWidth
                 )
             }
         },
         update = { chart ->
-            val groupSpace = 0.08f
-            val barSpace = 0.02f
-            val barWidth = 0.28f
-
             val revenueDataSet = BarDataSet(revenueEntries, "매출액").apply {
                 color = revenueColor
                 setDrawValues(false)
@@ -295,11 +302,15 @@ private fun IncomeBarChart(
             }
 
             chart.data = barData
-            chart.xAxis.axisMinimum = 0f
-            chart.xAxis.axisMaximum = periods.size.toFloat()
+
+            // Fix axis boundaries for grouped bars
+            val startX = 0f
+            chart.xAxis.axisMinimum = startX
+            // End position = startX + number of groups * groupWidth
+            chart.xAxis.axisMaximum = startX + periods.size * groupWidth
 
             if (periods.size > 1) {
-                chart.groupBars(0f, groupSpace, barSpace)
+                chart.groupBars(startX, groupSpace, barSpace)
             }
             chart.invalidate()
         },

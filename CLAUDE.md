@@ -1470,6 +1470,13 @@ sealed class RankingState {
 | 안정성 복합 차트 | `StabilityRatioMarkerView` | 기간, 부채비율, 유동비율, 차입금 의존도 |
 | 개별 비율 차트 | `SingleRatioMarkerView` | 기간, 해당 비율 값 (%) |
 
+**그룹 바 차트 데이터 정렬**:
+
+손익 바 차트는 MPAndroidChart의 `groupBars()`를 사용하여 매출액, 영업이익, 당기순이익을 그룹화합니다:
+- **X축 라벨 중앙 정렬**: `xAxis.setCenterAxisLabels(true)` 설정으로 라벨이 막대 그룹 중앙에 배치
+- **인덱스 계산**: `floor(entry.x / groupWidth)`를 사용하여 `groupBars()` 변환 후의 X 좌표에서 올바른 데이터 인덱스 계산
+- **groupWidth 계산**: `groupSpace + (barWidth + barSpace) * numDataSets` = 0.98f
+
 #### 안정성 지표 평가 기준
 
 | 지표 | 양호 | 보통 | 주의 |
