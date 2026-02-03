@@ -171,17 +171,9 @@ class NativeAnalysisRepoImpl @Inject constructor(
     /**
      * Safely convert a string value to Long.
      * Handles sign prefixes like "+117500" from Kiwoom API.
-     * Similar to Python's _to_int() helper.
      */
-    private fun String?.toLongSafe(): Long {
-        if (this.isNullOrBlank()) return 0L
-        return try {
-            // Remove any leading + sign and parse
-            this.removePrefix("+").toLong()
-        } catch (_: NumberFormatException) {
-            0L
-        }
-    }
+    private fun String?.toLongSafe(): Long =
+        this?.removePrefix("+")?.toLongOrNull() ?: 0L
 
     /**
      * Fetch investor trend data using ka10059 API.
