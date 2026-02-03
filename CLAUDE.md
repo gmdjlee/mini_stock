@@ -10,7 +10,7 @@
 |-----------|--------|------|
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경/개선 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
-| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 5 완료) |
+| **Kotlin Native Migration** | 🔄 **IN PROGRESS** | Python → Kotlin 전환 진행 중 (Phase 6 완료) |
 
 **중요**: Python 패키지는 참조용으로만 사용합니다. 향후 모든 개발, 개선, 버그 수정은 Android 앱(StockApp)에만 적용됩니다.
 
@@ -54,7 +54,7 @@ Python (Chaquopy) 기반 기능을 순수 Kotlin으로 전환하는 프로젝트
 | Phase 3 | 4일 | OHLCV, 수급 분석 전환 | ✅ 완료 |
 | Phase 4 | 6일 | 기술 지표 전환 | ✅ 완료 |
 | Phase 5 | 3일 | 실시간 수급 기능 (신규) | ✅ 완료 |
-| Phase 6 | 3일 | 통합 테스트 | 📋 예정 |
+| Phase 6 | 3일 | 통합 테스트 | ✅ 완료 |
 | Phase 7 | 1일 | 문서화, 정리 | 📋 예정 |
 
 **총 예상 기간**: 21일 (3주)
@@ -149,6 +149,26 @@ Phase 5에서 실시간 수급 기능이 Kotlin으로 구현되었습니다:
 - 거래시간 표시: 장중/장외 상태 표시
 
 **DB 업데이트**: v9 → v10 (realtime_supply_cache 테이블 추가)
+
+### Phase 6 구현 내용
+
+Phase 6에서 통합 테스트가 구현되었습니다:
+
+| 파일 | 설명 | 테스트 수 |
+|------|------|----------|
+| `core/stock/calc/TrendCalculatorTest.kt` | Trend Signal 단위 테스트 (MA, CMF, Fear/Greed) | 21개 |
+| `core/stock/calc/ElderCalculatorTest.kt` | Elder Impulse 단위 테스트 (EMA13, MACD, color) | 23개 |
+| `core/stock/calc/DemarkCalculatorTest.kt` | DeMark TD Setup 단위 테스트 | 22개 |
+| `feature/analysis/data/repo/AnalysisRepoSelectorTest.kt` | 수급 분석 저장소 선택자 테스트 | 12개 |
+| `feature/indicator/data/repo/IndicatorRepoSelectorTest.kt` | 기술 지표 저장소 선택자 테스트 | 17개 |
+
+**총 테스트**: 205개 (신규 95개 + 기존 110개)
+
+**테스트 범위**:
+- **Calculator 단위 테스트**: MathUtil, OhlcvResampler, TrendCalculator, ElderCalculator, DemarkCalculator
+- **Repository Selector 테스트**: SearchRepoSelector, AnalysisRepoSelector, IndicatorRepoSelector
+- **Feature Flag 기반 위임 검증**: Native/Python 전환 로직 테스트
+- **에러 핸들링 테스트**: 실패 시나리오 검증
 
 ---
 
