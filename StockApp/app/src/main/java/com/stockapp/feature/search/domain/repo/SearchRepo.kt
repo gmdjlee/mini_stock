@@ -48,4 +48,10 @@ interface SearchRepo {
      * Get stock cache count.
      */
     suspend fun getCacheCount(): Int
+
+    /**
+     * Search only in local cache, never calls API.
+     * Used for short queries (less than MIN_SEARCH_QUERY_LENGTH) to minimize API calls.
+     */
+    suspend fun searchCacheOnly(query: String): Result<List<Stock>>
 }

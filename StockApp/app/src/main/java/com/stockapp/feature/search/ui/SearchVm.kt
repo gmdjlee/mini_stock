@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.core.cache.CacheState
+import com.stockapp.core.cache.RefreshCooldownException
 import com.stockapp.core.cache.StockCacheManager
 import com.stockapp.core.config.AppConfig
 import com.stockapp.core.state.SelectedStockManager
@@ -56,7 +57,14 @@ class SearchVm @Inject constructor(
 
     val cacheState: StateFlow<CacheState> = cacheManager.state
 
+    private val _isRefreshAvailable = MutableStateFlow(true)
+    val isRefreshAvailable: StateFlow<Boolean> = _isRefreshAvailable.asStateFlow()
+
+    private val _refreshCooldownSec = MutableStateFlow(0)
+    val refreshCooldownSec: StateFlow<Int> = _refreshCooldownSec.asStateFlow()
+
     private var searchJob: Job? = null
+    private var cooldownJob: Job? = null
 
     init {
         // Load search history
@@ -77,14 +85,50 @@ class SearchVm @Inject constructor(
     }
 
     /**
-     * Refresh stock cache manually.
+     * Refresh stock cache manually with cooldown protection.
      */
     fun refreshCache() {
         viewModelScope.launch {
             Log.d(TAG, "refreshCache() started")
+
+            // Check cooldown before attempting
+            if (!cacheManager.isRefreshAvailable()) {
+                Log.d(TAG, "refreshCache() cooldown active, starting timer")
+                startCooldownTimer()
+                return@launch
+            }
+
             cacheManager.refreshCache()
-            _cacheCount.value = repo.getCacheCount()
-            Log.d(TAG, "refreshCache() done, count: ${_cacheCount.value}")
+                .onSuccess {
+                    _cacheCount.value = repo.getCacheCount()
+                    Log.d(TAG, "refreshCache() success, count: ${_cacheCount.value}")
+                    startCooldownTimer()
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "refreshCache() failed: ${e.message}")
+                    if (e is RefreshCooldownException) {
+                        startCooldownTimer()
+                    }
+                }
+        }
+    }
+
+    /**
+     * Start cooldown timer to update UI.
+     */
+    private fun startCooldownTimer() {
+        cooldownJob?.cancel()
+        cooldownJob = viewModelScope.launch {
+            _isRefreshAvailable.value = false
+            while (true) {
+                val remaining = cacheManager.getRemainingCooldownSec()
+                _refreshCooldownSec.value = remaining
+                if (remaining <= 0) {
+                    _isRefreshAvailable.value = true
+                    break
+                }
+                delay(1000)
+            }
         }
     }
 

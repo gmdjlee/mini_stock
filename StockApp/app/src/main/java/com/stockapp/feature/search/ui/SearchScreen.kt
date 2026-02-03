@@ -40,6 +40,8 @@ fun SearchScreen(
     val history by viewModel.history.collectAsState()
     val cacheCount by viewModel.cacheCount.collectAsState()
     val cacheState by viewModel.cacheState.collectAsState()
+    val isRefreshAvailable by viewModel.isRefreshAvailable.collectAsState()
+    val refreshCooldownSec by viewModel.refreshCooldownSec.collectAsState()
 
     val suggestions = when (val s = state) {
         is SearchState.Results -> s.stocks
@@ -66,6 +68,8 @@ fun SearchScreen(
             CacheStatusBar(
                 cacheState = cacheState,
                 cacheCount = cacheCount,
+                isRefreshAvailable = isRefreshAvailable,
+                cooldownSec = refreshCooldownSec,
                 onRefresh = viewModel::refreshCache
             )
 
@@ -127,6 +131,8 @@ fun SearchScreen(
 private fun CacheStatusBar(
     cacheState: CacheState,
     cacheCount: Int,
+    isRefreshAvailable: Boolean,
+    cooldownSec: Int,
     onRefresh: () -> Unit
 ) {
     Row(
@@ -170,6 +176,13 @@ private fun CacheStatusBar(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+                is CacheState.Stale -> {
+                    Text(
+                        text = "종목 ${cacheState.count} 개 (오래됨)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
                 is CacheState.Error -> {
                     Text(
                         text = "로딩 실패: ${cacheState.message}",
@@ -183,10 +196,11 @@ private fun CacheStatusBar(
         if (cacheState !is CacheState.Loading) {
             OutlinedButton(
                 onClick = onRefresh,
+                enabled = isRefreshAvailable,
                 modifier = Modifier.height(32.dp)
             ) {
                 Text(
-                    text = "새로고침",
+                    text = if (isRefreshAvailable) "새로고침" else "${cooldownSec}초",
                     style = MaterialTheme.typography.labelSmall
                 )
             }

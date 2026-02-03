@@ -1,6 +1,7 @@
 package com.stockapp.feature.search.data.repo
 
 import android.util.Log
+import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.SearchHistoryEntity
@@ -127,6 +128,26 @@ class SearchRepoImpl @Inject constructor(
 
     override suspend fun getCacheCount(): Int {
         return stockDao.count()
+    }
+
+    override suspend fun searchCacheOnly(query: String): Result<List<Stock>> {
+        Log.d(TAG, "searchCacheOnly() query: $query")
+
+        val cacheCount = stockDao.count()
+        if (cacheCount == 0) {
+            Log.d(TAG, "searchCacheOnly() cache empty, returning empty list")
+            return Result.success(emptyList())
+        }
+
+        val allStocks = stockDao.getAllOnce()
+        val queryLower = query.lowercase()
+        val filtered = allStocks.filter { stock ->
+            stock.name.lowercase().contains(queryLower) ||
+                stock.ticker.lowercase().contains(queryLower)
+        }.take(AppConfig.MAX_SEARCH_RESULTS)
+
+        Log.d(TAG, "searchCacheOnly() found ${filtered.size} results")
+        return Result.success(filtered.map { it.toDomain() })
     }
 
     private fun parseSearchResponse(jsonStr: String): List<Stock> {

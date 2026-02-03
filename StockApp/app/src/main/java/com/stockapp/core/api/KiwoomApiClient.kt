@@ -18,8 +18,43 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * API categories for separate rate limiting.
+ * Allows different feature areas to make calls independently without blocking each other.
+ */
+enum class ApiCategory {
+    SEARCH,      // ka10099 (stock list)
+    ANALYSIS,    // ka10059, ka10001, ka10081, ka10082, ka10083
+    RANKING,     // ka10021, ka10023, ka10030, ka10033, ka90009
+    FINANCIAL,   // FHKST66430xxx
+    ETF,         // ka40004 (ETF constituents)
+    OTHER        // Default category
+}
+
+/**
+ * Rate limiter for a specific API category.
+ */
+private class CategoryRateLimiter(private val minInterval: Long = 500L) {
+    private var lastCallTime = 0L
+    private val mutex = Mutex()
+
+    suspend fun waitForRateLimit() {
+        mutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastCallTime
+            if (elapsed < minInterval) {
+                delay(minInterval - elapsed)
+            }
+            lastCallTime = System.currentTimeMillis()
+        }
+    }
+}
+
+/**
  * Direct Kotlin client for Kiwoom REST API.
  * Bypasses Python for features that need to be implemented in Kotlin only.
+ *
+ * Uses category-based rate limiting to allow different features (search, analysis, ranking)
+ * to make API calls independently without blocking each other.
  */
 @Singleton
 class KiwoomApiClient @Inject constructor(
@@ -32,10 +67,15 @@ class KiwoomApiClient @Inject constructor(
         isLenient = true
     }
 
-    // Rate limiting: minimum 500ms between API calls
-    private val minInterval = 500L
-    private var lastCallTime = 0L
-    private val rateLimitMutex = Mutex()
+    // Category-based rate limiters (each category can make calls independently)
+    private val categoryRateLimiters = mapOf(
+        ApiCategory.SEARCH to CategoryRateLimiter(500L),
+        ApiCategory.ANALYSIS to CategoryRateLimiter(500L),
+        ApiCategory.RANKING to CategoryRateLimiter(500L),
+        ApiCategory.FINANCIAL to CategoryRateLimiter(500L),
+        ApiCategory.ETF to CategoryRateLimiter(500L),
+        ApiCategory.OTHER to CategoryRateLimiter(500L)
+    )
 
     /**
      * Make a direct API call to Kiwoom REST API.
@@ -100,8 +140,8 @@ class KiwoomApiClient @Inject constructor(
         parser: (String) -> T
     ): Result<T> {
         try {
-            // Rate limiting
-            waitForRateLimit()
+            // Rate limiting (category-based)
+            waitForRateLimit(apiId)
 
             // Get token
             val tokenResult = tokenManager.getToken(appKey, secretKey, baseUrl)
@@ -241,8 +281,8 @@ class KiwoomApiClient @Inject constructor(
         parser: (String) -> T
     ): Result<PaginatedResponse<T>> {
         try {
-            // Rate limiting
-            waitForRateLimit()
+            // Rate limiting (category-based)
+            waitForRateLimit(apiId)
 
             // Get token
             val tokenResult = tokenManager.getToken(appKey, secretKey, baseUrl)
@@ -453,17 +493,30 @@ class KiwoomApiClient @Inject constructor(
     }
 
     /**
-     * Wait for rate limit interval.
+     * Get API category from API ID.
+     * Categories allow different features to make calls independently.
      */
-    private suspend fun waitForRateLimit() {
-        rateLimitMutex.withLock {
-            val now = System.currentTimeMillis()
-            val elapsed = now - lastCallTime
-            if (elapsed < minInterval) {
-                delay(minInterval - elapsed)
-            }
-            lastCallTime = System.currentTimeMillis()
+    private fun getCategory(apiId: String): ApiCategory {
+        return when {
+            apiId == "ka10099" -> ApiCategory.SEARCH
+            apiId in listOf("ka10059", "ka10001", "ka10081", "ka10082", "ka10083", "ka10063") ->
+                ApiCategory.ANALYSIS
+            apiId in listOf("ka10021", "ka10023", "ka10030", "ka10033", "ka90009") ->
+                ApiCategory.RANKING
+            apiId.startsWith("FHKST") -> ApiCategory.FINANCIAL
+            apiId == "ka40004" -> ApiCategory.ETF
+            else -> ApiCategory.OTHER
         }
+    }
+
+    /**
+     * Wait for rate limit interval based on API category.
+     * Different categories have separate rate limiters, allowing parallel calls across features.
+     */
+    private suspend fun waitForRateLimit(apiId: String) {
+        val category = getCategory(apiId)
+        val rateLimiter = categoryRateLimiters[category] ?: categoryRateLimiters[ApiCategory.OTHER]!!
+        rateLimiter.waitForRateLimit()
     }
 
     /**
