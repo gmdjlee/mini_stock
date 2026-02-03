@@ -148,19 +148,22 @@ data class InvestorTrendItem(
 
 /**
  * OHLCV request parameters.
+ *
+ * Based on Kiwoom API docs (ka10081/82/83):
+ * - stk_cd: Stock code (Required)
+ * - base_dt: Base date YYYYMMDD (Required) - API returns data from this date backwards
+ * - upd_stkpc_tp: Adjusted price flag "0" or "1" (Required)
  */
 data class OhlcvRequest(
     val stkCd: String,
-    val inqrStrtDt: String? = null, // 조회 시작일
-    val inqrEndDt: String? = null,  // 조회 종료일
-    val adjPrcYn: String = "1"      // 수정주가 여부: "1" = Yes
+    val baseDt: String,             // 기준일자 (Required) - API는 이 날짜부터 과거 데이터 반환
+    val updStkpcTp: String = "1"    // 수정주가구분: "0" = No, "1" = Yes
 ) {
-    fun toRequestBody(): Map<String, String> = buildMap {
-        put("stk_cd", stkCd)
-        put("adj_prc_yn", adjPrcYn)
-        inqrStrtDt?.let { put("inqr_strt_dt", it) }
-        inqrEndDt?.let { put("inqr_end_dt", it) }
-    }
+    fun toRequestBody(): Map<String, String> = mapOf(
+        "stk_cd" to stkCd,
+        "base_dt" to baseDt,
+        "upd_stkpc_tp" to updStkpcTp
+    )
 }
 
 /**
