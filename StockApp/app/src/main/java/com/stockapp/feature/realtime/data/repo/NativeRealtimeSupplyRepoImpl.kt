@@ -199,24 +199,69 @@ class NativeRealtimeSupplyRepoImpl @Inject constructor(
 
     /**
      * Build RealtimeSupplyData from API response.
+     * API returns data as LIST under 'opmr_invsr_trde' key.
+     * We need to find the matching item by ticker or use the first item if only one exists.
      */
     private fun buildRealtimeSupplyData(
         ticker: String,
         stockName: String,
         response: RealtimeSupplyResponse
     ): RealtimeSupplyData {
+        val items = response.items
+        if (items.isNullOrEmpty()) {
+            Log.w(TAG, "buildRealtimeSupplyData() no items in response for ticker=$ticker")
+            // Return empty data if no items found
+            return RealtimeSupplyData(
+                ticker = ticker,
+                name = stockName,
+                currentPrice = 0L,
+                netBuyAmount = 0L,
+                buyAmount = 0L,
+                sellAmount = 0L,
+                netBuyQuantity = 0L,
+                accumulatedVolume = 0L,
+                fetchedAt = System.currentTimeMillis()
+            )
+        }
+
+        // Find matching item by ticker, or use first item if only one
+        val item = items.find { it.stkCd == ticker } ?: items.firstOrNull()
+        if (item == null) {
+            Log.w(TAG, "buildRealtimeSupplyData() no matching item found for ticker=$ticker")
+            return RealtimeSupplyData(
+                ticker = ticker,
+                name = stockName,
+                currentPrice = 0L,
+                netBuyAmount = 0L,
+                buyAmount = 0L,
+                sellAmount = 0L,
+                netBuyQuantity = 0L,
+                accumulatedVolume = 0L,
+                fetchedAt = System.currentTimeMillis()
+            )
+        }
+
+        Log.d(TAG, "buildRealtimeSupplyData() found item: stkCd=${item.stkCd}, stkNm=${item.stkNm}")
+
         return RealtimeSupplyData(
             ticker = ticker,
-            name = stockName,
-            currentPrice = response.currentPrice ?: 0L,
-            netBuyAmount = response.netBuyAmount ?: 0L,
-            buyAmount = response.buyAmount ?: 0L,
-            sellAmount = response.sellAmount ?: 0L,
-            netBuyQuantity = response.netBuyQuantity ?: 0L,
-            accumulatedVolume = response.accumulatedVolume ?: 0L,
+            name = item.stkNm ?: stockName,
+            currentPrice = parseSignedLong(item.currentPrice),
+            netBuyAmount = parseSignedLong(item.netBuyAmount),
+            buyAmount = parseSignedLong(item.buyAmount),
+            sellAmount = parseSignedLong(item.sellAmount),
+            netBuyQuantity = parseSignedLong(item.netBuyQuantity),
+            accumulatedVolume = parseSignedLong(item.accumulatedVolume),
             fetchedAt = System.currentTimeMillis()
         )
     }
+
+    /**
+     * Parse a string value that may have sign prefix (e.g., "+1234", "-5678") to Long.
+     * toLongOrNull() handles sign prefixes and returns null on parse failure, so no try-catch needed.
+     */
+    private fun parseSignedLong(value: String?): Long =
+        value?.replace(",", "")?.trim()?.toLongOrNull() ?: 0L
 
     /**
      * Cache realtime supply data.

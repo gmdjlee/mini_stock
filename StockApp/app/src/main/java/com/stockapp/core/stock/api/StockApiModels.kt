@@ -239,18 +239,30 @@ data class RealtimeSupplyRequest(
 }
 
 /**
+ * Individual item in realtime supply list response.
+ * API returns data as LIST under 'opmr_invsr_trde' key.
+ */
+@Serializable
+data class RealtimeSupplyItem(
+    @SerialName("stk_cd") val stkCd: String? = null,              // 종목코드
+    @SerialName("stk_nm") val stkNm: String? = null,              // 종목명
+    @SerialName("cur_prc") val currentPrice: String? = null,      // 현재가 (may have sign prefix)
+    @SerialName("acc_trde_qty") val accumulatedVolume: String? = null, // 누적거래량
+    @SerialName("netprps_amt") val netBuyAmount: String? = null,  // 순매수금액
+    @SerialName("buy_amt") val buyAmount: String? = null,         // 매수금액
+    @SerialName("sell_amt") val sellAmount: String? = null,       // 매도금액
+    @SerialName("netprps_qty") val netBuyQuantity: String? = null // 순매수수량
+)
+
+/**
  * Realtime supply response.
+ * Note: API returns data as LIST under 'opmr_invsr_trde' key, not flat fields at root level.
  */
 @Serializable
 data class RealtimeSupplyResponse(
     @SerialName("return_code") val returnCode: Int = 0,
     @SerialName("return_msg") val returnMsg: String? = null,
-    @SerialName("cur_prc") val currentPrice: Long? = null,        // 현재가
-    @SerialName("netprps_amt") val netBuyAmount: Long? = null,    // 순매수금액
-    @SerialName("buy_amt") val buyAmount: Long? = null,           // 매수금액
-    @SerialName("sell_amt") val sellAmount: Long? = null,         // 매도금액
-    @SerialName("netprps_qty") val netBuyQuantity: Long? = null,  // 순매수수량
-    @SerialName("acc_trde_qty") val accumulatedVolume: Long? = null // 누적거래량
+    @SerialName("opmr_invsr_trde") val items: List<RealtimeSupplyItem>? = null
 )
 
 // ============================================================================
