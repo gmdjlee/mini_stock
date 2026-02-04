@@ -2,6 +2,7 @@ package com.stockapp.core.ui.component.chart
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Canvas
 import android.widget.TextView
 import com.github.mikephil.charting.components.MarkerView
 import com.github.mikephil.charting.data.Entry
@@ -24,32 +25,42 @@ abstract class SmartMarkerView(
     }
 
     /**
-     * Override to provide position-aware offset calculation.
-     * Adjusts marker position when it would overflow chart boundaries.
+     * Override draw to adjust marker position when it would overflow chart boundaries.
+     * Calculates smart offset based on the data point's position relative to chart edges.
      */
-    override fun getOffsetForDrawingAtPos(posX: Float, posY: Float): MPPointF {
-        val chartWidth = chartView?.width?.toFloat()
-            ?: return MPPointF(-(width / 2f), -height.toFloat())
+    override fun draw(canvas: Canvas, posX: Float, posY: Float) {
+        val chartWidth = chartView?.width?.toFloat() ?: run {
+            super.draw(canvas, posX, posY)
+            return
+        }
 
-        // Default: center horizontally, above the point
-        var offsetX = -(width / 2f)
-        val offsetY = -height.toFloat()
+        // Get the default offset
+        val offset = getOffset()
 
-        // Check if marker would overflow right edge
-        val markerRight = posX + offsetX + width
+        // Calculate where marker would be drawn with default offset
+        var adjustedOffsetX = offset.x
+        val markerLeft = posX + adjustedOffsetX
+        val markerRight = posX + adjustedOffsetX + width
+
+        // Adjust if marker would overflow right edge
         if (markerRight > chartWidth - EDGE_PADDING) {
-            // Shift marker left so its right edge aligns with chart's right edge
-            offsetX = chartWidth - EDGE_PADDING - posX - width
+            adjustedOffsetX = chartWidth - EDGE_PADDING - posX - width
         }
 
-        // Check if marker would overflow left edge (after potential right adjustment)
-        val markerLeft = posX + offsetX
+        // Adjust if marker would overflow left edge
         if (markerLeft < EDGE_PADDING) {
-            // Shift marker right so its left edge aligns with chart's left edge
-            offsetX = EDGE_PADDING - posX
+            adjustedOffsetX = EDGE_PADDING - posX
         }
 
-        return MPPointF(offsetX, offsetY)
+        // Draw with adjusted position
+        val saveId = canvas.save()
+        canvas.translate(posX + adjustedOffsetX, posY + offset.y)
+        draw(canvas)
+        canvas.restoreToCount(saveId)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
     }
 }
 
