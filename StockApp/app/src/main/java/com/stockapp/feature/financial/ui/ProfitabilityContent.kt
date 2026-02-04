@@ -254,14 +254,8 @@ private fun IncomeBarChart(
                     setDrawGridLines(false)
                     granularity = groupWidth
                     textColor = chartTextColor
-                    valueFormatter = object : ValueFormatter() {
-                        override fun getFormattedValue(value: Float): String {
-                            // Reverse groupBars() X coordinate transformation
-                            val index = (value / groupWidth).toInt()
-                            return periods.getOrNull(index).orEmpty()
-                        }
-                    }
                     setCenterAxisLabels(true)
+                    // Note: valueFormatter is set in update block to handle data changes
                 }
 
                 axisLeft.apply {
@@ -277,16 +271,7 @@ private fun IncomeBarChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
-
-                // Marker for touch labeling - pass groupWidth for correct index calculation
-                marker = IncomeBarMarkerView(
-                    context,
-                    periods,
-                    revenues,
-                    operatingProfits,
-                    netIncomes,
-                    groupWidth
-                )
+                // Note: marker is set in update block to handle data changes
             }
         },
         update = { chart ->
@@ -314,6 +299,25 @@ private fun IncomeBarChart(
             chart.xAxis.axisMinimum = startX
             // End position = startX + number of groups * groupWidth
             chart.xAxis.axisMaximum = startX + periods.size * groupWidth
+
+            // Update valueFormatter with current periods (moved from factory to handle data changes)
+            chart.xAxis.valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String {
+                    // Reverse groupBars() X coordinate transformation
+                    val index = (value / groupWidth).toInt()
+                    return periods.getOrNull(index).orEmpty()
+                }
+            }
+
+            // Update marker with current data (moved from factory to handle data changes)
+            chart.marker = IncomeBarMarkerView(
+                chart.context,
+                periods,
+                revenues,
+                operatingProfits,
+                netIncomes,
+                groupWidth
+            )
 
             if (periods.size > 1) {
                 chart.groupBars(startX, groupSpace, barSpace)
