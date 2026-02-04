@@ -252,9 +252,8 @@ private fun IncomeBarChart(
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
-                    granularity = groupWidth
+                    granularity = 1f
                     textColor = chartTextColor
-                    setCenterAxisLabels(true)
                     // Note: valueFormatter is set in update block to handle data changes
                 }
 
@@ -294,17 +293,15 @@ private fun IncomeBarChart(
 
             chart.data = barData
 
-            // Fix axis boundaries for grouped bars
-            val startX = 0f
+            // Fix axis boundaries for grouped bars (same pattern as SupplyDemandBarChart)
+            val startX = -0.5f
             chart.xAxis.axisMinimum = startX
-            // End position = startX + number of groups * groupWidth
-            chart.xAxis.axisMaximum = startX + periods.size * groupWidth
+            chart.xAxis.axisMaximum = periods.size.toFloat() - 0.5f
 
             // Update valueFormatter with current periods (moved from factory to handle data changes)
             chart.xAxis.valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
-                    // Reverse groupBars() X coordinate transformation
-                    val index = (value / groupWidth).toInt()
+                    val index = value.toInt()
                     return periods.getOrNull(index).orEmpty()
                 }
             }
@@ -315,8 +312,7 @@ private fun IncomeBarChart(
                 periods,
                 revenues,
                 operatingProfits,
-                netIncomes,
-                groupWidth
+                netIncomes
             )
 
             if (periods.size > 1) {
