@@ -29,7 +29,6 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
-import com.github.mikephil.charting.formatter.ValueFormatter
 import com.stockapp.core.ui.component.chart.GrowthRateMarkerView
 import com.stockapp.core.ui.component.chart.IncomeBarMarkerView
 import com.stockapp.core.ui.component.chart.setupCommonChartProperties
@@ -197,6 +196,16 @@ fun ChartCard(
     }
 }
 
+/**
+ * Stacked bar chart for income statement data.
+ * Stack order (bottom to top): 당기순이익 → 영업이익 → 매출액
+ * Total bar height represents 매출액 (revenue).
+ *
+ * Stack values are calculated as differences to show proportions:
+ * - Bottom: 당기순이익 (net income)
+ * - Middle: 영업이익 - 당기순이익 (operating profit portion)
+ * - Top: 매출액 - 영업이익 (revenue portion above operating profit)
+ */
 @Composable
 private fun IncomeBarChart(
     periods: List<String>,
@@ -208,32 +217,29 @@ private fun IncomeBarChart(
     val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
 
-    val revenueColor = Color(0xFF4CAF50).toArgb()  // Green
-    val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
-    val netIncomeColor = Color(0xFFFF9800).toArgb()  // Orange
+    // Colors for stacked bars (bottom to top): 당기순이익, 영업이익, 매출액
+    val netIncomeColor = Color(0xFFFF9800).toArgb()  // Orange - 당기순이익 (bottom)
+    val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue - 영업이익 (middle)
+    val revenueColor = Color(0xFF4CAF50).toArgb()  // Green - 매출액 (top)
 
-    // Chart layout constants for grouped bar chart
-    val groupSpace = 0.08f
-    val barSpace = 0.02f
-    val barWidth = 0.28f
-    val numDataSets = 3
-    // groupWidth = groupSpace + (barWidth + barSpace) * numDataSets
-    val groupWidth = groupSpace + (barWidth + barSpace) * numDataSets  // = 0.98f
+    // Bar width for stacked chart
+    val barWidth = 0.7f
 
-    // Memoize chart data (P2 fix)
-    val revenueEntries = remember(revenues) {
-        revenues.mapIndexed { index, value ->
-            BarEntry(index.toFloat(), value.toFloat())
-        }
-    }
-    val operatingProfitEntries = remember(operatingProfits) {
-        operatingProfits.mapIndexed { index, value ->
-            BarEntry(index.toFloat(), value.toFloat())
-        }
-    }
-    val netIncomeEntries = remember(netIncomes) {
-        netIncomes.mapIndexed { index, value ->
-            BarEntry(index.toFloat(), value.toFloat())
+    // Memoize stacked entries
+    // Stack values: [당기순이익, 영업이익-당기순이익, 매출액-영업이익]
+    // This ensures total height = 매출액
+    val stackedEntries = remember(revenues, operatingProfits, netIncomes) {
+        revenues.indices.map { index ->
+            val revenue = revenues.getOrElse(index) { 0L }.toFloat()
+            val opProfit = operatingProfits.getOrElse(index) { 0L }.toFloat()
+            val netIncome = netIncomes.getOrElse(index) { 0L }.toFloat()
+
+            // Calculate stack portions (handle negative values gracefully)
+            val netIncomePortion = maxOf(0f, netIncome)
+            val opProfitPortion = maxOf(0f, opProfit - netIncome)
+            val revenuePortion = maxOf(0f, revenue - opProfit)
+
+            BarEntry(index.toFloat(), floatArrayOf(netIncomePortion, opProfitPortion, revenuePortion))
         }
     }
 
@@ -247,14 +253,14 @@ private fun IncomeBarChart(
                 }
                 setDrawGridBackground(false)
                 setDrawBarShadow(false)
-                setDrawValueAboveBar(true)
+                setDrawValueAboveBar(false)  // Values inside bars for stacked chart
 
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
                     textColor = chartTextColor
-                    // Note: valueFormatter is set in update block to handle data changes
+                    setCenterAxisLabels(false)  // Labels directly under bars for stacked chart
                 }
 
                 axisLeft.apply {
@@ -270,43 +276,27 @@ private fun IncomeBarChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
-                // Note: marker is set in update block to handle data changes
             }
         },
         update = { chart ->
-            val revenueDataSet = BarDataSet(revenueEntries, "매출액").apply {
-                color = revenueColor
-                setDrawValues(false)
-            }
-            val operatingProfitDataSet = BarDataSet(operatingProfitEntries, "영업이익").apply {
-                color = operatingProfitColor
-                setDrawValues(false)
-            }
-            val netIncomeDataSet = BarDataSet(netIncomeEntries, "당기순이익").apply {
-                color = netIncomeColor
+            val stackedDataSet = BarDataSet(stackedEntries, "").apply {
+                // Colors for each stack segment (bottom to top)
+                colors = listOf(netIncomeColor, operatingProfitColor, revenueColor)
+                // Stack labels for legend (bottom to top)
+                stackLabels = arrayOf("당기순이익", "영업이익", "매출액")
                 setDrawValues(false)
             }
 
-            val barData = BarData(revenueDataSet, operatingProfitDataSet, netIncomeDataSet).apply {
+            val barData = BarData(stackedDataSet).apply {
                 this.barWidth = barWidth
             }
 
             chart.data = barData
 
-            // Fix axis boundaries for grouped bars (same pattern as SupplyDemandBarChart)
-            val startX = -0.5f
-            chart.xAxis.axisMinimum = startX
-            chart.xAxis.axisMaximum = periods.size.toFloat() - 0.5f
+            // Update valueFormatter with current periods
+            chart.xAxis.valueFormatter = IndexAxisValueFormatter(periods)
 
-            // Update valueFormatter with current periods (moved from factory to handle data changes)
-            chart.xAxis.valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String {
-                    val index = value.toInt()
-                    return periods.getOrNull(index).orEmpty()
-                }
-            }
-
-            // Update marker with current data (moved from factory to handle data changes)
+            // Update marker with current data
             chart.marker = IncomeBarMarkerView(
                 chart.context,
                 periods,
@@ -315,9 +305,6 @@ private fun IncomeBarChart(
                 netIncomes
             )
 
-            if (periods.size > 1) {
-                chart.groupBars(startX, groupSpace, barSpace)
-            }
             chart.invalidate()
         },
         modifier = modifier
