@@ -10,6 +10,50 @@ import com.github.mikephil.charting.utils.MPPointF
 import com.stockapp.R
 
 /**
+ * SmartMarkerView - Base class for chart markers with smart positioning
+ * Automatically adjusts marker position when it would overflow screen edges
+ */
+@SuppressLint("ViewConstructor")
+abstract class SmartMarkerView(
+    context: Context,
+    layoutResource: Int
+) : MarkerView(context, layoutResource) {
+
+    companion object {
+        private const val EDGE_PADDING = 8f // pixels from screen edge
+    }
+
+    /**
+     * Override to provide position-aware offset calculation.
+     * Adjusts marker position when it would overflow chart boundaries.
+     */
+    override fun getOffsetForDrawingAtPos(posX: Float, posY: Float): MPPointF {
+        val chartWidth = chartView?.width?.toFloat()
+            ?: return MPPointF(-(width / 2f), -height.toFloat())
+
+        // Default: center horizontally, above the point
+        var offsetX = -(width / 2f)
+        val offsetY = -height.toFloat()
+
+        // Check if marker would overflow right edge
+        val markerRight = posX + offsetX + width
+        if (markerRight > chartWidth - EDGE_PADDING) {
+            // Shift marker left so its right edge aligns with chart's right edge
+            offsetX = chartWidth - EDGE_PADDING - posX - width
+        }
+
+        // Check if marker would overflow left edge (after potential right adjustment)
+        val markerLeft = posX + offsetX
+        if (markerLeft < EDGE_PADDING) {
+            // Shift marker right so its left edge aligns with chart's left edge
+            offsetX = EDGE_PADDING - posX
+        }
+
+        return MPPointF(offsetX, offsetY)
+    }
+}
+
+/**
  * CustomMarkerView - General purpose chart marker
  * Shows date and formatted value on touch
  */
@@ -18,7 +62,7 @@ class CustomMarkerView(
     context: Context,
     private val dates: List<String>,
     private val formatter: (Float) -> String
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -30,10 +74,6 @@ class CustomMarkerView(
             tvContent?.text = "$date\n$formattedValue"
         }
         super.refreshContent(e, highlight)
-    }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
     }
 }
 
@@ -47,7 +87,7 @@ class MacdMarkerView(
     private val dates: List<String>,
     private val macdValues: List<Double>,
     private val signalValues: List<Double>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -66,10 +106,6 @@ class MacdMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -81,7 +117,7 @@ class MarketCapMarkerView(
     context: Context,
     private val dates: List<String>,
     private val isOscillatorDataSet: (Int) -> Boolean
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -100,10 +136,6 @@ class MarketCapMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -116,7 +148,7 @@ class TrendSignalMarkerView(
     private val dates: List<String>,
     private val priceValues: List<Double>,
     private val fearGreedValues: List<Double>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -137,10 +169,6 @@ class TrendSignalMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -153,7 +181,7 @@ class ElderImpulseMarkerView(
     private val dates: List<String>,
     private val mcapValues: List<Double>,
     private val impulseStates: List<Int>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -178,10 +206,6 @@ class ElderImpulseMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -194,7 +218,7 @@ class DemarkTDMarkerView(
     private val dates: List<String>,
     private val sellSetupValues: List<Int>,
     private val buySetupValues: List<Int>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -215,10 +239,6 @@ class DemarkTDMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -231,7 +251,7 @@ class OscillatorMarkerView(
     private val dates: List<String>,
     private val mcapValues: List<Double>,
     private val oscillatorValues: List<Double>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -252,10 +272,6 @@ class OscillatorMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -268,7 +284,7 @@ class SupplyDemandMarkerView(
     private val dates: List<String>,
     private val foreignValues: List<Double>,
     private val institutionValues: List<Double>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -289,10 +305,6 @@ class SupplyDemandMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -306,7 +318,7 @@ class IncomeBarMarkerView(
     private val revenues: List<Long>,
     private val operatingProfits: List<Long>,
     private val netIncomes: List<Long>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -331,10 +343,6 @@ class IncomeBarMarkerView(
         super.refreshContent(e, highlight)
     }
 
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
-
     private fun formatFinancialValue(value: Long): String {
         val absValue = kotlin.math.abs(value)
         val sign = if (value < 0) "-" else ""
@@ -356,7 +364,7 @@ class GrowthRateMarkerView(
     private val periods: List<String>,
     private val labels: List<String>,
     private val valuesList: List<List<Double>>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -377,10 +385,6 @@ class GrowthRateMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -394,7 +398,7 @@ class StabilityRatioMarkerView(
     private val debtRatios: List<Double>,
     private val currentRatios: List<Double>,
     private val borrowingDependencies: List<Double>
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -417,10 +421,6 @@ class StabilityRatioMarkerView(
         }
         super.refreshContent(e, highlight)
     }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
-    }
 }
 
 /**
@@ -433,7 +433,7 @@ class SingleRatioMarkerView(
     private val periods: List<String>,
     private val values: List<Double>,
     private val ratioLabel: String
-) : MarkerView(context, R.layout.chart_marker_view) {
+) : SmartMarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView? = findViewById(R.id.tvContent)
 
@@ -449,9 +449,5 @@ class SingleRatioMarkerView(
             tvContent?.text = "$period\n$ratioLabel: $value"
         }
         super.refreshContent(e, highlight)
-    }
-
-    override fun getOffset(): MPPointF {
-        return MPPointF(-(width / 2f), -height.toFloat())
     }
 }
