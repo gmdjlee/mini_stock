@@ -4,14 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
-import com.stockapp.feature.analysis.domain.model.AnalysisTab
 import com.stockapp.feature.analysis.domain.usecase.GetAnalysisSummaryUC
 import com.stockapp.feature.analysis.domain.usecase.RefreshAnalysisUC
-import com.stockapp.feature.analysis.domain.model.toSummary
+import com.stockapp.feature.realtime.domain.model.TradingHours
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,10 +40,17 @@ class AnalysisVm @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    private val _selectedTab = MutableStateFlow(AnalysisTab.SUPPLY_DEMAND)
-    val selectedTab: StateFlow<AnalysisTab> = _selectedTab.asStateFlow()
+    // Trading hours state
+    private val _isTradingHours = MutableStateFlow(TradingHours.isTradingHours())
+    val isTradingHours: StateFlow<Boolean> = _isTradingHours.asStateFlow()
+
+    // Auto refresh settings
+    private val _autoRefreshEnabled = MutableStateFlow(false)
+    val autoRefreshEnabled: StateFlow<Boolean> = _autoRefreshEnabled.asStateFlow()
 
     private var currentTicker: String? = null
+    private var autoRefreshJob: Job? = null
+    private var tradingHoursCheckJob: Job? = null
 
     init {
         // Observe selected stock changes
@@ -50,12 +59,20 @@ class AnalysisVm @Inject constructor(
                 if (ticker != null && ticker != currentTicker) {
                     currentTicker = ticker
                     loadAnalysis(ticker)
+                    // Auto-refresh will start if enabled and in trading hours
+                    if (_autoRefreshEnabled.value && _isTradingHours.value) {
+                        startAutoRefresh()
+                    }
                 } else if (ticker == null) {
                     currentTicker = null
                     _state.value = AnalysisState.NoStock
+                    stopAutoRefresh()
                 }
             }
         }
+
+        // Start trading hours check job
+        startTradingHoursCheck()
     }
 
     /**
@@ -64,18 +81,23 @@ class AnalysisVm @Inject constructor(
     fun getTicker(): String? = currentTicker
 
     /**
-     * Select a tab.
-     */
-    fun selectTab(tab: AnalysisTab) {
-        _selectedTab.value = tab
-    }
-
-    /**
      * Select a ticker from deep link (P3).
      * This sets the ticker in the shared state manager.
      */
     fun selectTickerFromDeepLink(ticker: String) {
         selectedStockManager.selectTicker(ticker)
+    }
+
+    /**
+     * Enable or disable auto refresh during trading hours.
+     */
+    fun setAutoRefreshEnabled(enabled: Boolean) {
+        _autoRefreshEnabled.value = enabled
+        if (enabled && _isTradingHours.value && currentTicker != null) {
+            startAutoRefresh()
+        } else {
+            stopAutoRefresh()
+        }
     }
 
     /**
@@ -107,9 +129,10 @@ class AnalysisVm @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
 
-            refreshAnalysisUC(ticker)
-                .onSuccess { data ->
-                    _state.value = AnalysisState.Success(data.toSummary())
+            // Use getAnalysisSummaryUC which now integrates intraday data
+            getAnalysisSummaryUC(ticker, useCache = false)
+                .onSuccess { summary ->
+                    _state.value = AnalysisState.Success(summary)
                 }
                 .onFailure { e ->
                     _state.value = AnalysisState.Error(
@@ -129,6 +152,76 @@ class AnalysisVm @Inject constructor(
         currentTicker?.let { loadAnalysis(it) }
     }
 
+    /**
+     * Start periodic trading hours check.
+     * Checks every minute and handles trading hours transitions.
+     */
+    private fun startTradingHoursCheck() {
+        tradingHoursCheckJob?.cancel()
+        tradingHoursCheckJob = viewModelScope.launch {
+            while (isActive) {
+                val wasTradingHours = _isTradingHours.value
+                val nowTradingHours = TradingHours.isTradingHours()
+                _isTradingHours.value = nowTradingHours
+
+                // Handle trading hours transitions
+                if (wasTradingHours && !nowTradingHours) {
+                    // Market just closed - refresh to get closing data
+                    stopAutoRefresh()
+                    currentTicker?.let { ticker ->
+                        viewModelScope.launch {
+                            getAnalysisSummaryUC(ticker, useCache = false)
+                                .onSuccess { summary ->
+                                    _state.value = AnalysisState.Success(summary)
+                                }
+                        }
+                    }
+                } else if (!wasTradingHours && nowTradingHours) {
+                    // Market just opened - start auto refresh if enabled
+                    if (_autoRefreshEnabled.value && currentTicker != null) {
+                        startAutoRefresh()
+                    }
+                }
+
+                delay(TRADING_HOURS_CHECK_INTERVAL_MS)
+            }
+        }
+    }
+
+    /**
+     * Start auto refresh job.
+     * Refreshes data every minute during trading hours.
+     */
+    private fun startAutoRefresh() {
+        stopAutoRefresh()
+        autoRefreshJob = viewModelScope.launch {
+            while (isActive && _isTradingHours.value) {
+                delay(AUTO_REFRESH_INTERVAL_MS)
+                if (_isTradingHours.value && currentTicker != null) {
+                    // Silent refresh (don't show refreshing indicator)
+                    getAnalysisSummaryUC(currentTicker!!, useCache = false)
+                        .onSuccess { summary ->
+                            _state.value = AnalysisState.Success(summary)
+                        }
+                }
+            }
+        }
+    }
+
+    /**
+     * Stop auto refresh job.
+     */
+    private fun stopAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopAutoRefresh()
+        tradingHoursCheckJob?.cancel()
+    }
+
     private fun extractErrorCode(e: Throwable): String {
         val message = e.message ?: return "UNKNOWN"
 
@@ -145,5 +238,13 @@ class AnalysisVm @Inject constructor(
             is kotlinx.coroutines.TimeoutCancellationException -> "TIMEOUT"
             else -> "UNKNOWN"
         }
+    }
+
+    companion object {
+        /** Auto refresh interval: 1 minute */
+        private const val AUTO_REFRESH_INTERVAL_MS = 60_000L
+
+        /** Trading hours check interval: 1 minute */
+        private const val TRADING_HOURS_CHECK_INTERVAL_MS = 60_000L
     }
 }

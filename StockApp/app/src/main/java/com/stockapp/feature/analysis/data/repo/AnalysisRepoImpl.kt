@@ -53,6 +53,20 @@ class AnalysisRepoImpl @Inject constructor(
         return result
     }
 
+    /**
+     * Python implementation doesn't support intraday data integration.
+     * Falls back to regular getAnalysis call.
+     */
+    override suspend fun getAnalysisWithIntraday(
+        ticker: String,
+        days: Int,
+        useCache: Boolean
+    ): Result<StockData> {
+        // Python implementation doesn't have intraday integration
+        // Simply delegate to regular getAnalysis
+        return getAnalysis(ticker, days, useCache)
+    }
+
     override suspend fun getCachedAnalysis(ticker: String): StockData? {
         val cached = cacheDao.get(ticker) ?: return null
 

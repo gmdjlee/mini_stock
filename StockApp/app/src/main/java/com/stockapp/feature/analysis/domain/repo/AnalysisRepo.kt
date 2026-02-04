@@ -21,6 +21,23 @@ interface AnalysisRepo {
     ): Result<StockData>
 
     /**
+     * Get stock supply/demand analysis with intraday data integration.
+     * During trading hours (09:00-15:30), this method fetches real-time
+     * intraday data from ka10063 API and merges it with historical data.
+     * After market close, it returns the standard analysis data.
+     *
+     * @param ticker Stock ticker code
+     * @param days Number of days to fetch (default 180)
+     * @param useCache Whether to use cached data
+     * @return Result containing StockData with intraday data merged if applicable
+     */
+    suspend fun getAnalysisWithIntraday(
+        ticker: String,
+        days: Int = 180,
+        useCache: Boolean = true
+    ): Result<StockData>
+
+    /**
      * Get cached analysis data.
      *
      * @param ticker Stock ticker code
