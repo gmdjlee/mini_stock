@@ -20,14 +20,6 @@ on:
           - github
           - standard
 
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - 'StockApp/**'
-      - '.github/workflows/build-apk.yml'
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -52,15 +44,9 @@ jobs:
       - name: Set build variables
         id: vars
         run: |
-          # Determine flavor and build type
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            FLAVOR="${{ github.event.inputs.flavor }}"
-            BUILD_TYPE="${{ github.event.inputs.build_type }}"
-          else
-            # Default for push events: github flavor, debug build
-            FLAVOR="github"
-            BUILD_TYPE="debug"
-          fi
+          # Get flavor and build type from workflow dispatch inputs
+          FLAVOR="${{ github.event.inputs.flavor }}"
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
 
           # Capitalize first letter for Gradle task
           FLAVOR_CAP="$(echo ${FLAVOR:0:1} | tr '[:lower:]' '[:upper:]')${FLAVOR:1}"
