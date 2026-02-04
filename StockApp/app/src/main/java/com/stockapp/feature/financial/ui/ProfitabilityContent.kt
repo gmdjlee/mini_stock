@@ -19,12 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.github.mikephil.charting.charts.BarChart
+import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
-import com.github.mikephil.charting.data.BarData
-import com.github.mikephil.charting.data.BarDataSet
-import com.github.mikephil.charting.data.BarEntry
+import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.data.CombinedData
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -35,10 +34,17 @@ import com.stockapp.core.ui.component.chart.IncomeBarMarkerView
 import com.stockapp.core.ui.component.chart.setupCommonChartProperties
 import com.stockapp.feature.financial.domain.model.FinancialSummary
 
+// Chart colors used across all profitability charts
+private val RevenueColor = Color(0xFF4CAF50)  // Green
+private val OperatingProfitColor = Color(0xFF2196F3)  // Blue
+private val NetIncomeColor = Color(0xFFFF9800)  // Orange
+private val EquityColor = Color(0xFF9C27B0)  // Purple
+private val TotalAssetsColor = Color(0xFF00BCD4)  // Cyan
+
 /**
  * Profitability tab content.
  * Shows:
- * - Bar chart: 매출액, 영업이익, 당기순이익 by 결산년월
+ * - Dual-axis line chart: 매출액(좌축), 영업이익/당기순이익(우축) by 결산년월
  * - Line chart: 매출액/영업이익/순이익 증가율
  * - Line chart: 자기자본/총자산 증가율
  */
@@ -56,13 +62,13 @@ fun ProfitabilityContent(
         // Summary Cards
         SummaryCard(summary)
 
-        // 1. Bar Chart: 매출액, 영업이익, 당기순이익
+        // 1. Dual-axis Line Chart: 매출액(좌축), 영업이익/당기순이익(우축)
         if (summary.hasProfitabilityData) {
             ChartCard(
                 title = "손익 추이",
-                subtitle = "단위: 억원"
+                subtitle = "매출액(좌축), 영업이익/순이익(우축) - 단위: 억원"
             ) {
-                IncomeBarChart(
+                IncomeLineChart(
                     periods = summary.displayPeriods,
                     revenues = summary.revenues,
                     operatingProfits = summary.operatingProfits,
@@ -197,8 +203,13 @@ fun ChartCard(
     }
 }
 
+/**
+ * IncomeLineChart - Dual-axis line chart for financial income data
+ * - Left Y-axis: Revenue (매출액) - larger scale values
+ * - Right Y-axis: Operating Profit (영업이익) & Net Income (당기순이익) - smaller scale values
+ */
 @Composable
-private fun IncomeBarChart(
+private fun IncomeLineChart(
     periods: List<String>,
     revenues: List<Long>,
     operatingProfits: List<Long>,
@@ -207,98 +218,113 @@ private fun IncomeBarChart(
 ) {
     val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
+    val revenueColor = RevenueColor.toArgb()
+    val operatingProfitColor = OperatingProfitColor.toArgb()
+    val netIncomeColor = NetIncomeColor.toArgb()
 
-    val revenueColor = Color(0xFF4CAF50).toArgb()  // Green
-    val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
-    val netIncomeColor = Color(0xFFFF9800).toArgb()  // Orange
-
-    // Chart layout constants for grouped bar chart
-    val groupSpace = 0.08f
-    val barSpace = 0.02f
-    val barWidth = 0.28f
-    val numDataSets = 3
-    // groupWidth = groupSpace + (barWidth + barSpace) * numDataSets
-    val groupWidth = groupSpace + (barWidth + barSpace) * numDataSets  // = 0.98f
-
-    // Memoize chart data (P2 fix)
+    // Memoize chart data entries
     val revenueEntries = remember(revenues) {
         revenues.mapIndexed { index, value ->
-            BarEntry(index.toFloat(), value.toFloat())
+            Entry(index.toFloat(), value.toFloat())
         }
     }
     val operatingProfitEntries = remember(operatingProfits) {
         operatingProfits.mapIndexed { index, value ->
-            BarEntry(index.toFloat(), value.toFloat())
+            Entry(index.toFloat(), value.toFloat())
         }
     }
     val netIncomeEntries = remember(netIncomes) {
         netIncomes.mapIndexed { index, value ->
-            BarEntry(index.toFloat(), value.toFloat())
+            Entry(index.toFloat(), value.toFloat())
         }
     }
 
     AndroidView(
         factory = { context ->
-            BarChart(context).apply {
+            CombinedChart(context).apply {
                 description.isEnabled = false
                 legend.apply {
                     isEnabled = true
                     textColor = chartTextColor
                 }
                 setDrawGridBackground(false)
-                setDrawBarShadow(false)
-                setDrawValueAboveBar(true)
+
+                // Draw order - lines only
+                setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
                 xAxis.apply {
                     position = XAxis.XAxisPosition.BOTTOM
                     setDrawGridLines(false)
                     granularity = 1f
                     textColor = chartTextColor
-                    // Note: valueFormatter is set in update block to handle data changes
+                    // valueFormatter set in update block
                 }
 
+                // Shared formatter for both Y-axes
+                val axisFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String {
+                        return formatAxisValue(value.toLong())
+                    }
+                }
+
+                // Left Y-Axis: Revenue (larger scale)
                 axisLeft.apply {
                     setDrawGridLines(true)
                     gridColor = chartGridColor
                     textColor = chartTextColor
-                    axisMinimum = 0f
+                    valueFormatter = axisFormatter
                 }
-                axisRight.isEnabled = false
 
-                setFitBars(true)
-                animateY(500)
+                // Right Y-Axis: Operating Profit & Net Income (smaller scale)
+                axisRight.apply {
+                    isEnabled = true
+                    setDrawGridLines(false)
+                    textColor = chartTextColor
+                    valueFormatter = axisFormatter
+                }
 
-                // Enable interactivity (zoom, drag, touch)
+                animateX(500)
+
+                // Enable interactivity
                 setupCommonChartProperties()
-                // Note: marker is set in update block to handle data changes
+                // Marker set in update block
             }
         },
         update = { chart ->
-            val revenueDataSet = BarDataSet(revenueEntries, "매출액").apply {
-                color = revenueColor
+            fun createLineDataSet(
+                entries: List<Entry>,
+                label: String,
+                lineColor: Int,
+                axis: YAxis.AxisDependency
+            ) = LineDataSet(entries, label).apply {
+                color = lineColor
+                setCircleColor(lineColor)
+                lineWidth = 2.5f
+                circleRadius = 4f
+                setDrawCircleHole(false)
                 setDrawValues(false)
-            }
-            val operatingProfitDataSet = BarDataSet(operatingProfitEntries, "영업이익").apply {
-                color = operatingProfitColor
-                setDrawValues(false)
-            }
-            val netIncomeDataSet = BarDataSet(netIncomeEntries, "당기순이익").apply {
-                color = netIncomeColor
-                setDrawValues(false)
+                mode = LineDataSet.Mode.LINEAR
+                axisDependency = axis
             }
 
-            val barData = BarData(revenueDataSet, operatingProfitDataSet, netIncomeDataSet).apply {
-                this.barWidth = barWidth
+            val revenueDataSet = createLineDataSet(
+                revenueEntries, "매출액", revenueColor, YAxis.AxisDependency.LEFT
+            )
+            val operatingProfitDataSet = createLineDataSet(
+                operatingProfitEntries, "영업이익", operatingProfitColor, YAxis.AxisDependency.RIGHT
+            )
+            val netIncomeDataSet = createLineDataSet(
+                netIncomeEntries, "당기순이익", netIncomeColor, YAxis.AxisDependency.RIGHT
+            )
+
+            val lineData = LineData(revenueDataSet, operatingProfitDataSet, netIncomeDataSet)
+            val combinedData = CombinedData().apply {
+                setData(lineData)
             }
 
-            chart.data = barData
+            chart.data = combinedData
 
-            // Fix axis boundaries for grouped bars (same pattern as SupplyDemandBarChart)
-            val startX = -0.5f
-            chart.xAxis.axisMinimum = startX
-            chart.xAxis.axisMaximum = periods.size.toFloat() - 0.5f
-
-            // Update valueFormatter with current periods (moved from factory to handle data changes)
+            // Update X-axis formatter with current periods
             chart.xAxis.valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
                     val index = value.toInt()
@@ -306,7 +332,7 @@ private fun IncomeBarChart(
                 }
             }
 
-            // Update marker with current data (moved from factory to handle data changes)
+            // Update marker with current data (reusing IncomeBarMarkerView - same data format)
             chart.marker = IncomeBarMarkerView(
                 chart.context,
                 periods,
@@ -315,9 +341,6 @@ private fun IncomeBarChart(
                 netIncomes
             )
 
-            if (periods.size > 1) {
-                chart.groupBars(startX, groupSpace, barSpace)
-            }
             chart.invalidate()
         },
         modifier = modifier
@@ -325,6 +348,19 @@ private fun IncomeBarChart(
             .height(280.dp)
             .padding(top = 8.dp)
     )
+}
+
+/**
+ * Format axis value for Y-axis labels (both left and right)
+ */
+private fun formatAxisValue(value: Long): String {
+    val absValue = kotlin.math.abs(value)
+    val sign = if (value < 0) "-" else ""
+    return when {
+        absValue >= 10000 -> String.format("%s%.1f조", sign, absValue / 10000.0)
+        absValue >= 1000 -> String.format("%s%.0f천", sign, absValue / 1000.0)
+        else -> "${sign}${absValue}억"
+    }
 }
 
 @Composable
@@ -337,10 +373,9 @@ private fun GrowthRateLineChart(
 ) {
     val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
-
-    val revenueColor = Color(0xFF4CAF50).toArgb()  // Green
-    val operatingProfitColor = Color(0xFF2196F3).toArgb()  // Blue
-    val netIncomeColor = Color(0xFFFF9800).toArgb()  // Orange
+    val revenueColor = RevenueColor.toArgb()
+    val operatingProfitColor = OperatingProfitColor.toArgb()
+    val netIncomeColor = NetIncomeColor.toArgb()
 
     AndroidView(
         factory = { context ->
@@ -435,9 +470,8 @@ private fun AssetGrowthLineChart(
 ) {
     val chartTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val chartGridColor = MaterialTheme.colorScheme.outlineVariant.toArgb()
-
-    val equityColor = Color(0xFF9C27B0).toArgb()  // Purple
-    val totalAssetsColor = Color(0xFF00BCD4).toArgb()  // Cyan
+    val equityColor = EquityColor.toArgb()
+    val totalAssetsColor = TotalAssetsColor.toArgb()
 
     AndroidView(
         factory = { context ->
