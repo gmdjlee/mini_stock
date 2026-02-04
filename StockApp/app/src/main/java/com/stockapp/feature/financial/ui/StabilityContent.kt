@@ -28,6 +28,7 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.stockapp.core.ui.component.chart.SingleRatioMarkerView
 import com.stockapp.core.ui.component.chart.StabilityRatioMarkerView
 import com.stockapp.core.ui.component.chart.setupCommonChartProperties
+import com.stockapp.core.ui.component.chart.setupMarkerOffsets
 import com.stockapp.feature.financial.domain.model.FinancialSummary
 
 /**
@@ -234,6 +235,8 @@ private fun StabilityLineChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
+                // Add extra offsets for marker display at edges
+                setupMarkerOffsets()
 
                 // Marker for touch labeling
                 marker = StabilityRatioMarkerView(
@@ -336,6 +339,8 @@ private fun SingleRatioLineChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
+                // Add extra offsets for marker display at edges
+                setupMarkerOffsets()
 
                 // Marker for touch labeling
                 marker = SingleRatioMarkerView(

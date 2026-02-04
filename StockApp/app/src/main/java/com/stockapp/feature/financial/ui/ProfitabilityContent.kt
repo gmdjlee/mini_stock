@@ -32,6 +32,7 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.stockapp.core.ui.component.chart.GrowthRateMarkerView
 import com.stockapp.core.ui.component.chart.IncomeBarMarkerView
 import com.stockapp.core.ui.component.chart.setupCommonChartProperties
+import com.stockapp.core.ui.component.chart.setupMarkerOffsets
 import com.stockapp.feature.financial.domain.model.FinancialSummary
 
 /**
@@ -276,6 +277,8 @@ private fun IncomeBarChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
+                // Add extra offsets for marker display at edges
+                setupMarkerOffsets()
             }
         },
         update = { chart ->
@@ -358,6 +361,8 @@ private fun GrowthRateLineChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
+                // Add extra offsets for marker display at edges
+                setupMarkerOffsets()
 
                 // Marker for touch labeling
                 marker = GrowthRateMarkerView(
@@ -455,6 +460,8 @@ private fun AssetGrowthLineChart(
 
                 // Enable interactivity (zoom, drag, touch)
                 setupCommonChartProperties()
+                // Add extra offsets for marker display at edges
+                setupMarkerOffsets()
 
                 // Marker for touch labeling
                 marker = GrowthRateMarkerView(
