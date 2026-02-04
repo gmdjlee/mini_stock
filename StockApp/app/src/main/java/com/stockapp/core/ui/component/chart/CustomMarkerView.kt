@@ -29,26 +29,40 @@ abstract class SmartMarkerView(
      * Calculates smart offset based on the data point's position relative to chart edges.
      */
     override fun draw(canvas: Canvas, posX: Float, posY: Float) {
+        // Ensure the marker is measured before calculating positions
+        if (width == 0 || height == 0) {
+            measure(
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            )
+            layout(0, 0, measuredWidth, measuredHeight)
+        }
+
         val chartWidth = chartView?.width?.toFloat() ?: run {
             super.draw(canvas, posX, posY)
             return
         }
 
-        // Get the default offset
+        // Get the default offset (centered horizontally, above the point)
         val offset = getOffset()
-
-        // Calculate where marker would be drawn with default offset
         var adjustedOffsetX = offset.x
-        val markerLeft = posX + adjustedOffsetX
-        val markerRight = posX + adjustedOffsetX + width
+
+        // Calculate marker bounds with default offset
+        val markerWidth = width.toFloat()
+        var markerRight = posX + adjustedOffsetX + markerWidth
 
         // Adjust if marker would overflow right edge
         if (markerRight > chartWidth - EDGE_PADDING) {
-            adjustedOffsetX = chartWidth - EDGE_PADDING - posX - width
+            // Shift marker left so its right edge aligns with chart's right edge (with padding)
+            adjustedOffsetX = chartWidth - EDGE_PADDING - posX - markerWidth
         }
+
+        // Recalculate left edge after potential right adjustment
+        var markerLeft = posX + adjustedOffsetX
 
         // Adjust if marker would overflow left edge
         if (markerLeft < EDGE_PADDING) {
+            // Shift marker right so its left edge aligns with chart's left edge (with padding)
             adjustedOffsetX = EDGE_PADDING - posX
         }
 

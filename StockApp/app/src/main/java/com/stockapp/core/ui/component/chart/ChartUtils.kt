@@ -285,3 +285,25 @@ fun BarChart.setupCommonChartProperties() {
     setDrawGridBackground(false)
     setExtraBottomOffset(10f)
 }
+
+/**
+ * Marker offset constant for financial charts.
+ * Provides sufficient space for marker labels to display without clipping at edges.
+ */
+const val MARKER_EXTRA_OFFSET = 60f
+
+/**
+ * Setup extra offsets for charts with markers.
+ * Adds padding on left and right sides to prevent marker clipping at edges.
+ */
+fun LineChart.setupMarkerOffsets() {
+    setExtraOffsets(MARKER_EXTRA_OFFSET, 0f, MARKER_EXTRA_OFFSET, 0f)
+}
+
+/**
+ * Setup extra offsets for BarChart with markers.
+ * Adds padding on left and right sides to prevent marker clipping at edges.
+ */
+fun BarChart.setupMarkerOffsets() {
+    setExtraOffsets(MARKER_EXTRA_OFFSET, 0f, MARKER_EXTRA_OFFSET, 0f)
+}
