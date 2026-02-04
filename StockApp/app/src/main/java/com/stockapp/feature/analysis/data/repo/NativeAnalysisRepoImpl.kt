@@ -9,6 +9,8 @@ import com.stockapp.core.db.entity.AnalysisCacheEntity
 import com.stockapp.core.stock.api.InvestorTrendRequest
 import com.stockapp.core.stock.api.InvestorTrendResponse
 import com.stockapp.core.stock.api.OhlcvData
+import com.stockapp.core.stock.api.RealtimeSupplyRequest
+import com.stockapp.core.stock.api.RealtimeSupplyResponse
 import com.stockapp.core.stock.api.StockApiEndpoints
 import com.stockapp.core.stock.api.StockApiIds
 import com.stockapp.core.stock.api.StockInfoRequest
@@ -17,8 +19,11 @@ import com.stockapp.core.stock.calc.MathUtil
 import com.stockapp.core.stock.data.OhlcvService
 import com.stockapp.feature.analysis.domain.model.StockData
 import com.stockapp.feature.analysis.domain.repo.AnalysisRepo
+import com.stockapp.feature.realtime.domain.model.TradingHours
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -52,7 +57,8 @@ class NativeAnalysisRepoImpl @Inject constructor(
     private data class ApiConfig(
         val appKey: String,
         val secretKey: String,
-        val baseUrl: String
+        val baseUrl: String,
+        val investmentMode: InvestmentMode
     )
 
     /**
@@ -67,7 +73,7 @@ class NativeAnalysisRepoImpl @Inject constructor(
             InvestmentMode.MOCK -> "https://mockapi.kiwoom.com"
             InvestmentMode.PRODUCTION -> "https://api.kiwoom.com"
         }
-        return ApiConfig(config.appKey, config.secretKey, baseUrl)
+        return ApiConfig(config.appKey, config.secretKey, baseUrl, config.investmentMode)
     }
 
     override suspend fun getAnalysis(
@@ -119,6 +125,156 @@ class NativeAnalysisRepoImpl @Inject constructor(
             Log.e(TAG, "getAnalysis() unexpected error: ${e.message}", e)
             Result.failure(ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류"))
         }
+    }
+
+    override suspend fun getAnalysisWithIntraday(
+        ticker: String,
+        days: Int,
+        useCache: Boolean
+    ): Result<StockData> {
+        Log.d(TAG, "getAnalysisWithIntraday() ticker=$ticker, days=$days, " +
+            "useCache=$useCache, isTradingHours=${TradingHours.isTradingHours()}")
+
+        // Step 1: Get base analysis data
+        val baseResult = getAnalysis(ticker, days, useCache)
+        if (baseResult.isFailure) {
+            return baseResult
+        }
+
+        val baseData = baseResult.getOrThrow()
+
+        // Step 2: Check if we're in trading hours
+        if (!TradingHours.isTradingHours()) {
+            Log.d(TAG, "getAnalysisWithIntraday() not in trading hours, returning base data")
+            return Result.success(baseData)
+        }
+
+        // Step 3: Fetch intraday data (ka10063) for foreign and institution
+        return try {
+            val config = getApiConfig()
+            val intradayResult = fetchIntradayInvestorData(ticker, config)
+
+            intradayResult.fold(
+                onSuccess = { intradayData ->
+                    // Step 4: Merge intraday data with base data
+                    val mergedData = IntradayDataMerger.merge(baseData, intradayData)
+                    Log.d(TAG, "getAnalysisWithIntraday() merged intraday data for ticker=$ticker")
+                    Result.success(mergedData)
+                },
+                onFailure = { error ->
+                    // If intraday fetch fails, return base data (graceful degradation)
+                    Log.w(TAG, "getAnalysisWithIntraday() intraday fetch failed, using base data: ${error.message}")
+                    Result.success(baseData)
+                }
+            )
+        } catch (e: Exception) {
+            // On any error, return base data
+            Log.w(TAG, "getAnalysisWithIntraday() error during intraday fetch: ${e.message}")
+            Result.success(baseData)
+        }
+    }
+
+    /**
+     * Fetch intraday investor data using ka10063 API.
+     * Makes two parallel API calls: one for foreign (invsr=2) and one for institution (invsr=3).
+     */
+    private suspend fun fetchIntradayInvestorData(
+        ticker: String,
+        config: ApiConfig
+    ): Result<IntradayInvestorData> = coroutineScope {
+        // Determine stexTp based on investment mode
+        val stexTp = when (config.investmentMode) {
+            InvestmentMode.MOCK -> "3"    // KRX (모의)
+            InvestmentMode.PRODUCTION -> "1" // KRX (실전)
+        }
+
+        // Fetch foreign and institution data in parallel
+        val foreignDeferred = async {
+            fetchRealtimeSupply(ticker, config, stexTp, INVESTOR_FOREIGN)
+        }
+        val institutionDeferred = async {
+            fetchRealtimeSupply(ticker, config, stexTp, INVESTOR_INSTITUTION)
+        }
+
+        val foreignResult = foreignDeferred.await()
+        val institutionResult = institutionDeferred.await()
+
+        // If both succeed, combine the data
+        if (foreignResult.isSuccess && institutionResult.isSuccess) {
+            val foreignNet = foreignResult.getOrThrow()
+            val institutionNet = institutionResult.getOrThrow()
+
+            Log.d(TAG, "fetchIntradayInvestorData() foreign=$foreignNet, institution=$institutionNet")
+
+            Result.success(IntradayInvestorData(
+                foreignNetBuy = foreignNet,
+                institutionNetBuy = institutionNet,
+                timestamp = System.currentTimeMillis()
+            ))
+        } else {
+            // If either fails, return failure
+            val error = foreignResult.exceptionOrNull() ?: institutionResult.exceptionOrNull()
+                ?: Exception("Unknown error")
+            Result.failure(error)
+        }
+    }
+
+    /**
+     * Fetch realtime supply data for a specific investor type using ka10063 API.
+     *
+     * @param ticker Stock ticker code
+     * @param config API configuration
+     * @param stexTp Exchange type (1: KRX 실전, 3: KRX 모의)
+     * @param invsr Investor type (2: 외국인, 3: 기관)
+     * @return Net buy amount in 백만원
+     */
+    private suspend fun fetchRealtimeSupply(
+        ticker: String,
+        config: ApiConfig,
+        stexTp: String,
+        invsr: String
+    ): Result<Long> {
+        val request = RealtimeSupplyRequest(
+            stkCd = ticker,
+            mrktTp = "000",    // 전체
+            invsr = invsr,
+            stexTp = stexTp,
+            amtQtyTp = "1"     // 금액
+        )
+
+        return apiClient.call(
+            apiId = StockApiIds.REALTIME_SUPPLY,
+            url = StockApiEndpoints.REALTIME_SUPPLY,
+            body = request.toRequestBody(),
+            appKey = config.appKey,
+            secretKey = config.secretKey,
+            baseUrl = config.baseUrl
+        ) { responseJson ->
+            val response = json.decodeFromString<RealtimeSupplyResponse>(responseJson)
+            val items = response.items
+
+            if (items.isNullOrEmpty()) {
+                Log.w(TAG, "fetchRealtimeSupply() no items for ticker=$ticker, invsr=$invsr")
+                0L
+            } else {
+                // Find matching item by ticker, or use first item
+                val item = items.find { it.stkCd == ticker } ?: items.firstOrNull()
+                parseSignedLong(item?.netBuyAmount)
+            }
+        }
+    }
+
+    /**
+     * Parse a string value that may have sign prefix to Long.
+     */
+    private fun parseSignedLong(value: String?): Long =
+        value?.replace(",", "")?.trim()?.toLongOrNull() ?: 0L
+
+    companion object {
+        /** Investor type: Foreign (외국인) */
+        private const val INVESTOR_FOREIGN = "2"
+        /** Investor type: Institution (기관) */
+        private const val INVESTOR_INSTITUTION = "3"
     }
 
     override suspend fun getCachedAnalysis(ticker: String): StockData? {

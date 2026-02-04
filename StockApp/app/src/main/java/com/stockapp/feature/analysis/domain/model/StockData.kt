@@ -106,7 +106,9 @@ data class AnalysisSummary(
     val dates: List<String>,
     val mcapHistory: List<Double>,      // In trillion (조원)
     val for5dHistory: List<Double>,     // In 억원 (100 million KRW)
-    val ins5dHistory: List<Double>      // In 억원 (100 million KRW)
+    val ins5dHistory: List<Double>,     // In 억원 (100 million KRW)
+    val isTradingHours: Boolean = false,        // 장중 여부
+    val lastUpdatedAt: Long = System.currentTimeMillis()  // 마지막 업데이트 시각
 )
 
 enum class SupplySignal {
@@ -127,19 +129,14 @@ enum class SupplySignal {
     }
 }
 
-/**
- * Analysis screen tab types.
- */
-enum class AnalysisTab(val label: String) {
-    SUPPLY_DEMAND("수급 분석"),
-    REALTIME("실시간 수급")
-}
 
 /**
  * Convert StockData to AnalysisSummary for UI.
  * Note: API returns for_5d/ins_5d in 백만원 (million KRW), convert to 억원 by dividing by 100.
+ *
+ * @param isTradingHours Whether the current time is within trading hours (09:00-15:30)
  */
-fun StockData.toSummary(): AnalysisSummary {
+fun StockData.toSummary(isTradingHours: Boolean = false): AnalysisSummary {
     return AnalysisSummary(
         ticker = ticker,
         name = name,
@@ -151,6 +148,8 @@ fun StockData.toSummary(): AnalysisSummary {
         dates = dates,
         mcapHistory = mcap.map { it / 1_000_000_000_000.0 },
         for5dHistory = for5d.map { it / 100.0 },  // 백만원 → 억원
-        ins5dHistory = ins5d.map { it / 100.0 }   // 백만원 → 억원
+        ins5dHistory = ins5d.map { it / 100.0 },  // 백만원 → 억원
+        isTradingHours = isTradingHours,
+        lastUpdatedAt = System.currentTimeMillis()
     )
 }

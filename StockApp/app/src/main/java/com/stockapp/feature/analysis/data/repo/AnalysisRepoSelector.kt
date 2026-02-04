@@ -40,6 +40,14 @@ class AnalysisRepoSelector @Inject constructor(
         return selectRepo().getAnalysis(ticker, days, useCache)
     }
 
+    override suspend fun getAnalysisWithIntraday(
+        ticker: String,
+        days: Int,
+        useCache: Boolean
+    ): Result<StockData> {
+        return selectRepo().getAnalysisWithIntraday(ticker, days, useCache)
+    }
+
     override suspend fun getCachedAnalysis(ticker: String): StockData? {
         // Cache is shared between implementations - use native for direct access
         return nativeRepo.getCachedAnalysis(ticker)

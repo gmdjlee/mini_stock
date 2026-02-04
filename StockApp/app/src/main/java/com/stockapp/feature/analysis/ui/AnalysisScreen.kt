@@ -1,5 +1,6 @@
 package com.stockapp.feature.analysis.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,8 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
@@ -25,8 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -37,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -49,10 +53,11 @@ import com.stockapp.core.ui.theme.LocalExtendedColors
 import com.stockapp.core.ui.component.chart.MarketCapOscillatorChart
 import com.stockapp.core.ui.component.chart.SupplyDemandBarChart
 import com.stockapp.feature.analysis.domain.model.AnalysisSummary
-import com.stockapp.feature.analysis.domain.model.AnalysisTab
 import com.stockapp.feature.analysis.domain.model.SupplySignal
-import com.stockapp.feature.realtime.ui.RealtimeSupplyTab
 import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Chart display constants.
@@ -75,7 +80,8 @@ fun AnalysisScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val selectedTab by viewModel.selectedTab.collectAsState()
+    val isTradingHours by viewModel.isTradingHours.collectAsState()
+    val autoRefreshEnabled by viewModel.autoRefreshEnabled.collectAsState()
 
     Scaffold(
         topBar = {
@@ -88,8 +94,13 @@ fun AnalysisScreen(
                     Text(title)
                 },
                 actions = {
-                    if (selectedTab == AnalysisTab.SUPPLY_DEMAND &&
-                        (state is AnalysisState.Success || state is AnalysisState.Error)) {
+                    // Trading status badge
+                    if (isTradingHours && state is AnalysisState.Success) {
+                        TradingStatusBadge()
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
+                    if (state is AnalysisState.Success || state is AnalysisState.Error) {
                         IconButton(
                             onClick = viewModel::refresh,
                             enabled = !isRefreshing
@@ -110,23 +121,7 @@ fun AnalysisScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Tab Row - only show when stock is selected
-            if (state !is AnalysisState.NoStock) {
-                TabRow(
-                    selectedTabIndex = AnalysisTab.entries.indexOf(selectedTab),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    AnalysisTab.entries.forEach { tab ->
-                        Tab(
-                            selected = selectedTab == tab,
-                            onClick = { viewModel.selectTab(tab) },
-                            text = { Text(tab.label) }
-                        )
-                    }
-                }
-            }
-
-            // Content based on state and tab
+            // Content based on state
             when (val currentState = state) {
                 is AnalysisState.NoStock -> {
                     NoStockContent(
@@ -135,50 +130,63 @@ fun AnalysisScreen(
                 }
 
                 is AnalysisState.Loading -> {
-                    if (selectedTab == AnalysisTab.SUPPLY_DEMAND) {
-                        LoadingContent(
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        // Realtime tab - show RealtimeSupplyTab
-                        RealtimeSupplyTab()
-                    }
+                    LoadingContent(
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 is AnalysisState.Success -> {
-                    when (selectedTab) {
-                        AnalysisTab.SUPPLY_DEMAND -> {
-                            PullToRefreshBox(
-                                isRefreshing = isRefreshing,
-                                onRefresh = viewModel::refresh,
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                AnalysisContent(
-                                    summary = currentState.summary,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-                        AnalysisTab.REALTIME -> {
-                            RealtimeSupplyTab()
-                        }
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = viewModel::refresh,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        AnalysisContent(
+                            summary = currentState.summary,
+                            isTradingHours = isTradingHours,
+                            autoRefreshEnabled = autoRefreshEnabled,
+                            onAutoRefreshChange = viewModel::setAutoRefreshEnabled,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
 
                 is AnalysisState.Error -> {
-                    if (selectedTab == AnalysisTab.SUPPLY_DEMAND) {
-                        ErrorContent(
-                            message = currentState.msg,
-                            onRetry = viewModel::retry,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        // Realtime tab - show RealtimeSupplyTab
-                        RealtimeSupplyTab()
-                    }
+                    ErrorContent(
+                        message = currentState.msg,
+                        onRetry = viewModel::retry,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * Trading status badge showing "장중" (In Trading Hours)
+ */
+@Composable
+private fun TradingStatusBadge() {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF4CAF50))  // Green dot
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = "장중",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
 }
 
@@ -211,6 +219,9 @@ private fun NoStockContent(modifier: Modifier = Modifier) {
 @Composable
 private fun AnalysisContent(
     summary: AnalysisSummary,
+    isTradingHours: Boolean,
+    autoRefreshEnabled: Boolean,
+    onAutoRefreshChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // P0 fix: Memoize chart data preparation to avoid recalculation on every recomposition
@@ -257,6 +268,15 @@ private fun AnalysisContent(
         // Stock header
         StockHeader(summary = summary)
 
+        // Auto refresh card (only during trading hours)
+        if (isTradingHours) {
+            AutoRefreshCard(
+                enabled = autoRefreshEnabled,
+                onEnabledChange = onAutoRefreshChange,
+                lastUpdatedAt = summary.lastUpdatedAt
+            )
+        }
+
         // Supply signal card
         SupplySignalCard(summary = summary)
 
@@ -300,7 +320,8 @@ private fun AnalysisContent(
         if (mcapHistory.isNotEmpty()) {
             ChartCard(
                 title = "시가총액 & 수급 오실레이터",
-                subtitle = "시가총액(좌축), 오실레이터(우축)"
+                subtitle = if (isTradingHours) "시가총액(좌축), 오실레이터(우축) - 실시간 데이터 포함"
+                          else "시가총액(좌축), 오실레이터(우축)"
             ) {
                 MarketCapOscillatorChart(
                     dates = dates,
@@ -314,7 +335,8 @@ private fun AnalysisContent(
         if (for5dHistory.isNotEmpty()) {
             ChartCard(
                 title = "외국인/기관 순매수 추이",
-                subtitle = "외국인(빨강), 기관(파랑)"
+                subtitle = if (isTradingHours) "외국인(빨강), 기관(파랑) - 실시간 데이터 포함"
+                          else "외국인(빨강), 기관(파랑)"
             ) {
                 SupplyDemandBarChart(
                     dates = dates.takeLast(ChartConfig.SUPPLY_DEMAND_CHART_DAYS),
@@ -332,6 +354,54 @@ private fun AnalysisContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.End
+            )
+        }
+    }
+}
+
+/**
+ * Auto refresh card for trading hours.
+ */
+@Composable
+private fun AutoRefreshCard(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    lastUpdatedAt: Long,
+    modifier: Modifier = Modifier
+) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val lastUpdatedTime = remember(lastUpdatedAt) {
+        timeFormat.format(Date(lastUpdatedAt))
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "장중 자동 새로고침",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = "마지막 업데이트: $lastUpdatedTime",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange
             )
         }
     }

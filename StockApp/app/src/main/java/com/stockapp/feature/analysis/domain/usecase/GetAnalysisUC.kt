@@ -4,6 +4,7 @@ import com.stockapp.feature.analysis.domain.model.AnalysisSummary
 import com.stockapp.feature.analysis.domain.model.StockData
 import com.stockapp.feature.analysis.domain.model.toSummary
 import com.stockapp.feature.analysis.domain.repo.AnalysisRepo
+import com.stockapp.feature.realtime.domain.model.TradingHours
 import javax.inject.Inject
 
 /**
@@ -44,16 +45,28 @@ class GetAnalysisUC @Inject constructor(
 /**
  * Get analysis summary use case.
  * Returns processed summary for UI display.
+ * During trading hours, integrates real-time intraday data from ka10063.
  */
 class GetAnalysisSummaryUC @Inject constructor(
-    private val getAnalysisUC: GetAnalysisUC
+    private val repo: AnalysisRepo
 ) {
     suspend operator fun invoke(
         ticker: String,
         days: Int = GetAnalysisUC.DEFAULT_DAYS,
         useCache: Boolean = true
     ): Result<AnalysisSummary> {
-        return getAnalysisUC(ticker, days, useCache).map { it.toSummary() }
+        if (ticker.isBlank()) {
+            return Result.failure(IllegalArgumentException("종목코드가 필요합니다"))
+        }
+
+        val isTradingHours = TradingHours.isTradingHours()
+
+        // Use getAnalysisWithIntraday to get real-time data during trading hours
+        return repo.getAnalysisWithIntraday(
+            ticker = ticker.trim(),
+            days = days,
+            useCache = useCache
+        ).map { it.toSummary(isTradingHours) }
     }
 }
 
