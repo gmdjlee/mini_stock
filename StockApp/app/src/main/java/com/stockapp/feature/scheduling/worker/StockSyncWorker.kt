@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.stockapp.feature.scheduling.domain.model.SyncType
 import com.stockapp.feature.scheduling.domain.repo.SchedulingRepo
+import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -20,11 +21,34 @@ private const val TAG = "StockSyncWorker"
 class StockSyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val schedulingRepo: SchedulingRepo
+    private val schedulingRepo: SchedulingRepo,
+    private val settingsRepo: SettingsRepo
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         Log.d(TAG, "doWork() started")
+
+        // Ensure PyClient is initialized before sync.
+        // When app is killed and WorkManager restarts the process,
+        // PyClient may not be initialized yet.
+        val initResult = settingsRepo.initializeWithSavedKeys()
+        initResult.fold(
+            onSuccess = { initialized ->
+                if (!initialized) {
+                    Log.w(TAG, "No API keys configured, cannot sync")
+                    // Don't set error-stopped flag - this is a configuration issue
+                    // User needs to configure API keys in Settings
+                    return Result.failure()
+                }
+                Log.d(TAG, "PyClient initialized for sync")
+            },
+            onFailure = { e ->
+                Log.e(TAG, "PyClient initialization failed: ${e.message}", e)
+                // Set error-stopped to prevent repeated failures
+                schedulingRepo.setErrorStopped(true)
+                return Result.failure()
+            }
+        )
 
         // Check if sync is enabled or error-stopped
         val config = schedulingRepo.getConfig()
