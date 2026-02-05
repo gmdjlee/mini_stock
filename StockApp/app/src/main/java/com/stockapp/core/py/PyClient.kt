@@ -126,10 +126,10 @@ class PyClient @Inject constructor(
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             Log.e(TAG, "call() timeout after ${timeoutMs}ms", e)
-            Result.failure(PyError.Timeout("Python call timed out after ${timeoutMs}ms"))
+            Result.failure(PyError.Timeout("요청 시간이 초과되었습니다 (${timeoutMs / 1000}초)"))
         } catch (e: Exception) {
             Log.e(TAG, "call() exception: ${e.javaClass.simpleName} - ${e.message}", e)
-            Result.failure(PyError.CallError(e.message ?: "Python call failed"))
+            Result.failure(classifyError(e))
         }
     }
 
@@ -277,6 +277,71 @@ class PyClient @Inject constructor(
         }
     }
 
+    /**
+     * Classify Python exception into appropriate PyError type.
+     */
+    private fun classifyError(e: Exception): PyError {
+        val msg = e.message ?: "알 수 없는 오류"
+
+        return when {
+            // Auth errors (not retriable)
+            msg.contains("AuthError", ignoreCase = true) ||
+            msg.contains("인증", ignoreCase = true) ||
+            msg.contains("권한", ignoreCase = true) ||
+            msg.contains("Invalid", ignoreCase = true) && msg.contains("key", ignoreCase = true) -> {
+                val cleanMsg = extractPythonErrorMessage(msg) ?: "인증 오류가 발생했습니다"
+                PyError.AuthError(cleanMsg)
+            }
+
+            // Network errors (retriable)
+            msg.contains("Network", ignoreCase = true) ||
+            msg.contains("네트워크", ignoreCase = true) ||
+            msg.contains("Connection", ignoreCase = true) ||
+            msg.contains("UnknownHost", ignoreCase = true) ||
+            msg.contains("SocketTimeout", ignoreCase = true) ||
+            msg.contains("connect", ignoreCase = true) && msg.contains("fail", ignoreCase = true) -> {
+                PyError.NetworkError("네트워크 연결 오류: ${extractPythonErrorMessage(msg) ?: "연결할 수 없습니다"}")
+            }
+
+            // Timeout errors (retriable)
+            msg.contains("timeout", ignoreCase = true) ||
+            msg.contains("시간 초과", ignoreCase = true) -> {
+                PyError.Timeout("요청 시간이 초과되었습니다")
+            }
+
+            // Default: CallError - check if retriable based on error content
+            else -> {
+                val isRetriable = msg.contains("temporary", ignoreCase = true) ||
+                        msg.contains("retry", ignoreCase = true) ||
+                        msg.contains("일시적", ignoreCase = true)
+                PyError.CallError(extractPythonErrorMessage(msg) ?: msg, isRetriable)
+            }
+        }
+    }
+
+    /**
+     * Extract meaningful error message from Python exception string.
+     */
+    private fun extractPythonErrorMessage(msg: String): String? {
+        // Try to extract message from "ErrorType: message" format
+        val patterns = listOf(
+            Regex("""AuthError:\s*(.+)"""),
+            Regex("""ApiError:\s*(.+)"""),
+            Regex("""NetworkError:\s*(.+)"""),
+            Regex("""Exception:\s*(.+)""")
+        )
+
+        for (pattern in patterns) {
+            val match = pattern.find(msg)
+            if (match != null) {
+                return match.groupValues[1].trim()
+            }
+        }
+
+        // Return null if no pattern matched
+        return null
+    }
+
     companion object {
         private const val TAG = "PyClient"
         // Reference centralized config for timeout constants
@@ -287,11 +352,21 @@ class PyClient @Inject constructor(
 
 /**
  * Python call errors.
+ * @property isRetriable true if this error is transient and the operation can be retried
  */
-sealed class PyError(override val message: String) : Exception(message) {
-    class InitError(msg: String) : PyError(msg)
-    class NotInitialized(msg: String) : PyError(msg)
-    class CallError(msg: String) : PyError(msg)
-    class Timeout(msg: String) : PyError(msg)
-    class ParseError(msg: String) : PyError(msg)
+sealed class PyError(override val message: String, val isRetriable: Boolean = false) : Exception(message) {
+    /** Initialization failed - may be retriable if caused by network issues */
+    class InitError(msg: String, retriable: Boolean = false) : PyError(msg, retriable)
+    /** PyClient not initialized - not retriable, requires app restart or re-initialization */
+    class NotInitialized(msg: String) : PyError(msg, false)
+    /** API call failed - may be retriable depending on the underlying cause */
+    class CallError(msg: String, retriable: Boolean = false) : PyError(msg, retriable)
+    /** Timeout - retriable as it may be a transient network issue */
+    class Timeout(msg: String) : PyError(msg, true)
+    /** Parse error - not retriable as data is malformed */
+    class ParseError(msg: String) : PyError(msg, false)
+    /** Network error - retriable as it's a transient issue */
+    class NetworkError(msg: String) : PyError(msg, true)
+    /** Auth error - not retriable without fixing credentials */
+    class AuthError(msg: String) : PyError(msg, false)
 }

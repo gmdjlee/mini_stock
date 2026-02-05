@@ -92,8 +92,10 @@ class SchedulingRepoImpl @Inject constructor(
         Log.d(TAG, "syncStockList() started")
 
         if (!pyClient.isReady()) {
-            Log.w(TAG, "PyClient not ready")
-            return@withContext Result.failure(Exception("API 키가 설정되지 않았습니다."))
+            Log.w(TAG, "PyClient not ready - client may not be initialized or Python crashed")
+            return@withContext Result.failure(
+                Exception("API 클라이언트가 준비되지 않았습니다. 앱을 재시작하거나 설정에서 API 키를 확인해주세요.")
+            )
         }
 
         try {
@@ -210,7 +212,9 @@ class SchedulingRepoImpl @Inject constructor(
         Log.d(TAG, "syncAnalysisData() for ${tickers.size} tickers")
 
         if (!pyClient.isReady()) {
-            return@withContext Result.failure(Exception("API 키가 설정되지 않았습니다."))
+            return@withContext Result.failure(
+                Exception("API 클라이언트가 준비되지 않았습니다. 앱을 재시작하거나 설정에서 API 키를 확인해주세요.")
+            )
         }
 
         var syncedCount = 0
