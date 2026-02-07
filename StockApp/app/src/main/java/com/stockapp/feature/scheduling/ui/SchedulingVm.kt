@@ -113,13 +113,13 @@ class SchedulingVm @Inject constructor(
         _isLoading,
         _error
     ) { flows ->
-        val config = flows[0] as SchedulingConfig
+        val config = flows[0] as? SchedulingConfig ?: return@combine SchedulingUiState()
         @Suppress("UNCHECKED_CAST")
-        val history = flows[1] as List<SyncHistory>
-        val syncState = flows[2] as SyncWorkState
-        val etfStatus = flows[3] as EtfCollectionStatus
-        val loading = flows[4] as Boolean
-        val error = flows[5] as String?
+        val history = flows[1] as? List<SyncHistory> ?: emptyList()
+        val syncState = flows[2] as? SyncWorkState ?: SyncWorkState.IDLE
+        val etfStatus = flows[3] as? EtfCollectionStatus ?: EtfCollectionStatus()
+        val loading = flows[4] as? Boolean ?: false
+        val error = flows[5] as? String?
 
         SchedulingUiState(
             config = config,

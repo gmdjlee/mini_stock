@@ -106,7 +106,8 @@ object TrendCalculator {
         val maSignal = if (timeframe == "weekly") {
             calcMaSignalWeeklyReference(closes, highs, lows, ma10, cmf)
         } else {
-            calcMaSignal(ma5, ma20, ma60!!)
+            // ma60 is always non-null when timeframe is "daily" (see calcMa above)
+            calcMaSignal(ma5, ma20, ma60 ?: return null)
         }
 
         // Calculate combined trend
@@ -205,7 +206,7 @@ object TrendCalculator {
 
             val prevHigh = highs[i + 1]
             val prevLow = lows[i + 1]
-            val currentMa10 = ma10[i]!!
+            val currentMa10 = ma10[i] ?: continue
 
             // Buy Signal: High > Prev_High AND Close > MA10 AND CMF > 0
             if (highs[i] > prevHigh && closes[i] > currentMa10 && cmf[i] > 0) {

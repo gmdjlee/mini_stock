@@ -29,7 +29,8 @@ fun ApiError.toAppError(): AppError = when (this) {
 }
 
 /**
- * Convert PyError to AppError.
+ * Convert PyError to AppError./ㄷ턋
+ *
  */
 fun PyError.toAppError(): AppError = when (this) {
     is PyError.InitError -> AppError.PythonInitError(message)
@@ -37,6 +38,8 @@ fun PyError.toAppError(): AppError = when (this) {
     is PyError.CallError -> AppError.PythonCallError(message)
     is PyError.Timeout -> AppError.TimeoutError(message)
     is PyError.ParseError -> AppError.ParseError(message)
+    is PyError.NetworkError -> AppError.NetworkError(message)
+    is PyError.AuthError -> AppError.AuthError(message)
 }
 
 /**

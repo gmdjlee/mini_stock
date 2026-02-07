@@ -40,6 +40,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +58,9 @@ import com.stockapp.feature.etf.ui.EtfVm
 import com.stockapp.feature.etf.ui.RankingState
 import java.text.NumberFormat
 import java.util.Locale
+
+/** Cached NumberFormat instance to avoid per-row allocation in LazyColumn. */
+private val koreanNumberFormat: NumberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,8 +131,10 @@ private fun RankingContent(
     onItemClick: (EnhancedStockRanking) -> Unit,
     onItemLongClick: (EnhancedStockRanking) -> Unit
 ) {
-    // Apply sorting to rankings
-    val sortedRankings = result.rankings.applySorting(sortState)
+    // Apply sorting to rankings (memoized to avoid recomputation on recomposition)
+    val sortedRankings = remember(result.rankings, sortState) {
+        result.rankings.applySorting(sortState)
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize()
@@ -568,7 +574,7 @@ private fun formatAmount(amount: Long): String {
         amount >= 1_000_000_000_000 -> String.format("%.1f조", amount / 1_000_000_000_000.0)
         amount >= 100_000_000 -> String.format("%.0f억", amount / 100_000_000.0)
         amount >= 10_000 -> String.format("%.0f만", amount / 10_000.0)
-        else -> NumberFormat.getNumberInstance(Locale.KOREA).format(amount)
+        else -> koreanNumberFormat.format(amount)
     }
 }
 
@@ -578,7 +584,7 @@ private fun formatAmountChange(change: Long): String {
         kotlin.math.abs(change) >= 1_000_000_000_000 -> String.format("%s%.1f조", sign, change / 1_000_000_000_000.0)
         kotlin.math.abs(change) >= 100_000_000 -> String.format("%s%.0f억", sign, change / 100_000_000.0)
         kotlin.math.abs(change) >= 10_000 -> String.format("%s%.0f만", sign, change / 10_000.0)
-        else -> sign + NumberFormat.getNumberInstance(Locale.KOREA).format(change)
+        else -> sign + koreanNumberFormat.format(change)
     }
 }
 

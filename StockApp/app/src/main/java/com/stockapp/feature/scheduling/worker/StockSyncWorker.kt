@@ -9,6 +9,7 @@ import com.stockapp.core.py.PyError
 import com.stockapp.feature.scheduling.domain.model.SyncType
 import com.stockapp.feature.scheduling.domain.repo.SchedulingRepo
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import kotlin.coroutines.cancellation.CancellationException
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -98,6 +99,8 @@ class StockSyncWorker @AssistedInject constructor(
             } else {
                 handleSyncFailure(result.errorMessage)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Sync exception: ${e.message}", e)
             handleSyncFailure(e.message, e)

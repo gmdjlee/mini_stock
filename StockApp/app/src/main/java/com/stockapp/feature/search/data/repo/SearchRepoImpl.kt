@@ -1,6 +1,7 @@
 package com.stockapp.feature.search.data.repo
 
 import android.util.Log
+import com.stockapp.BuildConfig
 import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
@@ -29,7 +30,7 @@ class SearchRepoImpl @Inject constructor(
 ) : SearchRepo {
 
     override suspend fun search(query: String): Result<List<Stock>> {
-        Log.d(TAG, "search() called with query: $query")
+        if (BuildConfig.DEBUG) Log.d(TAG, "search() called with query: $query")
 
         // First try local cache with Kotlin filtering (SQLite LIKE has issues with Korean text)
         val cacheCount = stockDao.count()
@@ -131,7 +132,7 @@ class SearchRepoImpl @Inject constructor(
     }
 
     override suspend fun searchCacheOnly(query: String): Result<List<Stock>> {
-        Log.d(TAG, "searchCacheOnly() query: $query")
+        if (BuildConfig.DEBUG) Log.d(TAG, "searchCacheOnly() query: $query")
 
         val cacheCount = stockDao.count()
         if (cacheCount == 0) {
@@ -151,7 +152,9 @@ class SearchRepoImpl @Inject constructor(
     }
 
     private fun parseSearchResponse(jsonStr: String): List<Stock> {
-        Log.d(TAG, "parseSearchResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "parseSearchResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
+        }
 
         val response = json.decodeFromString<SearchResponse>(jsonStr)
         Log.d(TAG, "parseSearchResponse() ok=${response.ok}, data=${response.data?.size ?: 0}, error=${response.error}")

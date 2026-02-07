@@ -5,6 +5,7 @@ import com.stockapp.feature.etf.domain.model.DateRangeOption
 import com.stockapp.feature.etf.domain.repo.EtfRepository
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -33,6 +34,8 @@ class GetComparisonInRangeUC @Inject constructor(
 
             // Get comparison results
             repository.getComparisonInRange(startDate, endDate)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -48,6 +51,8 @@ class GetComparisonInRangeUC @Inject constructor(
     suspend fun forDates(startDate: String, endDate: String): Result<ComparisonResult> {
         return try {
             repository.getComparisonInRange(startDate, endDate)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -7,4 +7,5 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.chaquopy) apply false
+    id("org.jetbrains.kotlin.jvm") version libs.versions.kotlin.get() apply false
 }

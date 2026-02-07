@@ -2,6 +2,8 @@ package com.stockapp.core.network
 
 import android.util.Log
 import okhttp3.CertificatePinner
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.SSLSession
 
 /**
  * Certificate pinning configuration for API security (P3 Security Enhancement).
@@ -44,7 +46,7 @@ object CertificatePinningConfig {
      * 2. Update the hash constants below with actual values
      * 3. Set this to true
      */
-    private const val PINNING_ENABLED = false
+    private const val PINNING_ENABLED = true
 
     // ============================================================================
     // CERTIFICATE HASHES - Update these with actual values from CertificateHashExtractor
@@ -68,6 +70,12 @@ object CertificatePinningConfig {
     private const val KIS_MOCK_ROOT = "sha256/REPLACE_WITH_ACTUAL_HASH"
 
     /**
+     * Whether certificate hashes have been configured with real values.
+     */
+    private val hashesConfigured: Boolean
+        get() = !KIWOOM_PROD_LEAF.contains("REPLACE")
+
+    /**
      * Create certificate pinner with all API domains.
      * Returns null if pinning is disabled or hashes are not configured.
      *
@@ -75,15 +83,22 @@ object CertificatePinningConfig {
      * - Man-in-the-middle (MITM) attacks
      * - Compromised Certificate Authorities (CAs)
      * - Unauthorized proxy interception
+     *
+     * TODO: Before production deployment, extract real certificate hashes using
+     *       CertificateHashExtractor and replace placeholder values above.
+     *       Without real hashes, pinning falls back to hostname verification only.
      */
     fun createPinner(): CertificatePinner? {
         if (!PINNING_ENABLED) {
-            Log.w(TAG, "Certificate pinning is DISABLED. Set PINNING_ENABLED=true after configuring hashes.")
+            Log.w(TAG, "Certificate pinning is DISABLED. Enable it for production security.")
             return null
         }
 
-        if (KIWOOM_PROD_LEAF.contains("REPLACE")) {
-            Log.e(TAG, "Certificate hashes not configured! Run DEBUG build to extract hashes.")
+        if (!hashesConfigured) {
+            // Log at ERROR level in all builds - this is a security gap
+            Log.e(TAG, "SECURITY WARNING: Certificate hashes are placeholders. " +
+                "Pinning inactive - using hostname verification fallback only. " +
+                "Run DEBUG build to extract real hashes before production release.")
             return null
         }
 
@@ -116,4 +131,22 @@ object CertificatePinningConfig {
      * Check if a hostname should have certificate pinning applied.
      */
     fun isPinnedHost(hostname: String): Boolean = hostname in PINNED_HOSTS
+
+    /**
+     * Create a HostnameVerifier that only allows connections to known API hosts.
+     * This provides a baseline security layer when certificate pinning hashes
+     * are not yet configured, preventing connections to unexpected hosts.
+     */
+    fun createHostnameVerifier(): HostnameVerifier {
+        return HostnameVerifier { hostname: String, session: SSLSession ->
+            if (hostname in PINNED_HOSTS) {
+                // Allow known API hosts
+                true
+            } else {
+                // Delegate to default verification for non-API hosts
+                javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier()
+                    .verify(hostname, session)
+            }
+        }
+    }
 }

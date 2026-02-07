@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.stockapp.core.db.entity.StockEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -24,6 +25,9 @@ interface StockDao {
     @Query("SELECT * FROM stocks WHERE name LIKE '%' || :query || '%' OR ticker LIKE '%' || :query || '%' ORDER BY name ASC LIMIT 50")
     suspend fun search(query: String): List<StockEntity>
 
+    @Query("SELECT * FROM stocks WHERE (name LIKE '%' || :query || '%' OR ticker LIKE '%' || :query || '%') AND market IN (:markets) LIMIT :limit")
+    suspend fun searchByQuery(query: String, markets: List<String>, limit: Int = 50): List<StockEntity>
+
     @Query("SELECT * FROM stocks WHERE market = :market ORDER BY name ASC")
     suspend fun getByMarket(market: String): List<StockEntity>
 
@@ -35,6 +39,12 @@ interface StockDao {
 
     @Query("DELETE FROM stocks")
     suspend fun deleteAll()
+
+    @Transaction
+    suspend fun replaceAll(stocks: List<StockEntity>) {
+        deleteAll()
+        insertAll(stocks)
+    }
 
     @Query("SELECT COUNT(*) FROM stocks")
     suspend fun count(): Int

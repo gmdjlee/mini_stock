@@ -16,6 +16,7 @@ import com.stockapp.feature.indicator.domain.model.IndicatorType
 import com.stockapp.feature.indicator.domain.model.TrendDataDto
 import com.stockapp.feature.indicator.domain.model.TrendSignal
 import com.stockapp.feature.indicator.domain.repo.IndicatorRepo
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -79,7 +80,7 @@ class NativeIndicatorRepoImpl @Inject constructor(
 
             val ohlcvResult = ohlcvService.getOhlcv(ticker, fetchDays, period)
             if (ohlcvResult.isFailure) {
-                return Result.failure(ohlcvResult.exceptionOrNull()!!)
+                return Result.failure(ohlcvResult.exceptionOrNull() ?: Exception("Unknown error"))
             }
 
             var ohlcvData = ohlcvResult.getOrThrow()
@@ -131,6 +132,8 @@ class NativeIndicatorRepoImpl @Inject constructor(
 
             Log.d(TAG, "getTrend() completed for $ticker, periods=${trendSignal.dates.size}")
             Result.success(trendSignal)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getTrend() failed for $ticker: ${e.message}", e)
             Result.failure(e)
@@ -168,7 +171,7 @@ class NativeIndicatorRepoImpl @Inject constructor(
 
             val ohlcvResult = ohlcvService.getOhlcv(ticker, fetchDays, OhlcvService.Period.DAILY)
             if (ohlcvResult.isFailure) {
-                return Result.failure(ohlcvResult.exceptionOrNull()!!)
+                return Result.failure(ohlcvResult.exceptionOrNull() ?: Exception("Unknown error"))
             }
 
             var ohlcvData = ohlcvResult.getOrThrow()
@@ -216,6 +219,8 @@ class NativeIndicatorRepoImpl @Inject constructor(
 
             Log.d(TAG, "getElder() completed for $ticker, periods=${elderImpulse.dates.size}")
             Result.success(elderImpulse)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getElder() failed for $ticker: ${e.message}", e)
             Result.failure(e)
@@ -250,7 +255,7 @@ class NativeIndicatorRepoImpl @Inject constructor(
 
             val ohlcvResult = ohlcvService.getOhlcv(ticker, fetchDays, OhlcvService.Period.DAILY)
             if (ohlcvResult.isFailure) {
-                return Result.failure(ohlcvResult.exceptionOrNull()!!)
+                return Result.failure(ohlcvResult.exceptionOrNull() ?: Exception("Unknown error"))
             }
 
             var ohlcvData = ohlcvResult.getOrThrow()
@@ -295,6 +300,8 @@ class NativeIndicatorRepoImpl @Inject constructor(
 
             Log.d(TAG, "getDemark() completed for $ticker, periods=${demarkSetup.dates.size}")
             Result.success(demarkSetup)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getDemark() failed for $ticker: ${e.message}", e)
             Result.failure(e)

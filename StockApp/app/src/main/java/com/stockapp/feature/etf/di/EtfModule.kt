@@ -2,10 +2,12 @@ package com.stockapp.feature.etf.di
 
 import com.stockapp.core.api.KisApiClient
 import com.stockapp.core.api.KiwoomApiClient
+import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.EtfCollectionHistoryDao
 import com.stockapp.core.db.dao.EtfConstituentDao
 import com.stockapp.core.db.dao.EtfDao
 import com.stockapp.core.db.dao.EtfKeywordDao
+import com.stockapp.core.krx.KrxDataSource
 import com.stockapp.feature.etf.data.repo.EtfCollectorRepoImpl
 import com.stockapp.feature.etf.data.repo.EtfRepositoryImpl
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
@@ -33,7 +35,9 @@ abstract class EtfModule {
         fun provideEtfCollectorRepo(
             kiwoomApiClient: KiwoomApiClient,
             kisApiClient: KisApiClient,
+            krxDataSource: KrxDataSource,
             settingsRepo: SettingsRepo,
+            db: AppDb,
             etfDao: EtfDao,
             constituentDao: EtfConstituentDao,
             keywordDao: EtfKeywordDao,
@@ -43,7 +47,9 @@ abstract class EtfModule {
             return EtfCollectorRepoImpl(
                 kiwoomApiClient = kiwoomApiClient,
                 kisApiClient = kisApiClient,
+                krxDataSource = krxDataSource,
                 settingsRepo = settingsRepo,
+                db = db,
                 etfDao = etfDao,
                 constituentDao = constituentDao,
                 keywordDao = keywordDao,

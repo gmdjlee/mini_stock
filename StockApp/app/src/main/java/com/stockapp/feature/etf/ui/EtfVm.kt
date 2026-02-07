@@ -64,8 +64,29 @@ enum class EtfTab(val title: String) {
  */
 sealed class CollectionState {
     data object Idle : CollectionState()
-    data class Collecting(val current: Int, val total: Int) : CollectionState()
-    data class Success(val etfCount: Int, val constituentCount: Int) : CollectionState()
+    data class Collecting(
+        val current: Int,
+        val total: Int,
+        /** Day-level progress for multi-day collection (1-based index) */
+        val dayIndex: Int = 0,
+        /** Total days for multi-day collection */
+        val totalDays: Int = 0,
+        /** Current date being collected (YYYY-MM-DD) */
+        val currentDate: String? = null
+    ) : CollectionState() {
+        val isMultiDay: Boolean get() = totalDays > 0
+    }
+    data class Success(
+        val etfCount: Int,
+        val constituentCount: Int,
+        /** Multi-day result fields */
+        val successDays: Int = 0,
+        val skippedDays: Int = 0,
+        val failedDays: Int = 0,
+        val totalDays: Int = 0
+    ) : CollectionState() {
+        val isMultiDay: Boolean get() = totalDays > 0
+    }
     data class Error(val message: String) : CollectionState()
 }
 
@@ -152,6 +173,10 @@ class EtfVm @Inject constructor(
         .observeCollectionHistory(10)
         .map { entities -> entities.map { it.toHistoryItem() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Selected start date for multi-day collection (YYYY-MM-DD format, null = today only)
+    private val _selectedStartDate = MutableStateFlow<String?>(null)
+    val selectedStartDate: StateFlow<String?> = _selectedStartDate.asStateFlow()
 
     // Missing dates analysis result
     private val _missingDatesResult = MutableStateFlow<MissingDatesResult?>(null)
@@ -515,6 +540,9 @@ class EtfVm @Inject constructor(
     // ==================== Collection Tab ====================
 
     fun startCollection() {
+        // Prevent duplicate collection (KEEP policy ignores new requests anyway)
+        if (_collectionState.value is CollectionState.Collecting) return
+
         viewModelScope.launch {
             _collectionState.value = CollectionState.Collecting(0, 0)
 
@@ -525,9 +553,21 @@ class EtfVm @Inject constructor(
                 excludeKeywords = config.excludeKeywords.map { it.keyword }
             )
 
-            // Start background worker
-            EtfCollectionWorker.collectNow(context, filterConfig)
+            // Start background worker with optional start date
+            EtfCollectionWorker.collectNow(
+                context = context,
+                filterConfig = filterConfig,
+                startDate = _selectedStartDate.value
+            )
         }
+    }
+
+    /**
+     * Set the start date for multi-day collection.
+     * @param date Date in YYYY-MM-DD format, or null for today-only collection
+     */
+    fun setSelectedStartDate(date: String?) {
+        _selectedStartDate.value = date
     }
 
     private fun observeWorkProgress() {
@@ -541,15 +581,36 @@ class EtfVm @Inject constructor(
                         WorkInfo.State.RUNNING -> {
                             val current = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_CURRENT, 0)
                             val total = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_TOTAL, 0)
-                            _collectionState.value = CollectionState.Collecting(current, total)
+                            val dayCurrent = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_DAY_CURRENT, 0)
+                            val dayTotal = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_DAY_TOTAL, 0)
+                            val dayDate = workInfo.progress.getString(EtfCollectionWorker.KEY_PROGRESS_DAY_DATE)
+                            _collectionState.value = CollectionState.Collecting(
+                                current = current,
+                                total = total,
+                                dayIndex = dayCurrent,
+                                totalDays = dayTotal,
+                                currentDate = dayDate
+                            )
                         }
                         WorkInfo.State.SUCCEEDED -> {
                             val etfCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_ETF_COUNT, 0)
                             val constituentCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_CONSTITUENT_COUNT, 0)
-                            _collectionState.value = CollectionState.Success(etfCount, constituentCount)
+                            val successDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_SUCCESS_DAYS, 0)
+                            val skippedDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_SKIPPED_DAYS, 0)
+                            val failedDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_FAILED_DAYS, 0)
+                            val totalDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_TOTAL_DAYS, 0)
+                            _collectionState.value = CollectionState.Success(
+                                etfCount = etfCount,
+                                constituentCount = constituentCount,
+                                successDays = successDays,
+                                skippedDays = skippedDays,
+                                failedDays = failedDays,
+                                totalDays = totalDays
+                            )
                             // Reload data after successful collection
                             loadRankingData()
                             loadChangesData()
+                            loadMissingDates()
                         }
                         WorkInfo.State.FAILED -> {
                             val error = workInfo.outputData.getString(EtfCollectionWorker.KEY_RESULT_ERROR)

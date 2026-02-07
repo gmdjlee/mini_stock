@@ -507,6 +507,34 @@ fun ElderImpulseChart(
     // Use priceValues or fall back to mcapValues for backward compatibility
     val effectivePriceValues = if (priceValues.isNotEmpty()) priceValues else mcapValues
 
+    // Memoize chart data to avoid reallocation on every recomposition
+    val priceEntries = remember(effectivePriceValues) {
+        effectivePriceValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val ema13Entries = remember(ema13Values) {
+        ema13Values.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val impulseData = remember(impulseStates, effectivePriceValues) {
+        val neutral = mutableListOf<Entry>()
+        val bullish = mutableListOf<Entry>()
+        val bearish = mutableListOf<Entry>()
+        impulseStates.forEachIndexed { index, state ->
+            if (index < effectivePriceValues.size) {
+                val entry = Entry(index.toFloat(), effectivePriceValues[index].toFloat())
+                when (state) {
+                    1 -> bullish.add(entry)
+                    -1 -> bearish.add(entry)
+                    else -> neutral.add(entry)
+                }
+            }
+        }
+        Triple(neutral, bullish, bearish)
+    }
+
     AndroidView(
         factory = { ctx ->
             CombinedChart(ctx).apply {
@@ -544,9 +572,6 @@ fun ElderImpulseChart(
             val lineDataSets = mutableListOf<LineDataSet>()
 
             // Close price line (left axis) - Python style: tab:blue, solid
-            val priceEntries = effectivePriceValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val priceDataSet = LineDataSet(priceEntries, "Close").apply {
                 color = TabBlue.toArgb()  // tab:blue
                 lineWidth = 1.5f
@@ -558,10 +583,7 @@ fun ElderImpulseChart(
             lineDataSets.add(priceDataSet)
 
             // EMA13 line (left axis) - Python style: tab:orange, dashed
-            if (ema13Values.isNotEmpty()) {
-                val ema13Entries = ema13Values.mapIndexed { index, value ->
-                    Entry(index.toFloat(), value.toFloat())
-                }
+            if (ema13Entries.isNotEmpty()) {
                 val ema13DataSet = LineDataSet(ema13Entries, "EMA13 (Weekly)").apply {
                     color = TabOrange.toArgb()  // tab:orange
                     lineWidth = 1.5f
@@ -576,22 +598,8 @@ fun ElderImpulseChart(
 
             combinedData.setData(LineData(lineDataSets as List<ILineDataSet>))
 
-            // Impulse color markers ON price line - Python style
-            // Neutral (gray) - draw first (smaller, behind)
-            val neutralEntries = mutableListOf<Entry>()
-            val bullishEntries = mutableListOf<Entry>()
-            val bearishEntries = mutableListOf<Entry>()
-
-            impulseStates.forEachIndexed { index, state ->
-                if (index < effectivePriceValues.size) {
-                    val entry = Entry(index.toFloat(), effectivePriceValues[index].toFloat())
-                    when (state) {
-                        1 -> bullishEntries.add(entry)
-                        -1 -> bearishEntries.add(entry)
-                        else -> neutralEntries.add(entry)
-                    }
-                }
-            }
+            // Impulse color markers ON price line - Python style (memoized)
+            val (neutralEntries, bullishEntries, bearishEntries) = impulseData
 
             val scatterDataSets = mutableListOf<ScatterDataSet>()
 
@@ -675,6 +683,23 @@ fun DemarkTDChart(
     // Use priceValues or fall back to mcapValues for backward compatibility
     val effectivePriceValues = if (priceValues.isNotEmpty()) priceValues else mcapValues
 
+    // Memoize chart data to avoid reallocation on every recomposition
+    val demarkPriceEntries = remember(effectivePriceValues) {
+        effectivePriceValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val sellEntries = remember(sellSetupValues) {
+        sellSetupValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+    val buyEntries = remember(buySetupValues) {
+        buySetupValues.mapIndexed { index, value ->
+            Entry(index.toFloat(), value.toFloat())
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             CombinedChart(ctx).apply {
@@ -722,11 +747,8 @@ fun DemarkTDChart(
             val lineDataSets = mutableListOf<LineDataSet>()
 
             // Close price line (left axis) - Python style: black
-            if (effectivePriceValues.isNotEmpty()) {
-                val priceEntries = effectivePriceValues.mapIndexed { index, value ->
-                    Entry(index.toFloat(), value.toFloat())
-                }
-                val priceDataSet = LineDataSet(priceEntries, "Close").apply {
+            if (demarkPriceEntries.isNotEmpty()) {
+                val priceDataSet = LineDataSet(demarkPriceEntries, "Close").apply {
                     color = ChartDefaultBlack.toArgb()  // black
                     lineWidth = 1.5f
                     setDrawCircles(false)
@@ -738,9 +760,6 @@ fun DemarkTDChart(
             }
 
             // TD Sell Setup line (right axis) - Python style: red
-            val sellEntries = sellSetupValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val sellDataSet = LineDataSet(sellEntries, "TD Sell Setup").apply {
                 color = DemarkRed.toArgb()  // red
                 lineWidth = 1.5f
@@ -752,9 +771,6 @@ fun DemarkTDChart(
             lineDataSets.add(sellDataSet)
 
             // TD Buy Setup line (right axis) - Python style: blue
-            val buyEntries = buySetupValues.mapIndexed { index, value ->
-                Entry(index.toFloat(), value.toFloat())
-            }
             val buyDataSet = LineDataSet(buyEntries, "TD Buy Setup").apply {
                 color = DemarkBlue.toArgb()  // blue
                 lineWidth = 1.5f

@@ -14,6 +14,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -60,12 +61,9 @@ private class CategoryRateLimiter(private val minInterval: Long = 500L) {
 class KiwoomApiClient @Inject constructor(
     private val tokenManager: TokenManager,
     private val httpClient: OkHttpClient,
+    private val json: Json,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
 
     // Category-based rate limiters (each category can make calls independently)
     private val categoryRateLimiters = mapOf(
@@ -164,13 +162,14 @@ class KiwoomApiClient @Inject constructor(
                 Log.d(TAG, "API call: $apiId -> $url")
             }
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string()
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+                Triple(response.body?.string(), response.code, response.isSuccessful)
+            }
 
-            if (!response.isSuccessful || responseBody == null) {
-                Log.e(TAG, "API call failed: ${response.code}")
+            if (!isSuccessful || responseBody == null) {
+                Log.e(TAG, "API call failed: $responseCode")
                 return Result.failure(
-                    ApiError.ApiCallError(response.code, "HTTP ${response.code}")
+                    ApiError.ApiCallError(responseCode, "HTTP $responseCode")
                 )
             }
 
@@ -189,6 +188,7 @@ class KiwoomApiClient @Inject constructor(
             val parsed = parser(normalizedBody)
             return Result.success(parsed)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             return Result.failure(mapException(e))
         }
     }
@@ -315,18 +315,34 @@ class KiwoomApiClient @Inject constructor(
                 Log.d(TAG, "API call (paginated): $apiId -> $url, contYn=$contYn")
             }
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string()
+            // Extract all needed data inside use {} to ensure response is closed
+            data class RawResponse(
+                val body: String?,
+                val code: Int,
+                val isSuccessful: Boolean,
+                val contYnHeader: String?,
+                val nextKeyHeader: String?
+            )
 
-            if (!response.isSuccessful || responseBody == null) {
-                Log.e(TAG, "API call failed: ${response.code}")
+            val raw = httpClient.newCall(request).execute().use { response ->
+                RawResponse(
+                    body = response.body?.string(),
+                    code = response.code,
+                    isSuccessful = response.isSuccessful,
+                    contYnHeader = response.header("cont-yn"),
+                    nextKeyHeader = response.header("next-key")
+                )
+            }
+
+            if (!raw.isSuccessful || raw.body == null) {
+                Log.e(TAG, "API call failed: ${raw.code}")
                 return Result.failure(
-                    ApiError.ApiCallError(response.code, "HTTP ${response.code}")
+                    ApiError.ApiCallError(raw.code, "HTTP ${raw.code}")
                 )
             }
 
             // Preprocess response to handle non-standard JSON (e.g., "+12345" numbers)
-            val normalizedBody = normalizeJsonNumbers(responseBody)
+            val normalizedBody = normalizeJsonNumbers(raw.body)
 
             // Check for API error in response
             val apiResponse = json.decodeFromString<ApiResponse>(normalizedBody)
@@ -337,8 +353,8 @@ class KiwoomApiClient @Inject constructor(
             }
 
             // Extract pagination info from response headers
-            val hasNext = response.header("cont-yn") == "Y"
-            val respNextKey = response.header("next-key") ?: ""
+            val hasNext = raw.contYnHeader == "Y"
+            val respNextKey = raw.nextKeyHeader ?: ""
 
             // Parse the response
             val parsed = parser(normalizedBody)
@@ -353,6 +369,7 @@ class KiwoomApiClient @Inject constructor(
                 )
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             return Result.failure(mapException(e))
         }
     }
@@ -515,7 +532,8 @@ class KiwoomApiClient @Inject constructor(
      */
     private suspend fun waitForRateLimit(apiId: String) {
         val category = getCategory(apiId)
-        val rateLimiter = categoryRateLimiters[category] ?: categoryRateLimiters[ApiCategory.OTHER]!!
+        val rateLimiter = categoryRateLimiters[category]
+            ?: categoryRateLimiters.getValue(ApiCategory.OTHER)
         rateLimiter.waitForRateLimit()
     }
 
@@ -539,16 +557,20 @@ class KiwoomApiClient @Inject constructor(
      */
     private fun normalizeJsonNumbers(json: String): String {
         // Remove + from quoted values: "+117500" -> "117500"
-        var result = json.replace(Regex("\"\\+(\\d+)\"")) { "\"${it.groupValues[1]}\"" }
+        var result = QUOTED_PLUS_REGEX.replace(json) { "\"${it.groupValues[1]}\"" }
 
         // Remove + from unquoted values after : or , (e.g., ":+123" -> ":123")
-        result = result.replace(Regex("([,:])\\s*\\+(\\d+)")) { "${it.groupValues[1]}${it.groupValues[2]}" }
+        result = UNQUOTED_PLUS_REGEX.replace(result) { "${it.groupValues[1]}${it.groupValues[2]}" }
 
         return result
     }
 
     companion object {
         private const val TAG = "KiwoomApiClient"
+
+        // Pre-compiled regex patterns for JSON normalization
+        private val QUOTED_PLUS_REGEX = Regex("\"\\+(\\d+)\"")
+        private val UNQUOTED_PLUS_REGEX = Regex("([,:])\\s*\\+(\\d+)")
 
         // Pagination delay between consecutive page fetches (ms)
         private const val PAGINATION_DELAY_MS = 1000L

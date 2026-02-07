@@ -1,7 +1,7 @@
 package com.stockapp.core.backup
 
 import android.content.Context
-import android.provider.Settings
+import androidx.core.content.edit
 import com.stockapp.BuildConfig
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.entity.AnalysisCacheEntity
@@ -19,11 +19,13 @@ import com.stockapp.core.db.entity.StockAnalysisDataEntity
 import com.stockapp.core.db.entity.StockEntity
 import com.stockapp.core.db.entity.SyncHistoryEntity
 import com.stockapp.core.di.IoDispatcher
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -196,7 +198,7 @@ class BackupManager @Inject constructor(
             metadata = BackupMetadata(
                 formatVersion = BACKUP_FORMAT_VERSION,
                 appVersion = BuildConfig.VERSION_NAME,
-                dbVersion = 9, // Current DB version
+                dbVersion = 11, // Current DB version
                 createdAt = System.currentTimeMillis(),
                 deviceId = getDeviceId(),
                 backupType = backupType,
@@ -243,118 +245,121 @@ class BackupManager @Inject constructor(
                 clearAllTables()
             }
 
-            // 1. Stocks
-            onProgress(progress / totalSteps, "종목 데이터 복원 중...")
-            backup.tables.stocks?.let { stocks ->
-                db.stockDao().insertAll(stocks.map { it.toEntity() })
-                restoredCounts["stocks"] = stocks.size
-            } ?: skippedTables.add("stocks")
-            progress++
+            // Wrap all inserts in a transaction for atomic restore
+            db.withTransaction {
+                // 1. Stocks
+                onProgress(progress / totalSteps, "종목 데이터 복원 중...")
+                backup.tables.stocks?.let { stocks ->
+                    db.stockDao().insertAll(stocks.map { it.toEntity() })
+                    restoredCounts["stocks"] = stocks.size
+                } ?: skippedTables.add("stocks")
+                progress++
 
-            // 2. Analysis Cache
-            onProgress(progress / totalSteps, "분석 캐시 복원 중...")
-            backup.tables.analysisCache?.forEach { cache ->
-                db.analysisCacheDao().insert(cache.toEntity())
+                // 2. Analysis Cache
+                onProgress(progress / totalSteps, "분석 캐시 복원 중...")
+                backup.tables.analysisCache?.forEach { cache ->
+                    db.analysisCacheDao().insert(cache.toEntity())
+                }
+                restoredCounts["analysisCache"] = backup.tables.analysisCache?.size ?: 0
+                progress++
+
+                // 3. Search History
+                onProgress(progress / totalSteps, "검색 기록 복원 중...")
+                backup.tables.searchHistory?.forEach { history ->
+                    db.searchHistoryDao().insert(history.toEntity())
+                }
+                restoredCounts["searchHistory"] = backup.tables.searchHistory?.size ?: 0
+                progress++
+
+                // 4. Indicator Cache
+                onProgress(progress / totalSteps, "지표 캐시 복원 중...")
+                backup.tables.indicatorCache?.forEach { cache ->
+                    db.indicatorCacheDao().insert(cache.toEntity())
+                }
+                restoredCounts["indicatorCache"] = backup.tables.indicatorCache?.size ?: 0
+                progress++
+
+                // 5. Scheduling Config
+                onProgress(progress / totalSteps, "스케줄링 설정 복원 중...")
+                backup.tables.schedulingConfig?.let { config ->
+                    db.schedulingConfigDao().insertOrUpdate(config.toEntity())
+                    restoredCounts["schedulingConfig"] = 1
+                } ?: skippedTables.add("schedulingConfig")
+                progress++
+
+                // 6. Sync History
+                onProgress(progress / totalSteps, "동기화 기록 복원 중...")
+                backup.tables.syncHistory?.forEach { history ->
+                    db.syncHistoryDao().insert(history.toEntity())
+                }
+                restoredCounts["syncHistory"] = backup.tables.syncHistory?.size ?: 0
+                progress++
+
+                // 7. Stock Analysis Data
+                onProgress(progress / totalSteps, "분석 데이터 복원 중...")
+                backup.tables.stockAnalysisData?.let { data ->
+                    db.stockAnalysisDataDao().insertOrUpdateAll(data.map { it.toEntity() })
+                    restoredCounts["stockAnalysisData"] = data.size
+                } ?: skippedTables.add("stockAnalysisData")
+                progress++
+
+                // 8. Indicator Data
+                onProgress(progress / totalSteps, "지표 데이터 복원 중...")
+                backup.tables.indicatorData?.let { data ->
+                    db.indicatorDataDao().insertOrUpdateAll(data.map { it.toEntity() })
+                    restoredCounts["indicatorData"] = data.size
+                } ?: skippedTables.add("indicatorData")
+                progress++
+
+                // 9. ETFs
+                onProgress(progress / totalSteps, "ETF 데이터 복원 중...")
+                backup.tables.etfs?.let { etfs ->
+                    db.etfDao().insertAll(etfs.map { it.toEntity() })
+                    restoredCounts["etfs"] = etfs.size
+                } ?: skippedTables.add("etfs")
+                progress++
+
+                // 10. ETF Constituents
+                onProgress(progress / totalSteps, "ETF 구성종목 복원 중...")
+                backup.tables.etfConstituents?.let { constituents ->
+                    db.etfConstituentDao().insertAll(constituents.map { it.toEntity() })
+                    restoredCounts["etfConstituents"] = constituents.size
+                } ?: skippedTables.add("etfConstituents")
+                progress++
+
+                // 11. ETF Keywords
+                onProgress(progress / totalSteps, "ETF 키워드 복원 중...")
+                backup.tables.etfKeywords?.forEach { keyword ->
+                    // Skip ID to let Room auto-generate
+                    db.etfKeywordDao().insert(keyword.toEntity())
+                }
+                restoredCounts["etfKeywords"] = backup.tables.etfKeywords?.size ?: 0
+                progress++
+
+                // 12. ETF Collection History
+                onProgress(progress / totalSteps, "ETF 수집 기록 복원 중...")
+                backup.tables.etfCollectionHistory?.forEach { history ->
+                    db.etfCollectionHistoryDao().insert(history.toEntity())
+                }
+                restoredCounts["etfCollectionHistory"] = backup.tables.etfCollectionHistory?.size ?: 0
+                progress++
+
+                // 13. Daily ETF Statistics
+                onProgress(progress / totalSteps, "ETF 통계 복원 중...")
+                backup.tables.dailyEtfStatistics?.let { stats ->
+                    db.dailyEtfStatisticsDao().insertAll(stats.map { it.toEntity() })
+                    restoredCounts["dailyEtfStatistics"] = stats.size
+                } ?: skippedTables.add("dailyEtfStatistics")
+                progress++
+
+                // 14. Financial Cache
+                onProgress(progress / totalSteps, "재무 캐시 복원 중...")
+                backup.tables.financialCache?.forEach { cache ->
+                    db.financialCacheDao().insert(cache.toEntity())
+                }
+                restoredCounts["financialCache"] = backup.tables.financialCache?.size ?: 0
+                progress++
             }
-            restoredCounts["analysisCache"] = backup.tables.analysisCache?.size ?: 0
-            progress++
-
-            // 3. Search History
-            onProgress(progress / totalSteps, "검색 기록 복원 중...")
-            backup.tables.searchHistory?.forEach { history ->
-                db.searchHistoryDao().insert(history.toEntity())
-            }
-            restoredCounts["searchHistory"] = backup.tables.searchHistory?.size ?: 0
-            progress++
-
-            // 4. Indicator Cache
-            onProgress(progress / totalSteps, "지표 캐시 복원 중...")
-            backup.tables.indicatorCache?.forEach { cache ->
-                db.indicatorCacheDao().insert(cache.toEntity())
-            }
-            restoredCounts["indicatorCache"] = backup.tables.indicatorCache?.size ?: 0
-            progress++
-
-            // 5. Scheduling Config
-            onProgress(progress / totalSteps, "스케줄링 설정 복원 중...")
-            backup.tables.schedulingConfig?.let { config ->
-                db.schedulingConfigDao().insertOrUpdate(config.toEntity())
-                restoredCounts["schedulingConfig"] = 1
-            } ?: skippedTables.add("schedulingConfig")
-            progress++
-
-            // 6. Sync History
-            onProgress(progress / totalSteps, "동기화 기록 복원 중...")
-            backup.tables.syncHistory?.forEach { history ->
-                db.syncHistoryDao().insert(history.toEntity())
-            }
-            restoredCounts["syncHistory"] = backup.tables.syncHistory?.size ?: 0
-            progress++
-
-            // 7. Stock Analysis Data
-            onProgress(progress / totalSteps, "분석 데이터 복원 중...")
-            backup.tables.stockAnalysisData?.let { data ->
-                db.stockAnalysisDataDao().insertOrUpdateAll(data.map { it.toEntity() })
-                restoredCounts["stockAnalysisData"] = data.size
-            } ?: skippedTables.add("stockAnalysisData")
-            progress++
-
-            // 8. Indicator Data
-            onProgress(progress / totalSteps, "지표 데이터 복원 중...")
-            backup.tables.indicatorData?.let { data ->
-                db.indicatorDataDao().insertOrUpdateAll(data.map { it.toEntity() })
-                restoredCounts["indicatorData"] = data.size
-            } ?: skippedTables.add("indicatorData")
-            progress++
-
-            // 9. ETFs
-            onProgress(progress / totalSteps, "ETF 데이터 복원 중...")
-            backup.tables.etfs?.let { etfs ->
-                db.etfDao().insertAll(etfs.map { it.toEntity() })
-                restoredCounts["etfs"] = etfs.size
-            } ?: skippedTables.add("etfs")
-            progress++
-
-            // 10. ETF Constituents
-            onProgress(progress / totalSteps, "ETF 구성종목 복원 중...")
-            backup.tables.etfConstituents?.let { constituents ->
-                db.etfConstituentDao().insertAll(constituents.map { it.toEntity() })
-                restoredCounts["etfConstituents"] = constituents.size
-            } ?: skippedTables.add("etfConstituents")
-            progress++
-
-            // 11. ETF Keywords
-            onProgress(progress / totalSteps, "ETF 키워드 복원 중...")
-            backup.tables.etfKeywords?.forEach { keyword ->
-                // Skip ID to let Room auto-generate
-                db.etfKeywordDao().insert(keyword.toEntity())
-            }
-            restoredCounts["etfKeywords"] = backup.tables.etfKeywords?.size ?: 0
-            progress++
-
-            // 12. ETF Collection History
-            onProgress(progress / totalSteps, "ETF 수집 기록 복원 중...")
-            backup.tables.etfCollectionHistory?.forEach { history ->
-                db.etfCollectionHistoryDao().insert(history.toEntity())
-            }
-            restoredCounts["etfCollectionHistory"] = backup.tables.etfCollectionHistory?.size ?: 0
-            progress++
-
-            // 13. Daily ETF Statistics
-            onProgress(progress / totalSteps, "ETF 통계 복원 중...")
-            backup.tables.dailyEtfStatistics?.let { stats ->
-                db.dailyEtfStatisticsDao().insertAll(stats.map { it.toEntity() })
-                restoredCounts["dailyEtfStatistics"] = stats.size
-            } ?: skippedTables.add("dailyEtfStatistics")
-            progress++
-
-            // 14. Financial Cache
-            onProgress(progress / totalSteps, "재무 캐시 복원 중...")
-            backup.tables.financialCache?.forEach { cache ->
-                db.financialCacheDao().insert(cache.toEntity())
-            }
-            restoredCounts["financialCache"] = backup.tables.financialCache?.size ?: 0
-            progress++
 
             onProgress(1f, "복원 완료")
 
@@ -374,20 +379,22 @@ class BackupManager @Inject constructor(
     }
 
     private suspend fun clearAllTables() {
-        db.stockDao().deleteAll()
-        db.analysisCacheDao().deleteAll()
-        db.searchHistoryDao().deleteAll()
-        db.indicatorCacheDao().deleteAll()
-        db.syncHistoryDao().deleteAll()
-        db.stockAnalysisDataDao().deleteAll()
-        db.indicatorDataDao().deleteAll()
-        db.etfDao().deleteAll()
-        db.etfConstituentDao().deleteAll()
-        db.etfKeywordDao().deleteAll()
-        db.etfCollectionHistoryDao().deleteAll()
-        db.dailyEtfStatisticsDao().deleteAll()
-        db.financialCacheDao().deleteAll()
-        // Note: schedulingConfig is not cleared (singleton)
+        db.withTransaction {
+            db.stockDao().deleteAll()
+            db.analysisCacheDao().deleteAll()
+            db.searchHistoryDao().deleteAll()
+            db.indicatorCacheDao().deleteAll()
+            db.syncHistoryDao().deleteAll()
+            db.stockAnalysisDataDao().deleteAll()
+            db.indicatorDataDao().deleteAll()
+            db.etfDao().deleteAll()
+            db.etfConstituentDao().deleteAll()
+            db.etfKeywordDao().deleteAll()
+            db.etfCollectionHistoryDao().deleteAll()
+            db.dailyEtfStatisticsDao().deleteAll()
+            db.financialCacheDao().deleteAll()
+            // Note: schedulingConfig is not cleared (singleton)
+        }
     }
 
     private fun parseDate(dateStr: String): Long {
@@ -398,13 +405,23 @@ class BackupManager @Inject constructor(
         }
     }
 
-    @Suppress("HardwareIds")
+    /**
+     * Get an app-specific device identifier using UUID stored in SharedPreferences.
+     * Avoids cross-app tracking concerns of ANDROID_ID.
+     */
     private fun getDeviceId(): String {
-        return try {
-            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
-        } catch (e: Exception) {
-            "unknown"
-        }
+        val prefs = context.getSharedPreferences(DEVICE_ID_PREFS, Context.MODE_PRIVATE)
+        val existing = prefs.getString(DEVICE_ID_KEY, null)
+        if (existing != null) return existing
+
+        val newId = UUID.randomUUID().toString()
+        prefs.edit { putString(DEVICE_ID_KEY, newId) }
+        return newId
+    }
+
+    companion object {
+        private const val DEVICE_ID_PREFS = "backup_device_prefs"
+        private const val DEVICE_ID_KEY = "app_device_id"
     }
 
     // ============================================================

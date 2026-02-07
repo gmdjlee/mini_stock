@@ -145,6 +145,8 @@ object DateFormatter {
  * Draws an inverted triangle (point facing down)
  */
 class InvertedTriangleShapeRenderer : IShapeRenderer {
+    private val path = Path()
+
     override fun renderShape(
         c: Canvas,
         dataSet: IScatterDataSet,
@@ -156,7 +158,7 @@ class InvertedTriangleShapeRenderer : IShapeRenderer {
         val shapeSize = dataSet.scatterShapeSize
         val halfSize = shapeSize / 2f
 
-        val path = Path()
+        path.reset()
         // Inverted triangle: flat top, point at bottom
         path.moveTo(posX - halfSize, posY - halfSize)  // Top left
         path.lineTo(posX + halfSize, posY - halfSize)  // Top right
@@ -173,6 +175,8 @@ class InvertedTriangleShapeRenderer : IShapeRenderer {
  * Draws a normal triangle (point facing up)
  */
 class TriangleShapeRenderer : IShapeRenderer {
+    private val path = Path()
+
     override fun renderShape(
         c: Canvas,
         dataSet: IScatterDataSet,
@@ -184,7 +188,7 @@ class TriangleShapeRenderer : IShapeRenderer {
         val shapeSize = dataSet.scatterShapeSize
         val halfSize = shapeSize / 2f
 
-        val path = Path()
+        path.reset()
         // Normal triangle: point at top, flat bottom
         path.moveTo(posX, posY - halfSize)              // Top center (point)
         path.lineTo(posX - halfSize, posY + halfSize)  // Bottom left

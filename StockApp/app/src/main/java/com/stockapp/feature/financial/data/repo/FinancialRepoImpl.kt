@@ -27,6 +27,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -131,6 +132,8 @@ class FinancialRepoImpl @Inject constructor(
             financialCacheDao.insert(cacheEntity)
 
             Result.success(data)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch financial data for $ticker", e)
             Result.failure(e)
@@ -253,6 +256,8 @@ class FinancialRepoImpl @Inject constructor(
                 )
             )
             response.mapNotNull { mapper(it) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fetch $dataTypeLabel for $ticker", e)
             emptyList()

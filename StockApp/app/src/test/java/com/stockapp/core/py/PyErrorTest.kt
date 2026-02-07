@@ -49,6 +49,8 @@ class PyErrorTest {
             is PyError.CallError -> "call"
             is PyError.Timeout -> "timeout"
             is PyError.ParseError -> "parse"
+            is PyError.NetworkError -> "network"
+            is PyError.AuthError -> "auth"
         }
 
         assertEquals("call", result)

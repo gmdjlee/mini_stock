@@ -160,8 +160,10 @@ object TradingDayUtil {
      */
     fun getPreviousTradingDay(date: LocalDate): LocalDate {
         var current = date.minusDays(1)
-        while (!isTradingDay(current)) {
+        var guard = 0
+        while (!isTradingDay(current) && guard < 30) {
             current = current.minusDays(1)
+            guard++
         }
         return current
     }
@@ -174,8 +176,10 @@ object TradingDayUtil {
      */
     fun getMostRecentTradingDay(date: LocalDate = LocalDate.now()): LocalDate {
         var current = date
-        while (!isTradingDay(current)) {
+        var guard = 0
+        while (!isTradingDay(current) && guard < 30) {
             current = current.minusDays(1)
+            guard++
         }
         return current
     }

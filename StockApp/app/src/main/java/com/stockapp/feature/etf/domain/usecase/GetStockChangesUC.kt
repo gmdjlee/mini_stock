@@ -3,6 +3,7 @@ package com.stockapp.feature.etf.domain.usecase
 import com.stockapp.core.db.dao.StockChangeInfo
 import com.stockapp.feature.etf.domain.model.StockChangeType
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -44,6 +45,8 @@ class GetStockChangesUC @Inject constructor(
                     weightDecreased = weightDecreased.toEnhanced(StockChangeType.WEIGHT_DECREASED)
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -75,6 +78,8 @@ class GetStockChangesUC @Inject constructor(
 
             val changes = repo.getWeightIncreasedStocks(latestDate, previousDate, threshold)
             Result.success(changes.toEnhanced(StockChangeType.WEIGHT_INCREASED))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -92,6 +97,8 @@ class GetStockChangesUC @Inject constructor(
 
             val changes = repo.getWeightDecreasedStocks(latestDate, previousDate, threshold)
             Result.success(changes.toEnhanced(StockChangeType.WEIGHT_DECREASED))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -111,6 +118,8 @@ class GetStockChangesUC @Inject constructor(
                 StockChangeType.WEIGHT_DECREASED -> repo.getWeightDecreasedStocks(latestDate, previousDate, 0.1)
             }
             Result.success(changes.toEnhanced(type))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

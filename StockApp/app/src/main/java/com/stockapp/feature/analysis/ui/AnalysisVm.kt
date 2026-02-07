@@ -1,5 +1,6 @@
 package com.stockapp.feature.analysis.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockapp.core.state.SelectedStockManager
@@ -83,8 +84,13 @@ class AnalysisVm @Inject constructor(
     /**
      * Select a ticker from deep link (P3).
      * This sets the ticker in the shared state manager.
+     * Validates that the ticker matches Korean stock format (6-digit number).
      */
     fun selectTickerFromDeepLink(ticker: String) {
+        if (!isValidKoreanTicker(ticker)) {
+            Log.w(TAG, "Invalid deep link ticker rejected: $ticker")
+            return
+        }
         selectedStockManager.selectTicker(ticker)
     }
 
@@ -197,9 +203,10 @@ class AnalysisVm @Inject constructor(
         autoRefreshJob = viewModelScope.launch {
             while (isActive && _isTradingHours.value) {
                 delay(AUTO_REFRESH_INTERVAL_MS)
-                if (_isTradingHours.value && currentTicker != null) {
+                val ticker = currentTicker
+                if (_isTradingHours.value && ticker != null) {
                     // Silent refresh (don't show refreshing indicator)
-                    getAnalysisSummaryUC(currentTicker!!, useCache = false)
+                    getAnalysisSummaryUC(ticker, useCache = false)
                         .onSuccess { summary ->
                             _state.value = AnalysisState.Success(summary)
                         }
@@ -226,8 +233,7 @@ class AnalysisVm @Inject constructor(
         val message = e.message ?: return "UNKNOWN"
 
         // Try to extract error code from bracket format: [ERROR_CODE]
-        val bracketRegex = """\[([A-Z_]+)]""".toRegex()
-        bracketRegex.find(message)?.groupValues?.getOrNull(1)?.let {
+        BRACKET_ERROR_REGEX.find(message)?.groupValues?.getOrNull(1)?.let {
             return it
         }
 
@@ -241,10 +247,20 @@ class AnalysisVm @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "AnalysisVm"
+
         /** Auto refresh interval: 1 minute */
         private const val AUTO_REFRESH_INTERVAL_MS = 60_000L
 
         /** Trading hours check interval: 1 minute */
         private const val TRADING_HOURS_CHECK_INTERVAL_MS = 60_000L
+
+        /** Korean stock tickers are exactly 6 digits (e.g., "005930" for Samsung). */
+        private val TICKER_REGEX = Regex("^\\d{6}$")
+
+        /** Pre-compiled regex for extracting error codes from bracket format. */
+        private val BRACKET_ERROR_REGEX = """\[([A-Z_]+)]""".toRegex()
+
+        fun isValidKoreanTicker(ticker: String): Boolean = ticker.matches(TICKER_REGEX)
     }
 }

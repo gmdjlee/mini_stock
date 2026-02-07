@@ -20,7 +20,7 @@ data class PyResponse<T>(
 
 @Serializable
 data class PyApiError(
-    val code: String,
+    val code: String = "UNKNOWN",
     val msg: String,
     val ctx: Map<String, String>? = null
 )
@@ -94,6 +94,8 @@ class PyApiException(
     val code: String,
     override val message: String
 ) : Exception("[$code] $message") {
+
+    override fun toString(): String = "${javaClass.name}: [$code] $message"
 
     companion object {
         // Error codes

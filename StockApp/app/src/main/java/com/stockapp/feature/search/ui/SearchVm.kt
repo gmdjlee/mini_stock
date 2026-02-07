@@ -3,6 +3,7 @@ package com.stockapp.feature.search.ui
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stockapp.BuildConfig
 import com.stockapp.core.cache.CacheState
 import com.stockapp.core.cache.RefreshCooldownException
 import com.stockapp.core.cache.StockCacheManager
@@ -136,7 +137,7 @@ class SearchVm @Inject constructor(
      * Update query and trigger debounced search.
      */
     fun onQueryChange(newQuery: String) {
-        Log.d(TAG, "onQueryChange() query: $newQuery")
+        if (BuildConfig.DEBUG) Log.d(TAG, "onQueryChange() query: $newQuery")
         _query.value = newQuery
 
         if (newQuery.isBlank()) {
@@ -159,7 +160,7 @@ class SearchVm @Inject constructor(
      * Execute search.
      */
     fun search(query: String = _query.value) {
-        Log.d(TAG, "search() called with query: $query")
+        if (BuildConfig.DEBUG) Log.d(TAG, "search() called with query: $query")
 
         if (query.isBlank()) {
             Log.d(TAG, "search() blank query, setting Idle")

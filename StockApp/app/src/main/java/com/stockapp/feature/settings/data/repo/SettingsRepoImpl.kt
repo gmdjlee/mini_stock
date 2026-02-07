@@ -17,6 +17,7 @@ import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.model.KisApiKeyConfig
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -137,6 +138,8 @@ class SettingsRepoImpl @Inject constructor(
                     Result.failure(e)
                 }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -164,6 +167,8 @@ class SettingsRepoImpl @Inject constructor(
             } else {
                 Result.success(false)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -247,6 +252,8 @@ class SettingsRepoImpl @Inject constructor(
                 onSuccess = { Result.success(true) },
                 onFailure = { e -> Result.failure(e) }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

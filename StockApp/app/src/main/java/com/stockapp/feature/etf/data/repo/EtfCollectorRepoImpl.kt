@@ -15,6 +15,7 @@ import com.stockapp.core.db.dao.StockChangeInfo
 import com.stockapp.core.db.entity.EtfCollectionHistoryEntity
 import com.stockapp.core.db.entity.EtfConstituentEntity
 import com.stockapp.core.db.entity.EtfEntity
+import com.stockapp.core.krx.KrxDataSource
 import com.stockapp.feature.etf.data.dto.EtfConstituentParams
 import com.stockapp.feature.etf.data.dto.EtfConstituentResponse
 import com.stockapp.feature.etf.data.dto.EtfListParams
@@ -30,8 +31,10 @@ import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.core.util.TradingDayUtil
+import com.stockapp.core.db.AppDb
 import com.stockapp.feature.etf.data.CashItemUtil
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import androidx.room.withTransaction
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -39,6 +42,7 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,7 +50,9 @@ import javax.inject.Singleton
 class EtfCollectorRepoImpl @Inject constructor(
     private val kiwoomApiClient: KiwoomApiClient,
     private val kisApiClient: KisApiClient,
+    private val krxDataSource: KrxDataSource,
     private val settingsRepo: SettingsRepo,
+    private val db: AppDb,
     private val etfDao: EtfDao,
     private val constituentDao: EtfConstituentDao,
     private val keywordDao: EtfKeywordDao,
@@ -61,10 +67,38 @@ class EtfCollectorRepoImpl @Inject constructor(
     // ============================================================
 
     override suspend fun fetchEtfList(): Result<List<EtfInfo>> {
+        // 1) Try KRX first
+        try {
+            val today = LocalDate.now().format(DATE_FORMAT_YYYYMMDD)
+            val krxResult = krxDataSource.getEtfTickerList(today)
+            krxResult.getOrNull()?.let { etfInfoList ->
+                if (etfInfoList.isNotEmpty()) {
+                    Log.d(TAG, "fetchEtfList() KRX returned ${etfInfoList.size} ETFs")
+                    val mapped = etfInfoList.map { info ->
+                        EtfInfo(
+                            etfCode = info.ticker,
+                            etfName = info.name,
+                            etfType = determineEtfType(info.name),
+                            managementCompany = info.indexProvider ?: "",
+                            trackingIndex = info.targetIndexName ?: "",
+                            assetClass = "",
+                            totalAssets = 0.0,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    }
+                    return Result.success(mapped)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchEtfList() KRX failed: ${e.message}")
+        }
+
+        // 2) Fallback to Kiwoom API
         return try {
             val config = getKiwoomApiConfig()
 
-            // Use callAllPages to fetch all ETFs across pages (연속조회)
             kiwoomApiClient.callAllPages(
                 apiId = "ka40004",
                 url = "/api/dostk/etf",
@@ -78,6 +112,8 @@ class EtfCollectorRepoImpl @Inject constructor(
             }
         } catch (e: ApiError) {
             Result.failure(e)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "fetchEtfList error", e)
             Result.failure(ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류"))
@@ -126,17 +162,21 @@ class EtfCollectorRepoImpl @Inject constructor(
 
     override suspend fun applyKeywordFilter(config: EtfFilterConfig): Int {
         val allEtfs = getAllEtfs()
-        var filteredCount = 0
 
-        allEtfs.forEach { etf ->
-            val shouldInclude = shouldIncludeEtf(etf, config)
-            if (shouldInclude != etf.isFiltered) {
-                updateEtfFilterStatus(etf.etfCode, shouldInclude)
+        // Collect codes that should be included
+        val codesToInclude = allEtfs
+            .filter { shouldIncludeEtf(it, config) }
+            .map { it.etfCode }
+
+        // Atomic batch update: clear all filters, then set filtered batch
+        db.withTransaction {
+            etfDao.clearAllFilters()
+            if (codesToInclude.isNotEmpty()) {
+                etfDao.setFilteredBatch(codesToInclude)
             }
-            if (shouldInclude) filteredCount++
         }
 
-        return filteredCount
+        return codesToInclude.size
     }
 
     override suspend fun saveEtfs(etfs: List<EtfEntity>) {
@@ -170,8 +210,25 @@ class EtfCollectorRepoImpl @Inject constructor(
 
     override suspend fun collectEtfConstituents(
         etfCode: String,
-        etfName: String
+        etfName: String,
+        targetDate: LocalDate?
     ): Result<EtfCollectionResult> {
+        val date = targetDate ?: LocalDate.now()
+        val isToday = date == LocalDate.now()
+
+        // 1) Try KRX PDF (Portfolio Deposit File) first
+        val krxResult = fetchConstituentsFromKrx(etfCode, etfName, date)
+        if (krxResult != null) {
+            return Result.success(krxResult)
+        }
+
+        // 2) Fallback to KIS API (only for today - KIS doesn't support past dates)
+        if (!isToday) {
+            return Result.failure(
+                ApiError.ApiCallError(0, "KRX 데이터 없음 (과거 날짜는 KIS 폴백 불가)")
+            )
+        }
+
         return try {
             val kisConfig = getKisApiConfig()
                 ?: return Result.failure(ApiError.NoApiKeyError("KIS API 키가 설정되지 않았습니다"))
@@ -186,11 +243,76 @@ class EtfCollectorRepoImpl @Inject constructor(
             ) { responseJson ->
                 parseConstituentResponse(responseJson, etfCode, etfName)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ApiError) {
             Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "collectEtfConstituents error: $etfCode", e)
             Result.failure(ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류"))
+        }
+    }
+
+    private suspend fun fetchConstituentsFromKrx(
+        etfCode: String,
+        etfName: String,
+        targetDate: LocalDate = LocalDate.now()
+    ): EtfCollectionResult? {
+        return try {
+            val dateApiFormat = targetDate.format(DATE_FORMAT_YYYYMMDD)
+            val portfolioList = krxDataSource.getEtfPortfolio(dateApiFormat, etfCode).getOrNull()
+
+            if (portfolioList.isNullOrEmpty()) {
+                Log.d(TAG, "collectEtfConstituents() KRX returned empty for $etfCode ($dateApiFormat)")
+                return null
+            }
+
+            Log.d(TAG, "collectEtfConstituents() KRX PDF returned ${portfolioList.size} constituents for $etfCode ($dateApiFormat)")
+
+            val dateDbFormat = targetDate.format(dateFormat)
+
+            val constituents = portfolioList.mapNotNull { portfolio ->
+                val stockCode = when {
+                    portfolio.ticker.isNotBlank() -> portfolio.ticker
+                    CashItemUtil.isCashItem(portfolio.name) ->
+                        CashItemUtil.generateCashCode(etfCode, portfolio.name)
+                    else -> return@mapNotNull null
+                }
+
+                if (CashItemUtil.isCashItemByCodeOrName(stockCode, portfolio.name)) {
+                    CashItemUtil.logCashDetection(
+                        etfCode, portfolio.ticker, portfolio.name, portfolio.valuationAmount
+                    )
+                }
+
+                ConstituentStock(
+                    stockCode = stockCode,
+                    stockName = portfolio.name,
+                    currentPrice = 0,
+                    priceChange = 0,
+                    priceChangeSign = "",
+                    priceChangeRate = 0.0,
+                    volume = 0,
+                    tradingValue = 0,
+                    marketCap = portfolio.amount,
+                    weight = portfolio.weight ?: 0.0,
+                    evaluationAmount = portfolio.valuationAmount,
+                    businessDate = dateDbFormat
+                )
+            }
+
+            EtfCollectionResult(
+                etfCode = etfCode,
+                etfName = etfName,
+                constituents = constituents,
+                collectedAt = LocalDateTime.now(),
+                businessDate = dateDbFormat
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "collectEtfConstituents() KRX failed for $etfCode: ${e.message}")
+            null
         }
     }
 
@@ -374,6 +496,108 @@ class EtfCollectorRepoImpl @Inject constructor(
         )
     }
 
+    override suspend fun collectAllFilteredEtfsForDate(
+        targetDate: LocalDate,
+        progressCallback: ((current: Int, total: Int) -> Unit)?
+    ): FullCollectionResult {
+        val startedAt = LocalDateTime.now()
+        val dateStr = targetDate.format(dateFormat)
+
+        val historyId = historyDao.insert(
+            EtfCollectionHistoryEntity(
+                collectedDate = dateStr,
+                totalEtfs = 0,
+                totalConstituents = 0,
+                status = "IN_PROGRESS",
+                errorMessage = null,
+                startedAt = System.currentTimeMillis(),
+                completedAt = null
+            )
+        )
+
+        val filteredEtfs = getFilteredEtfs()
+        val total = filteredEtfs.size
+        var successCount = 0
+        var failedCount = 0
+        var totalConstituents = 0
+        val errors = mutableListOf<String>()
+
+        filteredEtfs.forEachIndexed { index, etf ->
+            progressCallback?.invoke(index + 1, total)
+
+            val result = collectEtfConstituents(etf.etfCode, etf.etfName, targetDate)
+
+            result.fold(
+                onSuccess = { collectionResult ->
+                    val entities = collectionResult.constituents.map { stock ->
+                        EtfConstituentEntity(
+                            etfCode = etf.etfCode,
+                            etfName = etf.etfName,
+                            stockCode = stock.stockCode,
+                            stockName = stock.stockName,
+                            currentPrice = stock.currentPrice,
+                            priceChange = stock.priceChange,
+                            priceChangeSign = stock.priceChangeSign,
+                            priceChangeRate = stock.priceChangeRate,
+                            volume = stock.volume,
+                            tradingValue = stock.tradingValue,
+                            marketCap = stock.marketCap,
+                            weight = stock.weight,
+                            evaluationAmount = stock.evaluationAmount,
+                            collectedDate = stock.businessDate ?: dateStr,
+                            collectedAt = System.currentTimeMillis()
+                        )
+                    }
+                    saveConstituents(entities)
+                    totalConstituents += entities.size
+                    successCount++
+                },
+                onFailure = { error ->
+                    failedCount++
+                    errors.add("${etf.etfCode}: ${error.message}")
+                    Log.w(TAG, "Failed to collect ${etf.etfCode} for $dateStr: ${error.message}")
+                }
+            )
+
+            delay(COLLECTION_DELAY_MS)
+        }
+
+        val completedAt = LocalDateTime.now()
+        if (filteredEtfs.isEmpty()) {
+            Log.w(TAG, "No filtered ETFs found for $dateStr - check filter configuration")
+        }
+        val status = when {
+            failedCount == 0 -> CollectionStatus.SUCCESS
+            successCount == 0 -> CollectionStatus.FAILED
+            else -> CollectionStatus.PARTIAL
+        }
+
+        historyDao.updateCompletion(
+            id = historyId,
+            status = status.value,
+            totalEtfs = successCount,
+            totalConstituents = totalConstituents,
+            errorMessage = if (errors.isNotEmpty()) errors.joinToString("; ") else null,
+            completedAt = System.currentTimeMillis()
+        )
+
+        return FullCollectionResult(
+            collectedDate = targetDate,
+            totalEtfs = successCount,
+            totalConstituents = totalConstituents,
+            successCount = successCount,
+            failedCount = failedCount,
+            status = status,
+            errorMessage = if (errors.isNotEmpty()) errors.joinToString("; ") else null,
+            startedAt = startedAt,
+            completedAt = completedAt
+        )
+    }
+
+    override suspend fun getCollectedDatesSet(): Set<String> {
+        return constituentDao.getCollectionDates().toSet()
+    }
+
     override suspend fun saveConstituents(constituents: List<EtfConstituentEntity>) {
         constituentDao.insertAll(constituents)
     }
@@ -538,5 +762,6 @@ class EtfCollectorRepoImpl @Inject constructor(
     companion object {
         private const val TAG = "EtfCollectorRepo"
         private const val COLLECTION_DELAY_MS = 500L
+        private val DATE_FORMAT_YYYYMMDD: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
     }
 }

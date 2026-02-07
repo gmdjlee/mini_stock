@@ -3,6 +3,7 @@ package com.stockapp.core.stock.data
 import android.util.Log
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
+import com.stockapp.core.krx.KrxDataSource
 import com.stockapp.core.stock.api.DailyOhlcvResponse
 import com.stockapp.core.stock.api.MonthlyOhlcvResponse
 import com.stockapp.core.stock.api.OhlcvData
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,6 +32,7 @@ private const val TAG = "OhlcvService"
 @Singleton
 class OhlcvService @Inject constructor(
     private val apiClient: KiwoomApiClient,
+    private val krxDataSource: KrxDataSource,
     private val settingsRepo: SettingsRepo,
     private val json: Json
 ) {
@@ -81,17 +84,25 @@ class OhlcvService @Inject constructor(
     ): Result<OhlcvData> {
         Log.d(TAG, "getOhlcv() ticker=$ticker, days=$days, period=$period")
 
+        // 1) Try KRX first for daily data
+        if (period == Period.DAILY) {
+            val krxResult = fetchOhlcvFromKrx(ticker, days)
+            if (krxResult != null) {
+                Log.d(TAG, "getOhlcv() using KRX data for $ticker (${krxResult.dates.size} records)")
+                return Result.success(krxResult)
+            }
+            Log.d(TAG, "getOhlcv() KRX unavailable, falling back to Kiwoom for $ticker")
+        }
+
+        // 2) Fallback to Kiwoom API
         return try {
             val config = getApiConfig()
 
-            // API uses base_dt (base date) - returns data from this date backwards
-            // Note: days parameter is not used by API but kept for interface compatibility
             val baseDate = LocalDate.now()
-            val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
             val request = OhlcvRequest(
                 stkCd = ticker,
-                baseDt = baseDate.format(dateFormatter)
+                baseDt = baseDate.format(DATE_FORMAT_YYYYMMDD)
             )
 
             when (period) {
@@ -100,8 +111,41 @@ class OhlcvService @Inject constructor(
                 Period.MONTHLY -> fetchMonthlyOhlcv(ticker, request, config)
             }
         } catch (e: ApiError) {
-            Log.e(TAG, "getOhlcv() failed: ${e.message}", e)
+            Log.e(TAG, "getOhlcv() Kiwoom fallback failed: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Fetch OHLCV data from KRX (primary data source).
+     * Returns null if KRX fails (allows fallback to Kiwoom API).
+     */
+    private suspend fun fetchOhlcvFromKrx(ticker: String, days: Int): OhlcvData? {
+        return try {
+            val today = LocalDate.now()
+            val startDate = today.minusDays(days.toLong() + 30) // extra buffer for holidays
+
+            val result = krxDataSource.getOhlcvByTicker(
+                startDate.format(DATE_FORMAT_YYYYMMDD),
+                today.format(DATE_FORMAT_YYYYMMDD),
+                ticker
+            )
+            result.getOrNull()?.let { history ->
+                if (history.isEmpty()) return null
+                OhlcvData(
+                    ticker = ticker,
+                    dates = history.map { it.date },
+                    opens = history.map { it.open.toInt() },
+                    highs = history.map { it.high.toInt() },
+                    lows = history.map { it.low.toInt() },
+                    closes = history.map { it.close.toInt() },
+                    volumes = history.map { it.volume }
+                )
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.w(TAG, "fetchOhlcvFromKrx() failed for $ticker: ${e.message}")
+            null
         }
     }
 
@@ -262,5 +306,9 @@ class OhlcvService @Inject constructor(
             closes = bars.map { it.close },
             volumes = bars.map { it.volume }
         )
+    }
+
+    companion object {
+        private val DATE_FORMAT_YYYYMMDD: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
     }
 }

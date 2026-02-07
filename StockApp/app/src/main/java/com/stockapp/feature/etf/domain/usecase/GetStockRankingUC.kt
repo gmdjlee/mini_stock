@@ -4,6 +4,7 @@ import com.stockapp.core.db.dao.StockAmountRanking
 import com.stockapp.feature.etf.domain.repo.EtfCollectorRepo
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -60,6 +61,8 @@ class GetStockRankingUC @Inject constructor(
                     rankings = enhancedRanking
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -75,6 +78,8 @@ class GetStockRankingUC @Inject constructor(
         return try {
             val ranking = repo.getStockRanking(date, limit)
             Result.success(ranking)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

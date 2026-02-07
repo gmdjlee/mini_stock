@@ -11,6 +11,7 @@ import com.stockapp.feature.etf.domain.model.EtfInfo
 import com.stockapp.feature.etf.domain.model.FullCollectionResult
 import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 /**
  * Repository interface for ETF data collection and retrieval.
@@ -59,18 +60,41 @@ interface EtfCollectorRepo {
      * Collect constituent data for a single ETF.
      * @param etfCode ETF code
      * @param etfName ETF name
+     * @param targetDate Target date for collection (null = today). Past dates use KRX only.
      * @return Collection result with constituent data
      */
-    suspend fun collectEtfConstituents(etfCode: String, etfName: String): Result<EtfCollectionResult>
+    suspend fun collectEtfConstituents(
+        etfCode: String,
+        etfName: String,
+        targetDate: LocalDate? = null
+    ): Result<EtfCollectionResult>
 
     /**
-     * Collect all filtered ETF data.
+     * Collect all filtered ETF data for today.
      * @param progressCallback Optional callback for progress updates (current, total)
      * @return Full collection result
      */
     suspend fun collectAllFilteredEtfs(
         progressCallback: ((current: Int, total: Int) -> Unit)? = null
     ): FullCollectionResult
+
+    /**
+     * Collect all filtered ETF data for a specific date.
+     * Past dates use KRX-only (no KIS fallback).
+     * @param targetDate Target date for collection
+     * @param progressCallback Optional callback for progress updates (current, total)
+     * @return Full collection result
+     */
+    suspend fun collectAllFilteredEtfsForDate(
+        targetDate: LocalDate,
+        progressCallback: ((current: Int, total: Int) -> Unit)? = null
+    ): FullCollectionResult
+
+    /**
+     * Get set of dates that have already been collected.
+     * @return Set of dates in YYYY-MM-DD format
+     */
+    suspend fun getCollectedDatesSet(): Set<String>
 
     /**
      * Save constituents to database.

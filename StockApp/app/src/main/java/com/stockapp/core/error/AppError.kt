@@ -106,7 +106,7 @@ sealed class AppError(
         is NoDataError -> message
         is InsufficientDataError -> message
         is InvalidArgumentError -> message
-        is PythonInitError -> "앱 초기화 실패: $message"
+        is PythonInitError -> "앱 초기화에 실패했습니다. 앱을 재시작해주세요."
         is PythonNotInitializedError -> "앱이 초기화되지 않았습니다"
         is PythonCallError -> "처리 중 오류가 발생했습니다"
         is UnknownError -> "알 수 없는 오류가 발생했습니다"

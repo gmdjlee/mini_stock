@@ -7,6 +7,7 @@ import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.StockEntity
 import com.stockapp.core.py.PyClient
 import com.stockapp.feature.search.domain.model.SearchResponse
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -208,9 +209,8 @@ class StockCacheManager @Inject constructor(
                         stocks
                     }
 
-                    // Clear old cache and insert new data
-                    stockDao.deleteAll()
-                    stockDao.insertAll(limitedStocks)
+                    // Atomically replace old cache with new data
+                    stockDao.replaceAll(limitedStocks)
 
                     val count = stockDao.count()
                     Log.d(TAG, "refreshCache() cache updated with $count stocks")
@@ -225,6 +225,8 @@ class StockCacheManager @Inject constructor(
                     Result.failure(e)
                 }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "refreshCache() exception: ${e.message}", e)
             val userMessage = mapErrorToUserMessage(e.message)

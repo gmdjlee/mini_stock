@@ -30,6 +30,10 @@ object FeatureFlags {
     // Realtime supply (new feature, Kotlin only)
     const val ENABLE_REALTIME_SUPPLY = "enable_realtime_supply"
 
+    // KRX direct data source (primary for batch data)
+    // Disable if no Korean network/VPN access
+    const val USE_KRX_DATA_SOURCE = "use_krx_data_source"
+
     /**
      * Default values for feature flags.
      * All native features are enabled by default (Phase 7 completion).
@@ -39,7 +43,8 @@ object FeatureFlags {
         USE_NATIVE_SEARCH to true,
         USE_NATIVE_ANALYSIS to true,
         USE_NATIVE_INDICATOR to true,
-        ENABLE_REALTIME_SUPPLY to true
+        ENABLE_REALTIME_SUPPLY to true,
+        USE_KRX_DATA_SOURCE to true
     )
 }
 

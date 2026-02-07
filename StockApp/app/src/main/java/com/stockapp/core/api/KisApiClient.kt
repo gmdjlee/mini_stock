@@ -9,13 +9,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.URLEncoder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -71,12 +74,9 @@ private object KisTokenRetryConfig {
 @Singleton
 class KisApiClient @Inject constructor(
     private val httpClient: OkHttpClient,
+    private val json: Json,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
 
     // Rate limiting: minimum 500ms between API calls
     private val minInterval = 500L
@@ -92,7 +92,7 @@ class KisApiClient @Inject constructor(
      * Token is cached per baseUrl to support mock/production mode switching.
      */
     suspend fun getToken(config: KisApiConfig): Result<KisTokenInfo> = tokenMutex.withLock {
-        val cacheKey = config.baseUrl
+        val cacheKey = "${config.baseUrl}:${config.appKey.hashCode()}"
         val cached = tokenCache[cacheKey]
         if (cached != null && !cached.isExpired()) {
             return@withLock Result.success(cached)
@@ -142,13 +142,11 @@ class KisApiClient @Inject constructor(
      */
     private suspend fun fetchTokenOnce(config: KisApiConfig): Result<KisTokenInfo> {
         try {
-            val requestBody = """
-                {
-                    "grant_type": "client_credentials",
-                    "appkey": "${config.appKey}",
-                    "appsecret": "${config.appSecret}"
-                }
-            """.trimIndent()
+            val requestBody = json.encodeToString(mapOf(
+                "grant_type" to "client_credentials",
+                "appkey" to config.appKey,
+                "appsecret" to config.appSecret
+            ))
 
             val request = Request.Builder()
                 .url("${config.baseUrl}/oauth2/tokenP")
@@ -156,12 +154,13 @@ class KisApiClient @Inject constructor(
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string()
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+                Triple(response.body?.string(), response.code, response.isSuccessful)
+            }
 
-            if (!response.isSuccessful || responseBody == null) {
+            if (!isSuccessful || responseBody == null) {
                 return Result.failure(
-                    ApiError.AuthError("KIS 토큰 발급 실패: HTTP ${response.code}")
+                    ApiError.AuthError("KIS 토큰 발급 실패: HTTP $responseCode")
                 )
             }
 
@@ -192,6 +191,7 @@ class KisApiClient @Inject constructor(
                 )
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "KIS token fetch exception", e)
             return Result.failure(
                 when (e) {
@@ -273,7 +273,9 @@ class KisApiClient @Inject constructor(
             val urlBuilder = StringBuilder("${config.baseUrl}$url")
             if (queryParams.isNotEmpty()) {
                 urlBuilder.append("?")
-                urlBuilder.append(queryParams.entries.joinToString("&") { "${it.key}=${it.value}" })
+                urlBuilder.append(queryParams.entries.joinToString("&") {
+                    "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
+                })
             }
 
             val request = Request.Builder()
@@ -290,13 +292,14 @@ class KisApiClient @Inject constructor(
                 Log.d(TAG, "KIS API call: $trId -> $url")
             }
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string()
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+                Triple(response.body?.string(), response.code, response.isSuccessful)
+            }
 
-            if (!response.isSuccessful || responseBody == null) {
-                Log.e(TAG, "KIS API call failed: ${response.code}")
+            if (!isSuccessful || responseBody == null) {
+                Log.e(TAG, "KIS API call failed: $responseCode")
                 return Result.failure(
-                    ApiError.ApiCallError(response.code, "HTTP ${response.code}")
+                    ApiError.ApiCallError(responseCode, "HTTP $responseCode")
                 )
             }
 
@@ -304,6 +307,7 @@ class KisApiClient @Inject constructor(
             val parsed = parser(responseBody)
             return Result.success(parsed)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "KIS API call exception: ${e.javaClass.simpleName} - ${e.message}", e)
             return Result.failure(
                 when (e) {
@@ -341,7 +345,7 @@ class KisApiClient @Inject constructor(
      * Invalidates existing token and fetches a new one.
      */
     suspend fun refreshToken(config: KisApiConfig): Result<KisTokenInfo> = tokenMutex.withLock {
-        val cacheKey = config.baseUrl
+        val cacheKey = "${config.baseUrl}:${config.appKey.hashCode()}"
         tokenCache.remove(cacheKey)
 
         return@withLock fetchToken(config).also { result ->
@@ -375,11 +379,12 @@ class KisApiClient @Inject constructor(
     }
 
     /**
-     * Clear cached token for a specific baseUrl.
+     * Clear cached token for a specific API configuration.
      */
-    suspend fun clearToken(baseUrl: String) = tokenMutex.withLock {
-        tokenCache.remove(baseUrl)
-        Log.d(TAG, "KIS token cleared for: $baseUrl")
+    suspend fun clearToken(config: KisApiConfig) = tokenMutex.withLock {
+        val cacheKey = "${config.baseUrl}:${config.appKey.hashCode()}"
+        tokenCache.remove(cacheKey)
+        Log.d(TAG, "KIS token cleared for: $cacheKey")
     }
 
     companion object {

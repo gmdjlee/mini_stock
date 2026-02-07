@@ -124,7 +124,10 @@ class IndicatorRepoImpl @Inject constructor(
         }
 
         if (elderResult.isFailure) {
-            return Result.failure(elderResult.exceptionOrNull()!!)
+            return Result.failure(
+                elderResult.exceptionOrNull()
+                    ?: Exception("Unknown error fetching elder impulse")
+            )
         }
 
         val elderDto = elderResult.getOrThrow()

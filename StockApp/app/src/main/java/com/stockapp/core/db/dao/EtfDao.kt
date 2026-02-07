@@ -43,6 +43,12 @@ interface EtfDao {
         updatedAt: Long = System.currentTimeMillis()
     )
 
+    @Query("UPDATE etfs SET isFiltered = 1 WHERE etfCode IN (:codes)")
+    suspend fun setFilteredBatch(codes: List<String>)
+
+    @Query("UPDATE etfs SET isFiltered = 0")
+    suspend fun clearAllFilters()
+
     @Query("DELETE FROM etfs WHERE etfCode = :etfCode")
     suspend fun delete(etfCode: String)
 

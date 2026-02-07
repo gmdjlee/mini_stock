@@ -1,6 +1,7 @@
 package com.stockapp.core.api.token
 
 import android.util.Log
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -55,6 +56,8 @@ abstract class BaseTokenManager<T>(
             try {
                 val config = getConfig()
                 getTokenInternal(config)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(tag, "getToken() failed: ${e.message}", e)
                 Result.failure(e)

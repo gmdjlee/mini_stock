@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,6 +15,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -48,13 +50,9 @@ private object TokenRetryConfig {
 @Singleton
 class TokenManager @Inject constructor(
     private val httpClient: OkHttpClient,
+    private val json: Json,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) {
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
 
     // Token cache per base URL + app key combination
     private val tokenCache = mutableMapOf<String, TokenInfo>()
@@ -68,7 +66,7 @@ class TokenManager @Inject constructor(
         secretKey: String,
         baseUrl: String
     ): Result<TokenInfo> = tokenMutex.withLock {
-        val cacheKey = "$baseUrl:$appKey"
+        val cacheKey = "$baseUrl:${appKey.hashCode()}"
 
         // Check if we have a valid cached token
         val cachedToken = tokenCache[cacheKey]
@@ -129,13 +127,11 @@ class TokenManager @Inject constructor(
         baseUrl: String
     ): Result<TokenInfo> {
         try {
-            val requestBody = """
-                {
-                    "grant_type": "client_credentials",
-                    "appkey": "$appKey",
-                    "secretkey": "$secretKey"
-                }
-            """.trimIndent()
+            val requestBody = json.encodeToString(mapOf(
+                "grant_type" to "client_credentials",
+                "appkey" to appKey,
+                "secretkey" to secretKey
+            ))
 
             val request = Request.Builder()
                 .url("$baseUrl/oauth2/token")
@@ -144,13 +140,14 @@ class TokenManager @Inject constructor(
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string()
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+                Triple(response.body?.string(), response.code, response.isSuccessful)
+            }
 
-            if (!response.isSuccessful || responseBody == null) {
-                Log.e(TAG, "Token fetch failed: ${response.code}")
+            if (!isSuccessful || responseBody == null) {
+                Log.e(TAG, "Token fetch failed: $responseCode")
                 return Result.failure(
-                    ApiError.AuthError("토큰 발급 실패: HTTP ${response.code}")
+                    ApiError.AuthError("토큰 발급 실패: HTTP $responseCode")
                 )
             }
 
@@ -177,6 +174,7 @@ class TokenManager @Inject constructor(
 
             return Result.success(TokenInfo(token, expiresAt, tokenResponse.tokenType ?: "bearer"))
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Token fetch exception", e)
             return Result.failure(
                 when (e) {
@@ -200,7 +198,7 @@ class TokenManager @Inject constructor(
      * Use this when receiving 401/403 errors to force token refresh on next call.
      */
     suspend fun invalidateToken(appKey: String, baseUrl: String) = tokenMutex.withLock {
-        val cacheKey = "$baseUrl:$appKey"
+        val cacheKey = "$baseUrl:${appKey.hashCode()}"
         tokenCache.remove(cacheKey)
         Log.d(TAG, "Token invalidated for: $cacheKey")
     }
@@ -214,7 +212,7 @@ class TokenManager @Inject constructor(
         secretKey: String,
         baseUrl: String
     ): Result<TokenInfo> = tokenMutex.withLock {
-        val cacheKey = "$baseUrl:$appKey"
+        val cacheKey = "$baseUrl:${appKey.hashCode()}"
         tokenCache.remove(cacheKey)
 
         return@withLock fetchToken(appKey, secretKey, baseUrl).also { result ->

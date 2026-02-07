@@ -16,6 +16,7 @@ import com.stockapp.feature.realtime.domain.model.RealtimeSupplyData
 import com.stockapp.feature.realtime.domain.repo.RealtimeSupplyRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -104,6 +105,8 @@ class NativeRealtimeSupplyRepoImpl @Inject constructor(
             Log.d(TAG, "getRealtimeSupply() success for ticker=$ticker, " +
                 "netBuyAmount=${supplyData.netBuyAmount}, volume=${supplyData.accumulatedVolume}")
             Result.success(supplyData)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ApiError) {
             Log.e(TAG, "getRealtimeSupply() failed: ${e.message}", e)
             Result.failure(e)

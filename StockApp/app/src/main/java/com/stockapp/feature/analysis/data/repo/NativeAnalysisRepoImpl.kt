@@ -1,11 +1,13 @@
 package com.stockapp.feature.analysis.data.repo
 
 import android.util.Log
+import com.stockapp.BuildConfig
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.AnalysisCacheDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
+import com.stockapp.core.krx.KrxDataSource
 import com.stockapp.core.stock.api.InvestorTrendRequest
 import com.stockapp.core.stock.api.InvestorTrendResponse
 import com.stockapp.core.stock.api.OhlcvData
@@ -22,6 +24,7 @@ import com.stockapp.feature.analysis.domain.repo.AnalysisRepo
 import com.stockapp.feature.realtime.domain.model.TradingHours
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
@@ -45,6 +48,7 @@ private const val TAG = "NativeAnalysisRepoImpl"
 @Singleton
 class NativeAnalysisRepoImpl @Inject constructor(
     private val apiClient: KiwoomApiClient,
+    private val krxDataSource: KrxDataSource,
     private val settingsRepo: SettingsRepo,
     private val cacheDao: AnalysisCacheDao,
     private val ohlcvService: OhlcvService,
@@ -100,14 +104,20 @@ class NativeAnalysisRepoImpl @Inject constructor(
                 return Result.failure(error)
             }
 
-            // Step 2: Fetch investor trend data (ka10059)
-            val investorTrendResult = fetchInvestorTrend(ticker, days, config)
-            val investorTrend = investorTrendResult.getOrElse { error ->
-                return Result.failure(error)
+            // Step 2: Fetch investor trend data - KRX first, Kiwoom fallback
+            val krxTrend = fetchInvestorTrendFromKrx(ticker, days)
+            val investorTrend = if (krxTrend != null && krxTrend.isNotEmpty()) {
+                Log.d(TAG, "getAnalysis() using KRX investor trend data")
+                krxTrend
+            } else {
+                Log.d(TAG, "getAnalysis() KRX unavailable, using Kiwoom (ka10059)")
+                val investorTrendResult = fetchInvestorTrend(ticker, days, config)
+                investorTrendResult.getOrElse { error ->
+                    return Result.failure(error)
+                }
             }
 
-            // Step 2.5: Fetch OHLCV data for daily market cap calculation
-            // This ensures market cap varies with stock price, avoiding flat lines
+            // Step 2.5: Fetch OHLCV data for daily market cap calculation (KRX-first)
             val ohlcvData = fetchOhlcv(ticker, days)
 
             // Step 3: Build StockData from responses
@@ -118,6 +128,8 @@ class NativeAnalysisRepoImpl @Inject constructor(
 
             Log.d(TAG, "getAnalysis() success for ticker=$ticker, dates=${stockData.dates.size}")
             Result.success(stockData)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ApiError) {
             Log.e(TAG, "getAnalysis() failed: ${e.message}", e)
             Result.failure(e)
@@ -167,6 +179,8 @@ class NativeAnalysisRepoImpl @Inject constructor(
                     Result.success(baseData)
                 }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // On any error, return base data
             Log.w(TAG, "getAnalysisWithIntraday() error during intraday fetch: ${e.message}")
@@ -275,6 +289,7 @@ class NativeAnalysisRepoImpl @Inject constructor(
         private const val INVESTOR_FOREIGN = "2"
         /** Investor type: Institution (기관) */
         private const val INVESTOR_INSTITUTION = "3"
+        private val DATE_FORMAT_YYYYMMDD: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
     }
 
     override suspend fun getCachedAnalysis(ticker: String): StockData? {
@@ -337,7 +352,8 @@ class NativeAnalysisRepoImpl @Inject constructor(
 
     /**
      * Fetch OHLCV data for daily market cap calculation.
-     * Returns null if fetch fails (allows fallback to API market cap).
+     * Delegates to OhlcvService which already implements KRX-first with Kiwoom fallback.
+     * Returns null if all sources fail (allows fallback to API market cap).
      */
     private suspend fun fetchOhlcv(
         ticker: String,
@@ -345,8 +361,48 @@ class NativeAnalysisRepoImpl @Inject constructor(
     ): OhlcvData? {
         return try {
             ohlcvService.getOhlcv(ticker, days, OhlcvService.Period.DAILY).getOrNull()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "fetchOhlcv() failed for ticker=$ticker: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Fetch investor trend data from KRX.
+     * Returns null if KRX fails (allows fallback to Kiwoom API).
+     */
+    private suspend fun fetchInvestorTrendFromKrx(
+        ticker: String,
+        days: Int
+    ): List<InvestorTrendData>? {
+        return try {
+            val today = LocalDate.now()
+            val startDate = today.minusDays(days.toLong() + 10) // extra buffer
+            val krxResult = krxDataSource.getTradingByInvestor(
+                startDate.format(DATE_FORMAT_YYYYMMDD),
+                today.format(DATE_FORMAT_YYYYMMDD),
+                ticker
+            )
+            krxResult.getOrNull()?.let { tradingList ->
+                if (tradingList.isNotEmpty()) {
+                    Log.d(TAG, "fetchInvestorTrendFromKrx() KRX returned ${tradingList.size} for $ticker")
+                    tradingList.take(days).map { trading ->
+                        InvestorTrendData(
+                            date = trading.date,
+                            foreignNet = trading.foreigner,
+                            institutionNet = trading.institutionalTotal,
+                            individualNet = trading.individual,
+                            marketCap = 0L // KRX investor trading doesn't include market cap
+                        )
+                    }
+                } else null
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchInvestorTrendFromKrx() failed for $ticker: ${e.message}")
             null
         }
     }
@@ -371,11 +427,10 @@ class NativeAnalysisRepoImpl @Inject constructor(
     ): Result<List<InvestorTrendData>> {
         // Use today's date as the base date (API returns historical data in response)
         val today = LocalDate.now()
-        val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
         val request = InvestorTrendRequest(
             stkCd = ticker,
-            dt = today.format(dateFormatter)
+            dt = today.format(DATE_FORMAT_YYYYMMDD)
         )
 
         Log.d(TAG, "fetchInvestorTrend() ticker=$ticker, dt=${request.dt}")
@@ -388,7 +443,9 @@ class NativeAnalysisRepoImpl @Inject constructor(
             secretKey = config.secretKey,
             baseUrl = config.baseUrl
         ) { responseJson ->
-            Log.d(TAG, "fetchInvestorTrend() response (first 500): ${responseJson.take(500)}")
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "fetchInvestorTrend() response (first 500): ${responseJson.take(500)}")
+            }
             val response = json.decodeFromString<InvestorTrendResponse>(responseJson)
 
             // API returns list sorted by date (newest first), take only required days
@@ -461,13 +518,26 @@ class NativeAnalysisRepoImpl @Inject constructor(
 
             if (shares > 0 && closePrice != null && closePrice > 0) {
                 // Primary: shares × close_price (matching Python analysis.py line 134-135)
-                shares * closePrice.toLong()
+                val closeLong = closePrice.toLong()
+                if (closeLong != 0L && shares > Long.MAX_VALUE / closeLong) {
+                    Long.MAX_VALUE // overflow protection
+                } else {
+                    shares * closeLong
+                }
             } else if (trendItem.marketCap > 0) {
                 // Fallback 1: API's mrkt_tot_amt (in 백만원)
-                trendItem.marketCap * 1_000_000
+                if (trendItem.marketCap > Long.MAX_VALUE / 1_000_000) {
+                    Long.MAX_VALUE // overflow protection
+                } else {
+                    trendItem.marketCap * 1_000_000
+                }
             } else {
                 // Fallback 2: stock info mac (in 억원)
-                stockInfo.marketCap * 100_000_000
+                if (stockInfo.marketCap > Long.MAX_VALUE / 100_000_000) {
+                    Long.MAX_VALUE // overflow protection
+                } else {
+                    stockInfo.marketCap * 100_000_000
+                }
             }
         }
 

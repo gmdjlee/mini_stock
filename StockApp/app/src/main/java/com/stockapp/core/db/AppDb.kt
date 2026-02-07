@@ -58,7 +58,7 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         // Realtime supply cache entity (Kotlin Migration Phase 5)
         RealtimeSupplyCacheEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -249,6 +249,18 @@ abstract class AppDb : RoomDatabase() {
                         PRIMARY KEY(`ticker`)
                     )
                 """.trimIndent())
+            }
+        }
+
+        /**
+         * Migration from version 10 to 11: Add composite index (stockCode, collectedDate)
+         * on etf_constituents for faster stock history queries.
+         */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_etf_constituents_stockCode_collectedDate` ON `etf_constituents` (`stockCode`, `collectedDate`)"
+                )
             }
         }
     }

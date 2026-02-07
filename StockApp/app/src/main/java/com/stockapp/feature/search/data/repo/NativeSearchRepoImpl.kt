@@ -1,6 +1,7 @@
 package com.stockapp.feature.search.data.repo
 
 import android.util.Log
+import com.stockapp.BuildConfig
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
 import com.stockapp.core.config.AppConfig
@@ -8,6 +9,7 @@ import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.SearchHistoryEntity
 import com.stockapp.core.db.entity.StockEntity
+import com.stockapp.core.krx.KrxDataSource
 import com.stockapp.core.stock.api.StockApiIds
 import com.stockapp.core.stock.api.StockListResponse
 import com.stockapp.feature.search.domain.model.Market
@@ -15,10 +17,13 @@ import com.stockapp.feature.search.domain.model.Stock
 import com.stockapp.feature.search.domain.repo.SearchRepo
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,6 +40,7 @@ private val DEFAULT_MARKETS = setOf("KOSPI", "KOSDAQ")
 @Singleton
 class NativeSearchRepoImpl @Inject constructor(
     private val apiClient: KiwoomApiClient,
+    private val krxDataSource: KrxDataSource,
     private val settingsRepo: SettingsRepo,
     private val stockDao: StockDao,
     private val historyDao: SearchHistoryDao,
@@ -66,22 +72,18 @@ class NativeSearchRepoImpl @Inject constructor(
     }
 
     override suspend fun search(query: String): Result<List<Stock>> {
-        Log.d(TAG, "search() called with query: $query")
+        if (BuildConfig.DEBUG) Log.d(TAG, "search() called with query: $query")
 
-        // First try local cache with Kotlin filtering (SQLite LIKE has issues with Korean text)
+        // First try local cache using indexed DB query (avoids full table scan)
         val cacheCount = stockDao.count()
         Log.d(TAG, "search() cache count: $cacheCount")
 
         if (cacheCount > 0) {
-            val allStocks = stockDao.getAllOnce()
-            val queryLower = query.lowercase()
-            val filtered = allStocks.filter { stock ->
-                // Filter by market (KOSPI/KOSDAQ only)
-                stock.market in DEFAULT_MARKETS &&
-                // Filter by query
-                (stock.name.lowercase().contains(queryLower) ||
-                    stock.ticker.lowercase().contains(queryLower))
-            }.take(50) // Limit results
+            val filtered = stockDao.searchByQuery(
+                query = query,
+                markets = DEFAULT_MARKETS.toList(),
+                limit = 50
+            )
 
             Log.d(TAG, "search() filtered results: ${filtered.size}")
 
@@ -114,8 +116,21 @@ class NativeSearchRepoImpl @Inject constructor(
     }
 
     override suspend fun getAll(): Result<List<Stock>> {
-        Log.d(TAG, "getAll() called")
+        Log.d(TAG, "getAll() called - trying KRX first")
 
+        // 1) Try KRX (primary data source)
+        val krxResult = fetchAllFromKrx()
+        if (krxResult.isSuccess) {
+            val stocks = krxResult.getOrThrow()
+            if (stocks.isNotEmpty()) {
+                Log.d(TAG, "getAll() KRX returned ${stocks.size} stocks")
+                stockDao.insertAll(stocks.map { it.toEntity() })
+                return Result.success(stocks)
+            }
+        }
+        Log.w(TAG, "getAll() KRX failed or empty, falling back to Kiwoom")
+
+        // 2) Fallback to Kiwoom API
         return try {
             val config = getApiConfig()
 
@@ -130,17 +145,43 @@ class NativeSearchRepoImpl @Inject constructor(
                 parseAllStocksResponse(responseJson)
             }
 
-            // Cache results after the call completes
             result.onSuccess { stocks ->
-                Log.d(TAG, "getAll() caching ${stocks.size} stocks")
+                Log.d(TAG, "getAll() Kiwoom caching ${stocks.size} stocks")
                 stockDao.insertAll(stocks.map { it.toEntity() })
             }.onFailure { e ->
-                Log.e(TAG, "getAll() failed: ${e.message}", e)
+                Log.e(TAG, "getAll() Kiwoom failed: ${e.message}", e)
             }
 
             result
         } catch (e: ApiError) {
-            Log.e(TAG, "getAll() API failed: ${e.message}", e)
+            Log.e(TAG, "getAll() Kiwoom API failed: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * KRX에서 전종목 리스트 조회.
+     * KRX API는 API 키 없이 직접 한국거래소에서 데이터 조회.
+     */
+    private suspend fun fetchAllFromKrx(): Result<List<Stock>> {
+        return try {
+            val today = LocalDate.now().format(DATE_FORMAT_YYYYMMDD)
+            val krxResult = krxDataSource.getTickerList(today)
+            krxResult.map { tickerInfoList ->
+                tickerInfoList.mapNotNull { info ->
+                    val market = normalizeMarketName(info.marketName)
+                    if (market.name !in DEFAULT_MARKETS) return@mapNotNull null
+                    Stock(
+                        ticker = info.ticker,
+                        name = info.name,
+                        market = market
+                    )
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchAllFromKrx() failed: ${e.message}")
             Result.failure(e)
         }
     }
@@ -182,7 +223,7 @@ class NativeSearchRepoImpl @Inject constructor(
     }
 
     override suspend fun searchCacheOnly(query: String): Result<List<Stock>> {
-        Log.d(TAG, "searchCacheOnly() query: $query")
+        if (BuildConfig.DEBUG) Log.d(TAG, "searchCacheOnly() query: $query")
 
         val cacheCount = stockDao.count()
         if (cacheCount == 0) {
@@ -190,13 +231,11 @@ class NativeSearchRepoImpl @Inject constructor(
             return Result.success(emptyList())
         }
 
-        val allStocks = stockDao.getAllOnce()
-        val queryLower = query.lowercase()
-        val filtered = allStocks.filter { stock ->
-            stock.market in DEFAULT_MARKETS &&
-                (stock.name.lowercase().contains(queryLower) ||
-                    stock.ticker.lowercase().contains(queryLower))
-        }.take(AppConfig.MAX_SEARCH_RESULTS)
+        val filtered = stockDao.searchByQuery(
+            query = query,
+            markets = DEFAULT_MARKETS.toList(),
+            limit = AppConfig.MAX_SEARCH_RESULTS
+        )
 
         Log.d(TAG, "searchCacheOnly() found ${filtered.size} results")
         return Result.success(filtered.map { it.toDomain() })
@@ -207,7 +246,9 @@ class NativeSearchRepoImpl @Inject constructor(
      * Also filters by market (KOSPI/KOSDAQ only) to exclude ETN, ETF, etc.
      */
     private fun parseStockListResponse(jsonStr: String, query: String): List<Stock> {
-        Log.d(TAG, "parseStockListResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "parseStockListResponse() JSON (first 500 chars): ${jsonStr.take(500)}")
+        }
 
         val response = json.decodeFromString<StockListResponse>(jsonStr)
 
@@ -321,4 +362,8 @@ class NativeSearchRepoImpl @Inject constructor(
         market = market.name,
         updatedAt = System.currentTimeMillis()
     )
+
+    companion object {
+        private val DATE_FORMAT_YYYYMMDD: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+    }
 }

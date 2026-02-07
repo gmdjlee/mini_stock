@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
+import android.util.Log
 import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.analysis.ui.AnalysisScreen
 import com.stockapp.feature.analysis.ui.AnalysisVm
@@ -81,9 +82,15 @@ fun NavGraph(
             val ticker = backStackEntry.arguments?.getString(NavArgs.TICKER)
             val viewModel: AnalysisVm = hiltViewModel()
 
-            // Handle deep link ticker - select stock if provided
+            // Handle deep link ticker - validate and select stock if provided
             LaunchedEffect(ticker) {
-                ticker?.let { viewModel.selectTickerFromDeepLink(it) }
+                ticker?.let {
+                    if (AnalysisVm.isValidKoreanTicker(it)) {
+                        viewModel.selectTickerFromDeepLink(it)
+                    } else {
+                        Log.w("NavGraph", "Invalid deep link ticker ignored: $it")
+                    }
+                }
             }
 
             AnalysisScreen()
@@ -107,7 +114,13 @@ fun NavGraph(
             val analysisVm: AnalysisVm = hiltViewModel()
 
             LaunchedEffect(ticker) {
-                ticker?.let { analysisVm.selectTickerFromDeepLink(it) }
+                ticker?.let {
+                    if (AnalysisVm.isValidKoreanTicker(it)) {
+                        analysisVm.selectTickerFromDeepLink(it)
+                    } else {
+                        Log.w("NavGraph", "Invalid deep link ticker ignored: $it")
+                    }
+                }
             }
 
             IndicatorScreen()
@@ -131,7 +144,13 @@ fun NavGraph(
             val analysisVm: AnalysisVm = hiltViewModel()
 
             LaunchedEffect(ticker) {
-                ticker?.let { analysisVm.selectTickerFromDeepLink(it) }
+                ticker?.let {
+                    if (AnalysisVm.isValidKoreanTicker(it)) {
+                        analysisVm.selectTickerFromDeepLink(it)
+                    } else {
+                        Log.w("NavGraph", "Invalid deep link ticker ignored: $it")
+                    }
+                }
             }
 
             FinancialScreen()

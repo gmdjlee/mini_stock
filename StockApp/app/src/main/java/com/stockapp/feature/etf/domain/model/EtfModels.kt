@@ -481,6 +481,53 @@ data class MissingDatesResult(
         get() = missingDates.size
 }
 
+// ==================== Multi-Day Collection Models ====================
+
+/**
+ * Result of multi-day ETF data collection.
+ * Aggregates results from collecting data across multiple trading days.
+ */
+data class MultiDayCollectionResult(
+    /** Total number of trading days targeted for collection */
+    val totalDays: Int,
+    /** Number of days successfully collected */
+    val successDays: Int,
+    /** Number of days skipped (already collected) */
+    val skippedDays: Int,
+    /** Number of days that failed */
+    val failedDays: Int,
+    /** Aggregated ETF count across all collected days */
+    val totalEtfs: Int,
+    /** Aggregated constituent count across all collected days */
+    val totalConstituents: Int,
+    /** Per-day results in chronological order */
+    val dayResults: List<DayCollectionResult>
+) {
+    val status: CollectionStatus
+        get() = when {
+            failedDays == 0 && successDays > 0 -> CollectionStatus.SUCCESS
+            successDays == 0 && failedDays > 0 -> CollectionStatus.FAILED
+            successDays > 0 -> CollectionStatus.PARTIAL
+            else -> CollectionStatus.SUCCESS // all skipped
+        }
+}
+
+/**
+ * Result for a single day within a multi-day collection.
+ */
+data class DayCollectionResult(
+    /** Date in YYYY-MM-DD format */
+    val date: String,
+    /** Whether this day was skipped (already collected) */
+    val skipped: Boolean,
+    /** Number of ETFs collected for this day */
+    val etfCount: Int,
+    /** Number of constituents collected for this day */
+    val constituentCount: Int,
+    /** Error message if collection failed */
+    val errorMessage: String?
+)
+
 // ==================== Ranking Sort Models ====================
 
 /**

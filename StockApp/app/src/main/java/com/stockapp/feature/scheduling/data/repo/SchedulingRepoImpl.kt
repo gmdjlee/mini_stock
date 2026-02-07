@@ -21,6 +21,7 @@ import com.stockapp.feature.scheduling.domain.model.SyncStatus
 import com.stockapp.feature.scheduling.domain.model.SyncType
 import com.stockapp.feature.scheduling.domain.repo.SchedulingRepo
 import com.stockapp.feature.search.domain.model.SearchResponse
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -140,6 +141,8 @@ class SchedulingRepoImpl @Inject constructor(
                     Result.failure(e)
                 }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "syncStockList exception: ${e.message}", e)
             Result.failure(e)
@@ -194,6 +197,8 @@ class SchedulingRepoImpl @Inject constructor(
                 etfConstituentCount = etfConstituentCount,
                 durationMs = durationMs
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "syncAllData failed: ${e.message}", e)
             val durationMs = System.currentTimeMillis() - startTime
@@ -228,6 +233,8 @@ class SchedulingRepoImpl @Inject constructor(
                         if (result.isSuccess) {
                             syncedCount++
                         }
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to sync analysis for $ticker: ${e.message}")
                     }
@@ -236,6 +243,8 @@ class SchedulingRepoImpl @Inject constructor(
 
             Log.d(TAG, "Analysis data synced: $syncedCount tickers")
             Result.success(syncedCount)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "syncAnalysisData failed: ${e.message}", e)
             Result.failure(e)
@@ -319,6 +328,8 @@ class SchedulingRepoImpl @Inject constructor(
                     Pair(0, 0)
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "syncEtfData exception: ${e.message}", e)
             Pair(0, 0)
@@ -346,6 +357,8 @@ class SchedulingRepoImpl @Inject constructor(
                 },
                 onFailure = { e -> Result.failure(e) }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             return Result.failure(e)
         }

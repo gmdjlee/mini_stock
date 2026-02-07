@@ -2,6 +2,7 @@ package com.stockapp.feature.etf.domain.usecase
 
 import com.stockapp.feature.etf.domain.model.StockAnalysisResult
 import com.stockapp.feature.etf.domain.repo.EtfRepository
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -29,6 +30,8 @@ class GetStockAnalysisUC @Inject constructor(
             val normalizedCode = normalizeStockCode(stockCode)
 
             repository.getStockAnalysis(normalizedCode)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -58,6 +61,8 @@ class GetStockAnalysisUC @Inject constructor(
             }
 
             repository.getStockAnalysis(stockCode)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

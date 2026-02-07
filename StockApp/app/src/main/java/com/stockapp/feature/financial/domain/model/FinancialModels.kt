@@ -25,6 +25,7 @@ data class FinancialPeriod(
      * Format for display (e.g., "2023.12" or "23.12")
      */
     fun toDisplayString(short: Boolean = false): String {
+        if (yearMonth.length < 6) return yearMonth
         val y = if (short) yearMonth.substring(2, 4) else yearMonth.substring(0, 4)
         val m = yearMonth.substring(4, 6)
         return "$y.$m"

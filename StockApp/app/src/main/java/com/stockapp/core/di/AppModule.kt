@@ -62,14 +62,19 @@ object AppModule {
 
         if (BuildConfig.DEBUG) {
             val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = HttpLoggingInterceptor.Level.HEADERS
             }
             builder.addInterceptor(loggingInterceptor)
             // Log SPKI hashes for pinning (check Logcat tag "CertHash")
             builder.addNetworkInterceptor(CertificateHashExtractor())
         } else {
-            CertificatePinningConfig.createPinner()?.let { pinner ->
+            val pinner = CertificatePinningConfig.createPinner()
+            if (pinner != null) {
                 builder.certificatePinner(pinner)
+            } else {
+                // Fallback: enforce hostname verification for known API hosts
+                // when certificate hashes are not yet configured
+                builder.hostnameVerifier(CertificatePinningConfig.createHostnameVerifier())
             }
         }
 

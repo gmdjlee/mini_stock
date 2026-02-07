@@ -69,6 +69,9 @@ import com.stockapp.feature.settings.domain.model.InvestmentMode
 import java.text.NumberFormat
 import java.util.Locale
 
+/** Cached NumberFormat instance to avoid per-row allocation in LazyColumn. */
+private val koreanNumberFormat: NumberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RankingScreen(
@@ -90,6 +93,12 @@ fun RankingScreen(
     val valueType by viewModel.valueType.collectAsState()
     // ETF exclusion filter
     val excludeEtf by viewModel.excludeEtf.collectAsState()
+
+    // Memoize derived values to avoid new list allocations on every recomposition
+    val availableMarketTypes = remember(rankingType) { viewModel.getAvailableMarketTypes() }
+    val availableExchangeTypes = remember(investmentMode) { viewModel.getAvailableExchangeTypes() }
+    val isOrderBookSurge = remember(rankingType) { viewModel.isOrderBookSurgeType() }
+    val isForeignInstitution = remember(rankingType) { viewModel.isForeignInstitutionType() }
 
     Scaffold(
         topBar = {
@@ -118,7 +127,7 @@ fun RankingScreen(
             // Market type tabs (dynamic based on ranking type)
             MarketTypeTabs(
                 selectedMarket = marketType,
-                availableMarkets = viewModel.getAvailableMarketTypes(),
+                availableMarkets = availableMarketTypes,
                 onMarketSelected = viewModel::onMarketTypeChange
             )
 
@@ -126,7 +135,7 @@ fun RankingScreen(
             if (investmentMode == InvestmentMode.PRODUCTION) {
                 ExchangeTypeTabs(
                     selectedExchange = exchangeType,
-                    availableExchanges = viewModel.getAvailableExchangeTypes(),
+                    availableExchanges = availableExchangeTypes,
                     onExchangeSelected = viewModel::onExchangeTypeChange
                 )
             }
@@ -137,10 +146,10 @@ fun RankingScreen(
                 onCountSelected = viewModel::onItemCountChange,
                 excludeEtf = excludeEtf,
                 onExcludeEtfChange = viewModel::onExcludeEtfChange,
-                isOrderBookSurgeType = viewModel.isOrderBookSurgeType(),
+                isOrderBookSurgeType = isOrderBookSurge,
                 orderBookDirection = orderBookDirection,
                 onOrderBookDirectionChange = viewModel::onOrderBookDirectionChange,
-                isForeignInstitutionType = viewModel.isForeignInstitutionType(),
+                isForeignInstitutionType = isForeignInstitution,
                 investorType = investorType,
                 tradeDirection = tradeDirection,
                 valueType = valueType,
@@ -575,20 +584,20 @@ private fun formatTypeSpecificValue(item: RankingItem, result: RankingResult): S
 
 private fun formatPrice(price: Long): String {
     if (price == 0L) return "-"
-    return NumberFormat.getNumberInstance(Locale.KOREA).format(price)
+    return koreanNumberFormat.format(price)
 }
 
 private fun formatChange(change: Long, rate: Double, sign: String): String {
     if (change == 0L && rate == 0.0) return "-"
     val signStr = if (sign == "+") "+" else if (sign == "-") "" else ""
-    return "$signStr${NumberFormat.getNumberInstance(Locale.KOREA).format(change)} (${String.format("%.2f", rate)}%)"
+    return "$signStr${koreanNumberFormat.format(change)} (${String.format("%.2f", rate)}%)"
 }
 
 private fun formatVolume(volume: Long): String {
     return when {
         volume >= 100_000_000 -> String.format("%.1f억", volume / 100_000_000.0)
         volume >= 10_000 -> String.format("%.1f만", volume / 10_000.0)
-        else -> NumberFormat.getNumberInstance(Locale.KOREA).format(volume)
+        else -> koreanNumberFormat.format(volume)
     }
 }
 
@@ -598,7 +607,7 @@ private fun formatAmount(amount: Long): String {
         amount >= 10_000 -> String.format("%+.0f만", amount / 10_000.0)
         amount <= -100_000_000 -> String.format("%.0f억", amount / 100_000_000.0)
         amount <= -10_000 -> String.format("%.0f만", amount / 10_000.0)
-        else -> NumberFormat.getNumberInstance(Locale.KOREA).format(amount)
+        else -> koreanNumberFormat.format(amount)
     }
 }
 

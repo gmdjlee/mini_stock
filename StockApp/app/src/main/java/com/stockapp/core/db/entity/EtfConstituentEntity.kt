@@ -14,7 +14,8 @@ import androidx.room.Index
     indices = [
         Index("stockCode"),
         Index("collectedDate"),
-        Index(value = ["etfCode", "collectedDate"])
+        Index(value = ["etfCode", "collectedDate"]),
+        Index(value = ["stockCode", "collectedDate"])
     ]
 )
 data class EtfConstituentEntity(

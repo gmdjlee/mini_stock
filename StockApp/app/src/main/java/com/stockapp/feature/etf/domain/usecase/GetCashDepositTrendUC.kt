@@ -6,6 +6,7 @@ import com.stockapp.feature.etf.domain.model.EtfCashDetail
 import com.stockapp.feature.etf.domain.repo.EtfRepository
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 /**
@@ -48,6 +49,8 @@ class GetCashDepositTrendUC @Inject constructor(
                     etfCashDetails = details
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -63,6 +66,8 @@ class GetCashDepositTrendUC @Inject constructor(
     suspend fun forDates(startDate: String, endDate: String): Result<List<CashDepositTrend>> {
         return try {
             repository.getCashDepositTrend(startDate, endDate)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -77,6 +82,8 @@ class GetCashDepositTrendUC @Inject constructor(
     suspend fun getEtfCashDetails(date: String): Result<List<EtfCashDetail>> {
         return try {
             repository.getEtfCashDetails(date)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -1,6 +1,7 @@
 package com.stockapp.feature.financial.domain.usecase
 
 import android.util.Log
+import com.stockapp.BuildConfig
 import com.stockapp.feature.financial.domain.model.FinancialData
 import com.stockapp.feature.financial.domain.model.FinancialSummary
 import com.stockapp.feature.financial.domain.model.toSummary
@@ -54,6 +55,7 @@ class GetFinancialSummaryUC @Inject constructor(
     }
 
     private fun logFinancialData(data: FinancialData) {
+        if (!BuildConfig.DEBUG) return
         Log.d(TAG, "=== FinancialData for ${data.ticker} ===")
         Log.d(TAG, "Periods: ${data.periods}")
         Log.d(TAG, "IncomeStatements count: ${data.incomeStatements.size}, keys: ${data.incomeStatements.keys}")
@@ -71,6 +73,7 @@ class GetFinancialSummaryUC @Inject constructor(
     }
 
     private fun logFinancialSummary(summary: FinancialSummary) {
+        if (!BuildConfig.DEBUG) return
         Log.d(TAG, "=== FinancialSummary for ${summary.ticker} ===")
         Log.d(TAG, "hasProfitabilityData: ${summary.hasProfitabilityData}")
         Log.d(TAG, "hasGrowthData: ${summary.hasGrowthData}")

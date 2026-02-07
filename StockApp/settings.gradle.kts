@@ -17,3 +17,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "StockApp"
 include(":app")
+include(":krxkt")
+project(":krxkt").projectDir = file("../../kotlin_krx")

@@ -1,10 +1,16 @@
 package com.stockapp.feature.settings.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.model.FilterType
 import com.stockapp.feature.etf.domain.repo.EtfRepository
+import com.stockapp.feature.etf.worker.EtfCollectionWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,19 +21,55 @@ import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 /**
+ * Collection state for ETF settings tab.
+ */
+sealed class EtfSettingsCollectionState {
+    data object Idle : EtfSettingsCollectionState()
+    data class Collecting(
+        val current: Int = 0,
+        val total: Int = 0,
+        val dayIndex: Int = 0,
+        val totalDays: Int = 0,
+        val currentDate: String? = null
+    ) : EtfSettingsCollectionState() {
+        val isMultiDay: Boolean get() = totalDays > 0
+    }
+    data class Success(
+        val etfCount: Int,
+        val constituentCount: Int,
+        val successDays: Int = 0,
+        val skippedDays: Int = 0,
+        val failedDays: Int = 0,
+        val totalDays: Int = 0
+    ) : EtfSettingsCollectionState() {
+        val isMultiDay: Boolean get() = totalDays > 0
+    }
+    data class Error(val message: String) : EtfSettingsCollectionState()
+}
+
+/**
  * ViewModel for ETF settings tab.
- * Manages keyword filtering and data management.
+ * Manages keyword filtering, data management, and collection with date selection.
  *
  * Note: Auto-collection scheduling has been moved to SchedulingVm.
  */
 @HiltViewModel
 class EtfSettingsVm @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val etfRepository: EtfRepository
 ) : ViewModel() {
 
     // Main UI state
     private val _uiState = MutableStateFlow(EtfSettingsUiState())
     val uiState: StateFlow<EtfSettingsUiState> = _uiState.asStateFlow()
+
+    // Collection state
+    private val _collectionState = MutableStateFlow<EtfSettingsCollectionState>(EtfSettingsCollectionState.Idle)
+    val collectionState: StateFlow<EtfSettingsCollectionState> = _collectionState.asStateFlow()
+
+    // Selected start date for multi-day collection (YYYY-MM-DD, null = today only)
+    private val _selectedStartDate = MutableStateFlow<String?>(null)
+    val selectedStartDate: StateFlow<String?> = _selectedStartDate.asStateFlow()
 
     // Dialog states
     private val _showAddKeywordDialog = MutableStateFlow(false)
@@ -42,6 +84,7 @@ class EtfSettingsVm @Inject constructor(
     init {
         initializeKeywordsAndLoadData()
         observeKeywords()
+        observeWorkProgress()
     }
 
     private fun initializeKeywordsAndLoadData() {
@@ -225,6 +268,89 @@ class EtfSettingsVm @Inject constructor(
                     _uiState.update { it.copy(error = error.message ?: "데이터 초기화 실패") }
                 }
             )
+        }
+    }
+
+    // ==================== Collection ====================
+
+    fun setSelectedStartDate(date: String?) {
+        _selectedStartDate.value = date
+    }
+
+    fun startCollection() {
+        // Prevent duplicate collection (KEEP policy ignores new requests anyway)
+        if (_collectionState.value is EtfSettingsCollectionState.Collecting) return
+
+        _collectionState.value = EtfSettingsCollectionState.Collecting()
+        val state = _uiState.value
+        val filterConfig = EtfFilterConfig(
+            activeOnly = state.activeOnly,
+            includeKeywords = state.includeKeywords.map { it.keyword },
+            excludeKeywords = state.excludeKeywords.map { it.keyword }
+        )
+        EtfCollectionWorker.collectNow(context, filterConfig, _selectedStartDate.value)
+    }
+
+    fun cancelCollection() {
+        EtfCollectionWorker.cancelOngoingCollection(context)
+        _collectionState.value = EtfSettingsCollectionState.Idle
+    }
+
+    fun resetCollectionState() {
+        _collectionState.value = EtfSettingsCollectionState.Idle
+    }
+
+    private fun observeWorkProgress() {
+        viewModelScope.launch {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWorkFlow(EtfCollectionWorker.WORK_NAME_ONCE)
+                .collect { workInfos ->
+                    val workInfo = workInfos.firstOrNull() ?: return@collect
+
+                    when (workInfo.state) {
+                        WorkInfo.State.RUNNING -> {
+                            val current = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_CURRENT, 0)
+                            val total = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_TOTAL, 0)
+                            val dayCurrent = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_DAY_CURRENT, 0)
+                            val dayTotal = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_DAY_TOTAL, 0)
+                            val dayDate = workInfo.progress.getString(EtfCollectionWorker.KEY_PROGRESS_DAY_DATE)
+                            _collectionState.value = EtfSettingsCollectionState.Collecting(
+                                current = current,
+                                total = total,
+                                dayIndex = dayCurrent,
+                                totalDays = dayTotal,
+                                currentDate = dayDate
+                            )
+                        }
+                        WorkInfo.State.SUCCEEDED -> {
+                            val etfCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_ETF_COUNT, 0)
+                            val constituentCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_CONSTITUENT_COUNT, 0)
+                            val successDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_SUCCESS_DAYS, 0)
+                            val skippedDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_SKIPPED_DAYS, 0)
+                            val failedDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_FAILED_DAYS, 0)
+                            val totalDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_TOTAL_DAYS, 0)
+                            _collectionState.value = EtfSettingsCollectionState.Success(
+                                etfCount = etfCount,
+                                constituentCount = constituentCount,
+                                successDays = successDays,
+                                skippedDays = skippedDays,
+                                failedDays = failedDays,
+                                totalDays = totalDays
+                            )
+                            // Reload data statistics after successful collection
+                            loadDataStatistics()
+                        }
+                        WorkInfo.State.FAILED -> {
+                            val error = workInfo.outputData.getString(EtfCollectionWorker.KEY_RESULT_ERROR)
+                                ?: "수집 실패"
+                            _collectionState.value = EtfSettingsCollectionState.Error(error)
+                        }
+                        WorkInfo.State.CANCELLED -> {
+                            _collectionState.value = EtfSettingsCollectionState.Idle
+                        }
+                        else -> {}
+                    }
+                }
         }
     }
 

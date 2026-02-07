@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.History
@@ -24,13 +26,23 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -41,9 +53,10 @@ import com.stockapp.feature.etf.domain.model.MissingDatesResult
 import com.stockapp.feature.etf.ui.CollectionHistoryItem
 import com.stockapp.feature.etf.ui.CollectionState
 import com.stockapp.feature.etf.ui.EtfVm
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun CollectionStatusTab(
@@ -52,6 +65,7 @@ fun CollectionStatusTab(
     val collectionState by viewModel.collectionState.collectAsState()
     val collectionHistory by viewModel.collectionHistory.collectAsState()
     val missingDatesResult by viewModel.missingDatesResult.collectAsState()
+    val selectedStartDate by viewModel.selectedStartDate.collectAsState()
 
     LazyColumn(
         modifier = Modifier
@@ -84,13 +98,23 @@ fun CollectionStatusTab(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "KIS API를 통해 ETF 구성종목 데이터를 수집합니다.",
+                            text = "KRX 데이터를 통해 ETF 구성종목을 수집합니다. 시작일을 선택하면 과거 거래일부터 장기 데이터를 한번에 수집할 수 있습니다.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
+        }
+
+        // Date selection card
+        item {
+            DateSelectionCard(
+                selectedStartDate = selectedStartDate,
+                isCollecting = collectionState is CollectionState.Collecting,
+                onDateSelected = { viewModel.setSelectedStartDate(it) },
+                onClearDate = { viewModel.setSelectedStartDate(null) }
+            )
         }
 
         // Current collection status
@@ -109,9 +133,11 @@ fun CollectionStatusTab(
         }
 
         // Missing dates card
-        if (missingDatesResult != null && missingDatesResult!!.dataStartDate != null) {
-            item {
-                MissingDatesCard(result = missingDatesResult!!)
+        missingDatesResult?.let { result ->
+            if (result.dataStartDate != null) {
+                item {
+                    MissingDatesCard(result = result)
+                }
             }
         }
 
@@ -144,6 +170,128 @@ fun CollectionStatusTab(
 
         item {
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateSelectionCard(
+    selectedStartDate: String?,
+    isCollecting: Boolean,
+    onDateSelected: (String) -> Unit,
+    onClearDate: () -> Unit
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateFormat = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarMonth,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "수집 시작일",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = if (selectedStartDate != null) {
+                    "시작일부터 오늘까지의 거래일 데이터를 수집합니다. 이미 수집된 날짜는 자동으로 건너뜁니다."
+                } else {
+                    "미선택 시 오늘 날짜만 수집합니다."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isCollecting
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarMonth,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = selectedStartDate ?: "시작일 선택 (오늘만 수집)"
+                    )
+                }
+
+                if (selectedStartDate != null) {
+                    IconButton(
+                        onClick = onClearDate,
+                        enabled = !isCollecting
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "초기화",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val date = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDate()
+                            // Don't allow future dates
+                            val effectiveDate = if (date.isAfter(LocalDate.now())) {
+                                LocalDate.now()
+                            } else {
+                                date
+                            }
+                            onDateSelected(effectiveDate.format(dateFormat))
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("확인")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("취소")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }
@@ -191,45 +339,112 @@ private fun CollectionStatusCard(
 
                 is CollectionState.Collecting -> {
                     Column {
+                        // Day-level progress (for multi-day collection)
+                        if (state.isMultiDay) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = buildString {
+                                        append("날짜 ${state.dayIndex}/${state.totalDays}")
+                                        state.currentDate?.let { append(" ($it)") }
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            if (state.totalDays > 0) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                LinearProgressIndicator(
+                                    progress = {
+                                        if (state.totalDays > 0) state.dayIndex.toFloat() / state.totalDays
+                                        else 0f
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        // ETF-level progress
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            if (!state.isMultiDay) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
                             Text(
-                                text = "수집 중... (${state.current}/${state.total})",
-                                style = MaterialTheme.typography.bodyMedium
+                                text = if (state.isMultiDay) {
+                                    "  ETF 수집 중... (${state.current}/${state.total})"
+                                } else {
+                                    "수집 중... (${state.current}/${state.total})"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (state.isMultiDay) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
                             )
                         }
                         if (state.total > 0) {
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             LinearProgressIndicator(
                                 progress = { state.current.toFloat() / state.total },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                color = if (state.isMultiDay) {
+                                    MaterialTheme.colorScheme.tertiary
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                }
                             )
                         }
                     }
                 }
 
                 is CollectionState.Success -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = extendedColors.success,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "수집 완료: ETF ${state.etfCount}개, 구성종목 ${state.constituentCount}개",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = extendedColors.success
-                        )
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = extendedColors.success,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "수집 완료: ETF ${state.etfCount}개, 구성종목 ${state.constituentCount}개",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = extendedColors.success
+                            )
+                        }
+
+                        // Multi-day result details
+                        if (state.isMultiDay) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = buildString {
+                                    append("전체 ${state.totalDays}일: ")
+                                    append("성공 ${state.successDays}일")
+                                    if (state.skippedDays > 0) append(", 건너뜀 ${state.skippedDays}일")
+                                    if (state.failedDays > 0) append(", 실패 ${state.failedDays}일")
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -287,7 +502,6 @@ private fun LastCollectionCard(
     history: CollectionHistoryItem
 ) {
     val extendedColors = LocalExtendedColors.current
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA)
 
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -421,7 +635,6 @@ private fun CollectionHistoryCard(
     history: CollectionHistoryItem
 ) {
     val extendedColors = LocalExtendedColors.current
-    val dateFormat = SimpleDateFormat("MM/dd HH:mm", Locale.KOREA)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
