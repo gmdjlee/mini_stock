@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-키움증권 REST API를 활용한 주식 분석 도구. Android 앱(StockApp)이 현재 활성 개발 대상입니다.
+KRX 직접 데이터 + 키움/KIS REST API를 활용한 주식 분석 도구. Android 앱(StockApp)이 현재 활성 개발 대상입니다.
 
 ## ⚠️ Development Scope
 
@@ -11,8 +11,53 @@
 | **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
 | **Kotlin Native Migration** | ✅ **COMPLETED** | Python → Kotlin 전환 완료 |
+| **kotlin_krx Integration** | ✅ **COMPLETED** | KRX 직접 데이터 수집 통합 완료 |
 
 **중요**: Python 패키지는 참조용입니다. 모든 개발은 Android 앱(StockApp)에만 적용됩니다.
+
+---
+
+## 🔗 kotlin_krx Integration (KRX Direct Data)
+
+**소스**: `D:\android_2025\kotlin_krx` (Gradle 서브모듈 `:krxkt`)
+
+pykrx Python 라이브러리의 Kotlin 구현체. 한국거래소(KRX)에서 직접 데이터를 수집하며 API 키 불필요.
+
+### 데이터 소스 전략
+
+| 데이터 유형 | Primary | Fallback | 근거 |
+|-------------|---------|----------|------|
+| **배치 데이터** (종목리스트, OHLCV, 투자자매매, ETF) | KRX (kotlin_krx) | Kiwoom/KIS API | API 키 불필요, 무료, 데이터 풍부 |
+| **실시간 데이터** (실시간 수급, 순위정보) | Kiwoom API | - | KRX는 실시간 미지원 |
+| **재무정보** | KIS API | - | KRX에서 미제공 |
+
+### KRX-First 적용 범위
+
+| 기능 | KRX 사용 | 파일 | 비고 |
+|------|----------|------|------|
+| 종목 검색 (getAll) | ✅ | `NativeSearchRepoImpl.kt` | KRX ticker list → Stock 매핑 |
+| OHLCV (일봉) | ✅ | `OhlcvService.kt` | 모든 지표 기능에 공통 적용 |
+| 투자자별 매매 | ✅ | `NativeAnalysisRepoImpl.kt` | KRX investor trading → InvestorTrend |
+| ETF 목록 | ✅ | `EtfCollectorRepoImpl.kt` | KRX ETF ticker list |
+| 순위정보 | ❌ | `RankingRepoImpl.kt` | Kiwoom 실시간 API 유지 |
+| 재무정보 | ❌ | `FinancialRepoImpl.kt` | KIS API 유지 (KRX 미제공) |
+| 실시간 수급 | ❌ | `NativeRealtimeSupplyRepoImpl.kt` | Kiwoom ka10063 유지 |
+
+### Feature Flag
+
+| Flag | 기본값 | 설명 |
+|------|--------|------|
+| `USE_KRX_DATA_SOURCE` | `true` | KRX-First 전략 활성화/비활성화 |
+
+### 핵심 파일
+- `core/krx/KrxDataSource.kt` - KRX API 래퍼 (Hilt Singleton)
+- `core/krx/DataSourceStrategy.kt` - KRX_FIRST / BROKER_FIRST 전략 enum
+- `core/config/FeatureFlags.kt` - `USE_KRX_DATA_SOURCE` 플래그
+
+### 참고사항
+- KRX 데이터 수집은 한국 네트워크/VPN 필요 (`data.krx.co.kr` 접속)
+- KRX 실패 시 자동으로 Kiwoom/KIS API 폴백
+- 모든 KRX 호출은 `Result<T>` 래핑으로 안전한 에러 핸들링
 
 ---
 
@@ -61,12 +106,13 @@ User Input → 500ms Debounce → Query Length Check
 
 ### Feature Flags (기본값: 모두 `true`)
 
-| Flag | 기능 | Kotlin 구현체 |
-|------|------|---------------|
+| Flag | 기능 | 구현체 |
+|------|------|--------|
 | `USE_NATIVE_SEARCH` | 종목 검색 | `NativeSearchRepo` |
 | `USE_NATIVE_ANALYSIS` | 수급 분석 | `NativeAnalysisRepo` |
 | `USE_NATIVE_INDICATOR` | 기술 지표 | `TrendCalculator`, `ElderCalculator`, `DemarkCalculator` |
 | `ENABLE_REALTIME_SUPPLY` | 실시간 수급 | `RealtimeSupplyRepo` |
+| `USE_KRX_DATA_SOURCE` | KRX 직접 데이터 | `KrxDataSource` (배치 데이터 Primary) |
 
 ### 전환 이점
 - APK 크기: ~80MB → ~25MB
@@ -99,14 +145,15 @@ User Input → 500ms Debounce → Query Length Check
 | Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
 | Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
 | Phase 2 | ✅ Done | 기술적 지표 화면 (MPAndroidChart) |
-| Phase 3 | ⛔ Removed | ~~시장 지표, 조건검색~~ |
+| Phase 3 | ✅ Done | 시장 지표 (공포/탐욕, 과매수/과매도, 자금 동향, Blood Indicator) |
 | Phase 4 | ✅ Done | 설정 화면 (API 키, 투자 모드) |
 | Phase 5 | ✅ Done | 자동 스케줄링 (WorkManager) |
 | Phase 6 | ✅ Done | 순위정보 (Kotlin REST API) |
 | Phase 7 | ✅ Done | 재무정보 (KIS API) |
 | Phase 8 | ✅ Done | ETF 분석 |
+| Phase 10 | ✅ Done | kotlin_krx 통합 (KRX-First 배치 데이터) |
 
-**코드**: 160 files, ~30,033 lines (Kotlin)
+**코드**: ~165 files, ~31,000 lines (Kotlin)
 
 ### 앱 네비게이션 (Bottom Nav)
 
@@ -118,7 +165,8 @@ User Input → 500ms Debounce → Query Length Check
 | 🏦 Financial | FinancialScreen | 재무정보 (수익성, 안정성) |
 | 🏆 Ranking | RankingScreen | 순위정보 |
 | 📁 ETF | EtfScreen | ETF 포트폴리오 추적 |
-| ⚙️ Settings | SettingsScreen | API 키, 스케줄링, DB 백업 |
+| 📉 Market | MarketScreen | 시장 지표 (공포/탐욕, 과매수/과매도, 자금 동향, Blood) |
+| ⚙️ Settings | SettingsScreen | API 키, 스케줄링, 시장 지표, DB 백업 |
 
 ### Python 패키지 🔒 FROZEN
 
@@ -150,8 +198,9 @@ cd stock-analyzer && uv run pytest tests/unit/ -v
 ```
 StockApp/app/src/main/java/com/stockapp/
 ├── core/                     # 공통 모듈
-│   ├── db/                   # Room Database (v10, 16 entities)
+│   ├── db/                   # Room Database (v12, 17 entities)
 │   ├── api/                  # Kiwoom/KIS REST API 클라이언트
+│   ├── krx/                  # KRX 직접 데이터 (kotlin_krx 래퍼)
 │   ├── cache/                # StockCacheManager
 │   ├── backup/               # DB 백업/복원
 │   └── di/                   # Hilt DI Modules
@@ -159,6 +208,7 @@ StockApp/app/src/main/java/com/stockapp/
 │   ├── search/               # 종목 검색
 │   ├── analysis/             # 수급 분석
 │   ├── indicator/            # 기술적 지표
+│   ├── market/               # 시장 지표 (공포/탐욕, 과매수/과매도, 자금 동향, Blood)
 │   ├── financial/            # 재무정보
 │   ├── ranking/              # 순위정보
 │   ├── etf/                  # ETF 분석
@@ -182,8 +232,16 @@ StockApp/app/src/main/java/com/stockapp/
 - **Elder Impulse**: 캔들 색상 (Green/Red/Blue), MACD Histogram
 - **DeMark TD**: Sell/Buy 카운트
 
+### Phase 3: 시장 지표
+- **4개 탭**: 공포/탐욕, 과매수/과매도, 자금 동향, Blood Indicator
+- **공포/탐욕**: KOSPI 모멘텀, RSI, 변동성, 투자자 수급, 공매도 비율 종합 (KRX 자동 수집)
+- **과매수/과매도**: 전체 시장 종목 상승/하락 비율의 5일 EMA 평활화 (KRX 자동 수집)
+- **자금 동향**: 외국인/기관/개인 투자자별 순매수/순매도 추이 (KRX 자동 수집)
+- **Blood Indicator**: US 3-Month T-Bill Yield / High Yield Spread (Yahoo Finance + FRED API 키 필요)
+- 데이터 미수집 시 설정 화면으로 유도하는 안내 카드 표시
+
 ### Phase 4: 설정
-- **탭 구조**: 키움 API, KIS API, 스케줄링, ETF 통계, DB 백업, 고급
+- **탭 구조**: 키움 API, KIS API, 스케줄링, ETF 통계, 시장 지표, DB 백업, 고급
 - **보안**: EncryptedSharedPreferences (AES256)
 - **투자 모드**: MOCK (모의) / PRODUCTION (실전)
 
@@ -237,7 +295,7 @@ StockApp/app/src/main/java/com/stockapp/
 
 ## Database Schema
 
-### Room Database (v10, 16 entities)
+### Room Database (v12, 17 entities)
 
 | Entity | 용도 |
 |--------|------|
@@ -252,9 +310,10 @@ StockApp/app/src/main/java/com/stockapp/
 | `EtfConstituentEntity` | ETF 구성종목 |
 | `EtfKeywordEntity` | ETF 키워드 필터 |
 | `RealtimeSupplyCacheEntity` | 실시간 수급 캐시 |
+| `MarketIndicatorCacheEntity` | 시장 지표 캐시 |
 
 ### 캐시 정책
-- 종목/수급/지표/재무: 24시간 TTL
+- 종목/수급/지표/재무/시장지표: 24시간 TTL
 - 실시간 수급: 1분 TTL
 - 검색 히스토리: 무제한 (최대 50개)
 
@@ -273,6 +332,7 @@ StockApp/app/src/main/java/com/stockapp/
 | Chaquopy | 15.0.1 | Python 통합 |
 | OkHttp | 4.12.0 | REST API 클라이언트 |
 | Kotlinx Serialization | 1.7.1 | JSON 직렬화 |
+| kotlin_krx | 1.0.0-SNAPSHOT | KRX 직접 데이터 수집 (배치 Primary) |
 
 ---
 

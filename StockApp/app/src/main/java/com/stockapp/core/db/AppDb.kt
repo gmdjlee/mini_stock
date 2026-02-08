@@ -14,6 +14,7 @@ import com.stockapp.core.db.dao.EtfKeywordDao
 import com.stockapp.core.db.dao.FinancialCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
+import com.stockapp.core.db.dao.MarketIndicatorCacheDao
 import com.stockapp.core.db.dao.RealtimeSupplyCacheDao
 import com.stockapp.core.db.dao.SchedulingConfigDao
 import com.stockapp.core.db.dao.SearchHistoryDao
@@ -29,6 +30,7 @@ import com.stockapp.core.db.entity.EtfKeywordEntity
 import com.stockapp.core.db.entity.FinancialCacheEntity
 import com.stockapp.core.db.entity.IndicatorCacheEntity
 import com.stockapp.core.db.entity.IndicatorDataEntity
+import com.stockapp.core.db.entity.MarketIndicatorCacheEntity
 import com.stockapp.core.db.entity.RealtimeSupplyCacheEntity
 import com.stockapp.core.db.entity.SchedulingConfigEntity
 import com.stockapp.core.db.entity.SearchHistoryEntity
@@ -56,9 +58,11 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         // Financial data cache entity
         FinancialCacheEntity::class,
         // Realtime supply cache entity (Kotlin Migration Phase 5)
-        RealtimeSupplyCacheEntity::class
+        RealtimeSupplyCacheEntity::class,
+        // Market indicator cache entity
+        MarketIndicatorCacheEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -85,6 +89,9 @@ abstract class AppDb : RoomDatabase() {
 
     // Realtime supply cache DAO (Kotlin Migration Phase 5)
     abstract fun realtimeSupplyCacheDao(): RealtimeSupplyCacheDao
+
+    // Market indicator cache DAO
+    abstract fun marketIndicatorCacheDao(): MarketIndicatorCacheDao
 
     companion object {
         const val DB_NAME = "stock_app.db"
@@ -261,6 +268,24 @@ abstract class AppDb : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_etf_constituents_stockCode_collectedDate` ON `etf_constituents` (`stockCode`, `collectedDate`)"
                 )
+            }
+        }
+
+        /**
+         * Migration from version 11 to 12: Add market_indicator_cache table
+         * For market indicator feature renewal (Fear/Greed, Oscillator, Fund Flow, Blood)
+         */
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `market_indicator_cache` (
+                        `key` TEXT NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `data` TEXT NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`key`)
+                    )
+                """.trimIndent())
             }
         }
     }

@@ -210,6 +210,7 @@ object ChartHeights {
     val ELDER_IMPULSE = 300.dp
     val DEMARK_TD = 300.dp
     val DEFAULT = 300.dp
+    val MARKET_INDICATOR = 280.dp
 }
 
 /**

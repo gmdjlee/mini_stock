@@ -29,6 +29,7 @@ enum class SettingsTab(val title: String) {
     KIS_API("KIS API"),
     SCHEDULING("스케줄링"),
     ETF_STATISTICS("ETF 통계"),
+    MARKET_INDICATOR("시장 지표"),
     DB_BACKUP("DB"),
     ADVANCED("고급")
 }

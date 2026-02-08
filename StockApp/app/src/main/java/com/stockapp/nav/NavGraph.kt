@@ -16,6 +16,7 @@ import com.stockapp.core.state.SelectedStockManager
 import com.stockapp.feature.analysis.ui.AnalysisScreen
 import com.stockapp.feature.analysis.ui.AnalysisVm
 import com.stockapp.feature.etf.ui.EtfScreen
+import com.stockapp.feature.market.ui.MarketScreen
 import com.stockapp.feature.financial.ui.FinancialScreen
 import com.stockapp.feature.indicator.ui.IndicatorScreen
 import com.stockapp.feature.ranking.ui.RankingScreen
@@ -174,6 +175,16 @@ fun NavGraph(
                     }
                 }
             )
+        }
+
+        // Market screen - market indicators
+        composable(
+            route = Screen.Market.route,
+            deepLinks = Screen.Market.deepLinkPattern?.let {
+                listOf(navDeepLink { uriPattern = it })
+            } ?: emptyList()
+        ) {
+            MarketScreen()
         }
 
         // ETF screen - stock selection navigates to Analysis

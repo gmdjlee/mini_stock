@@ -105,6 +105,9 @@ fun SettingsScreen(
                     val etfSettingsVm: EtfSettingsVm = hiltViewModel()
                     EtfKeywordTab(viewModel = etfSettingsVm)
                 }
+                SettingsTab.MARKET_INDICATOR -> {
+                    MarketIndicatorSettingsTab()
+                }
                 SettingsTab.DB_BACKUP -> {
                     DbBackupTab()
                 }

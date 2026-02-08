@@ -61,6 +61,9 @@ object AppConfig {
     /** Financial data cache time-to-live: 24 hours */
     const val FINANCIAL_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
 
+    /** Market indicator cache time-to-live: 4 hours (more frequent for market data) */
+    const val MARKET_CACHE_TTL_MS = 4 * 60 * 60 * 1000L
+
     // ========== API Rate Limiting ==========
 
     /** Minimum interval between API calls (milliseconds) */

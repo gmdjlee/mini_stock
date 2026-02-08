@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -90,6 +91,13 @@ sealed class Screen(
         deepLinkPattern = DeepLinkScheme.buildUri("ranking")
     )
 
+    data object Market : Screen(
+        route = "market",
+        title = "시장",
+        icon = Icons.AutoMirrored.Filled.TrendingUp,
+        deepLinkPattern = DeepLinkScheme.buildUri("market")
+    )
+
     data object Etf : Screen(
         route = "etf",
         title = "ETF",
@@ -105,7 +113,7 @@ sealed class Screen(
     )
 
     companion object {
-        val bottomNavItems = listOf(Search, Analysis, Indicator, Financial, Ranking, Etf, Settings)
+        val bottomNavItems = listOf(Search, Analysis, Indicator, Financial, Ranking, Market, Etf, Settings)
 
         // Base routes for bottom nav selection matching
         fun getBaseRoute(screen: Screen): String = when (screen) {

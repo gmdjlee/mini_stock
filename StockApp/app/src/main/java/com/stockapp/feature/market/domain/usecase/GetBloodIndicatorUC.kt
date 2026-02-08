@@ -1,0 +1,26 @@
+package com.stockapp.feature.market.domain.usecase
+
+import com.stockapp.feature.market.domain.model.BloodIndicatorHistory
+import com.stockapp.feature.market.domain.model.MarketDateRange
+import com.stockapp.feature.market.domain.repo.MarketRepo
+import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
+
+/**
+ * Use case for fetching Blood Indicator data.
+ */
+class GetBloodIndicatorUC @Inject constructor(
+    private val repo: MarketRepo
+) {
+    suspend operator fun invoke(
+        dateRange: MarketDateRange = MarketDateRange.THREE_MONTHS
+    ): Result<BloodIndicatorHistory> {
+        return try {
+            repo.getBloodIndicatorHistory(dateRange)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
