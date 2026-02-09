@@ -209,8 +209,8 @@ class StockCacheManager @Inject constructor(
                         stocks
                     }
 
-                    // Atomically replace old cache with new data
-                    stockDao.replaceAll(limitedStocks)
+                    // Smart sync: upsert active + remove delisted
+                    stockDao.smartSync(limitedStocks)
 
                     val count = stockDao.count()
                     Log.d(TAG, "refreshCache() cache updated with $count stocks")

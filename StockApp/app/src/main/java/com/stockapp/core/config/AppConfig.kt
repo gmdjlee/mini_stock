@@ -64,6 +64,18 @@ object AppConfig {
     /** Market indicator cache time-to-live: 4 hours (more frequent for market data) */
     const val MARKET_CACHE_TTL_MS = 4 * 60 * 60 * 1000L
 
+    /** OHLCV raw data cache time-to-live: 24 hours */
+    const val OHLCV_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
+
+    /** Maximum OHLCV data retention days (auto-cleanup older data) */
+    const val OHLCV_MAX_RETENTION_DAYS = 365
+
+    /** Investor trading raw data cache retention days */
+    const val INVESTOR_TRADING_MAX_RETENTION_DAYS = 180
+
+    /** Minimum cached trading day ratio to consider cache sufficient (weekends/holidays excluded) */
+    const val OHLCV_CACHE_SUFFICIENCY_RATIO = 0.65
+
     // ========== API Rate Limiting ==========
 
     /** Minimum interval between API calls (milliseconds) */

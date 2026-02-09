@@ -14,7 +14,9 @@ import com.stockapp.core.db.dao.EtfKeywordDao
 import com.stockapp.core.db.dao.FinancialCacheDao
 import com.stockapp.core.db.dao.IndicatorCacheDao
 import com.stockapp.core.db.dao.IndicatorDataDao
+import com.stockapp.core.db.dao.InvestorTradingCacheDao
 import com.stockapp.core.db.dao.MarketIndicatorCacheDao
+import com.stockapp.core.db.dao.OhlcvCacheDao
 import com.stockapp.core.db.dao.RealtimeSupplyCacheDao
 import com.stockapp.core.db.dao.SchedulingConfigDao
 import com.stockapp.core.db.dao.SearchHistoryDao
@@ -30,7 +32,9 @@ import com.stockapp.core.db.entity.EtfKeywordEntity
 import com.stockapp.core.db.entity.FinancialCacheEntity
 import com.stockapp.core.db.entity.IndicatorCacheEntity
 import com.stockapp.core.db.entity.IndicatorDataEntity
+import com.stockapp.core.db.entity.InvestorTradingCacheEntity
 import com.stockapp.core.db.entity.MarketIndicatorCacheEntity
+import com.stockapp.core.db.entity.OhlcvCacheEntity
 import com.stockapp.core.db.entity.RealtimeSupplyCacheEntity
 import com.stockapp.core.db.entity.SchedulingConfigEntity
 import com.stockapp.core.db.entity.SearchHistoryEntity
@@ -60,9 +64,12 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         // Realtime supply cache entity (Kotlin Migration Phase 5)
         RealtimeSupplyCacheEntity::class,
         // Market indicator cache entity
-        MarketIndicatorCacheEntity::class
+        MarketIndicatorCacheEntity::class,
+        // Normalized raw data cache entities (data collection optimization)
+        OhlcvCacheEntity::class,
+        InvestorTradingCacheEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -92,6 +99,10 @@ abstract class AppDb : RoomDatabase() {
 
     // Market indicator cache DAO
     abstract fun marketIndicatorCacheDao(): MarketIndicatorCacheDao
+
+    // Normalized raw data cache DAOs (data collection optimization)
+    abstract fun ohlcvCacheDao(): OhlcvCacheDao
+    abstract fun investorTradingCacheDao(): InvestorTradingCacheDao
 
     companion object {
         const val DB_NAME = "stock_app.db"
@@ -286,6 +297,48 @@ abstract class AppDb : RoomDatabase() {
                         PRIMARY KEY(`key`)
                     )
                 """.trimIndent())
+            }
+        }
+
+        /**
+         * Migration from version 12 to 13: Add normalized raw data cache tables
+         * - ohlcv_cache: Shared OHLCV cache across Analysis, Indicator, Market features
+         * - investor_trading_cache: Shared investor trading cache across Analysis, Market features
+         */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create ohlcv_cache table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `ohlcv_cache` (
+                        `ticker` TEXT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `open` INTEGER NOT NULL,
+                        `high` INTEGER NOT NULL,
+                        `low` INTEGER NOT NULL,
+                        `close` INTEGER NOT NULL,
+                        `volume` INTEGER NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`ticker`, `date`)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ohlcv_cache_ticker` ON `ohlcv_cache` (`ticker`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ohlcv_cache_cachedAt` ON `ohlcv_cache` (`cachedAt`)")
+
+                // Create investor_trading_cache table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `investor_trading_cache` (
+                        `ticker` TEXT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `foreignNet` INTEGER NOT NULL,
+                        `institutionNet` INTEGER NOT NULL,
+                        `individualNet` INTEGER NOT NULL,
+                        `totalTrading` INTEGER NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`ticker`, `date`)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_investor_trading_cache_ticker` ON `investor_trading_cache` (`ticker`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_investor_trading_cache_cachedAt` ON `investor_trading_cache` (`cachedAt`)")
             }
         }
     }

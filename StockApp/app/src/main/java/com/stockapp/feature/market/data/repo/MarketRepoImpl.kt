@@ -1,11 +1,13 @@
 package com.stockapp.feature.market.data.repo
 
 import android.util.Log
-import com.krxkt.model.AskBidType
 import com.krxkt.model.Market
-import com.krxkt.model.TradingValueType
+import com.stockapp.core.config.AppConfig
+import com.stockapp.core.db.dao.MarketIndicatorCacheDao
+import com.stockapp.core.db.entity.MarketIndicatorCacheEntity
 import com.stockapp.core.di.IoDispatcher
 import com.stockapp.core.krx.KrxDataSource
+import com.stockapp.core.stock.data.InvestorTradingService
 import com.stockapp.feature.market.data.calc.MarketCalculator
 import com.stockapp.feature.market.domain.model.BloodIndicatorHistory
 import com.stockapp.feature.market.domain.model.BloodSignal
@@ -20,6 +22,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -33,6 +37,9 @@ import kotlin.coroutines.cancellation.CancellationException
 @Singleton
 class MarketRepoImpl @Inject constructor(
     private val krxDataSource: KrxDataSource,
+    private val investorTradingService: InvestorTradingService,
+    private val marketIndicatorCacheDao: MarketIndicatorCacheDao,
+    private val json: Json,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : MarketRepo {
 
@@ -41,6 +48,12 @@ class MarketRepoImpl @Inject constructor(
     override suspend fun getFearGreedIndex(): Result<MarketFearGreed> =
         withContext(ioDispatcher) {
             try {
+                // Check cache first
+                val cacheKey = CACHE_KEY_FEAR_GREED_LATEST
+                getCachedData(cacheKey)?.let { data ->
+                    return@withContext Result.success(json.decodeFromString<MarketFearGreed>(data))
+                }
+
                 val endDate = LocalDate.now()
                 val startDate = endDate.minusDays(90)
                 val endDateStr = endDate.format(dateFormatter)
@@ -63,24 +76,20 @@ class MarketRepoImpl @Inject constructor(
                 val closes = indexData.map { it.close.toDouble() }
                 val volumes = indexData.map { it.volume }
 
-                // 2. Get investor trading data (recent)
-                val investorResult = krxDataSource.getMarketTradingByInvestor(
-                    startDate = endDate.minusDays(5).format(dateFormatter),
-                    endDate = endDateStr,
-                    market = Market.ALL,
-                    valueType = TradingValueType.VALUE,
-                    askBidType = AskBidType.NET_BUY
-                )
-
+                // 2. Get investor trading data via shared service (DB cache + KRX)
                 var foreignNetBuy = 0L
                 var institutionNetBuy = 0L
                 var totalTradingValue = 1L
 
+                val investorResult = investorTradingService.getMarketInvestorTrading(
+                    days = 5,
+                    market = InvestorTradingService.MARKET_ALL
+                )
                 investorResult.onSuccess { tradingList ->
                     for (trading in tradingList) {
-                        foreignNetBuy += trading.foreigner
-                        institutionNetBuy += trading.institutionalTotal
-                        totalTradingValue += kotlin.math.abs(trading.total)
+                        foreignNetBuy += trading.foreignNet
+                        institutionNetBuy += trading.institutionNet
+                        totalTradingValue += kotlin.math.abs(trading.totalTrading)
                     }
                 }
 
@@ -111,6 +120,9 @@ class MarketRepoImpl @Inject constructor(
                     shortSellingRatio = shortSellingRatio
                 )
 
+                // Cache the result
+                cacheData(cacheKey, CACHE_TYPE_FEAR_GREED, json.encodeToString(fearGreed))
+
                 Result.success(fearGreed)
             } catch (e: CancellationException) {
                 throw e
@@ -124,6 +136,12 @@ class MarketRepoImpl @Inject constructor(
         dateRange: MarketDateRange
     ): Result<FearGreedHistory> = withContext(ioDispatcher) {
         try {
+            // Check cache first
+            val cacheKey = "${CACHE_KEY_FEAR_GREED_HISTORY}_${dateRange.days}d"
+            getCachedData(cacheKey)?.let { data ->
+                return@withContext Result.success(json.decodeFromString<FearGreedHistory>(data))
+            }
+
             val endDate = LocalDate.now()
             val startDate = endDate.minusDays(dateRange.days.toLong() + 60)
             val endDateStr = endDate.format(dateFormatter)
@@ -174,14 +192,17 @@ class MarketRepoImpl @Inject constructor(
             val trimIndex = resultDates.indexOfFirst { it >= targetStartStr }
             val startIdx = if (trimIndex >= 0) trimIndex else 0
 
-            Result.success(
-                FearGreedHistory(
-                    dates = resultDates.subList(startIdx, resultDates.size).toList(),
-                    scores = resultScores.subList(startIdx, resultScores.size).toList(),
-                    signals = resultSignals.subList(startIdx, resultSignals.size).toList(),
-                    indexValues = resultIndexValues.subList(startIdx, resultIndexValues.size).toList()
-                )
+            val history = FearGreedHistory(
+                dates = resultDates.subList(startIdx, resultDates.size).toList(),
+                scores = resultScores.subList(startIdx, resultScores.size).toList(),
+                signals = resultSignals.subList(startIdx, resultSignals.size).toList(),
+                indexValues = resultIndexValues.subList(startIdx, resultIndexValues.size).toList()
             )
+
+            // Cache the result
+            cacheData(cacheKey, CACHE_TYPE_FEAR_GREED, json.encodeToString(history))
+
+            Result.success(history)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -194,6 +215,12 @@ class MarketRepoImpl @Inject constructor(
         dateRange: MarketDateRange
     ): Result<OscillatorHistory> = withContext(ioDispatcher) {
         try {
+            // Check cache first (oscillator is very expensive: ~6s for 20 days)
+            val cacheKey = "${CACHE_KEY_OSCILLATOR}_${dateRange.days}d"
+            getCachedData(cacheKey)?.let { data ->
+                return@withContext Result.success(json.decodeFromString<OscillatorHistory>(data))
+            }
+
             val endDate = LocalDate.now()
             val dates = mutableListOf<String>()
             val advances = mutableListOf<Int>()
@@ -273,6 +300,9 @@ class MarketRepoImpl @Inject constructor(
                 totals = totals.reversed()
             )
 
+            // Cache the result
+            cacheData(cacheKey, CACHE_TYPE_OSCILLATOR, json.encodeToString(oscillator))
+
             Result.success(oscillator)
         } catch (e: CancellationException) {
             throw e
@@ -286,17 +316,16 @@ class MarketRepoImpl @Inject constructor(
         dateRange: MarketDateRange
     ): Result<FundFlowHistory> = withContext(ioDispatcher) {
         try {
-            val endDate = LocalDate.now()
-            val startDate = endDate.minusDays(dateRange.days.toLong())
-            val endDateStr = endDate.format(dateFormatter)
-            val startDateStr = startDate.format(dateFormatter)
+            // Check cache first
+            val cacheKey = "${CACHE_KEY_FUND_FLOW}_${dateRange.days}d"
+            getCachedData(cacheKey)?.let { data ->
+                return@withContext Result.success(json.decodeFromString<FundFlowHistory>(data))
+            }
 
-            val investorResult = krxDataSource.getMarketTradingByInvestor(
-                startDate = startDateStr,
-                endDate = endDateStr,
-                market = Market.ALL,
-                valueType = TradingValueType.VALUE,
-                askBidType = AskBidType.NET_BUY
+            // Use shared InvestorTradingService (DB cache + KRX)
+            val investorResult = investorTradingService.getMarketInvestorTrading(
+                days = dateRange.days,
+                market = InvestorTradingService.MARKET_ALL
             )
 
             val tradingList = investorResult.getOrNull()
@@ -314,21 +343,24 @@ class MarketRepoImpl @Inject constructor(
 
             for (trading in tradingList) {
                 dates.add(trading.date)
-                foreignNetBuys.add(trading.foreigner)
-                institutionNetBuys.add(trading.institutionalTotal)
-                individualNetBuys.add(trading.individual)
-                totalTradingValues.add(kotlin.math.abs(trading.total))
+                foreignNetBuys.add(trading.foreignNet)
+                institutionNetBuys.add(trading.institutionNet)
+                individualNetBuys.add(trading.individualNet)
+                totalTradingValues.add(kotlin.math.abs(trading.totalTrading))
             }
 
-            Result.success(
-                FundFlowHistory(
-                    dates = dates,
-                    foreignNetBuys = foreignNetBuys,
-                    institutionNetBuys = institutionNetBuys,
-                    individualNetBuys = individualNetBuys,
-                    totalTradingValues = totalTradingValues
-                )
+            val history = FundFlowHistory(
+                dates = dates,
+                foreignNetBuys = foreignNetBuys,
+                institutionNetBuys = institutionNetBuys,
+                individualNetBuys = individualNetBuys,
+                totalTradingValues = totalTradingValues
             )
+
+            // Cache the result
+            cacheData(cacheKey, CACHE_TYPE_FUND_FLOW, json.encodeToString(history))
+
+            Result.success(history)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -381,6 +413,33 @@ class MarketRepoImpl @Inject constructor(
         else 100.0 - (100.0 / (1.0 + avgGain / avgLoss))
     }
 
+    // ===== Cache helpers =====
+
+    private suspend fun getCachedData(cacheKey: String): String? {
+        return try {
+            val minTimestamp = System.currentTimeMillis() - AppConfig.MARKET_CACHE_TTL_MS
+            marketIndicatorCacheDao.getIfFresh(cacheKey, minTimestamp)?.data
+        } catch (e: Exception) {
+            Log.w(TAG, "Cache read failed for $cacheKey: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun cacheData(cacheKey: String, type: String, data: String) {
+        try {
+            marketIndicatorCacheDao.upsert(
+                MarketIndicatorCacheEntity(
+                    key = cacheKey,
+                    type = type,
+                    data = data,
+                    cachedAt = System.currentTimeMillis()
+                )
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Cache write failed for $cacheKey: ${e.message}")
+        }
+    }
+
     companion object {
         private const val TAG = "MarketRepoImpl"
         const val KOSPI_TICKER = "1001"
@@ -389,5 +448,16 @@ class MarketRepoImpl @Inject constructor(
         private const val MAX_OSCILLATOR_SAMPLE_DAYS = 20
         private const val KRX_CALL_DELAY_MS = 300L
         private const val MAX_CONSECUTIVE_FAILURES = 3
+
+        // Cache keys
+        private const val CACHE_KEY_FEAR_GREED_LATEST = "fear_greed_latest"
+        private const val CACHE_KEY_FEAR_GREED_HISTORY = "fear_greed_history"
+        private const val CACHE_KEY_OSCILLATOR = "oscillator"
+        private const val CACHE_KEY_FUND_FLOW = "fund_flow"
+
+        // Cache types
+        private const val CACHE_TYPE_FEAR_GREED = "fear_greed"
+        private const val CACHE_TYPE_OSCILLATOR = "oscillator"
+        private const val CACHE_TYPE_FUND_FLOW = "fund_flow"
     }
 }

@@ -3,6 +3,9 @@ package com.stockapp.core.stock.data
 import android.util.Log
 import com.stockapp.core.api.ApiError
 import com.stockapp.core.api.KiwoomApiClient
+import com.stockapp.core.config.AppConfig
+import com.stockapp.core.db.dao.OhlcvCacheDao
+import com.stockapp.core.db.entity.OhlcvCacheEntity
 import com.stockapp.core.krx.KrxDataSource
 import com.stockapp.core.stock.api.DailyOhlcvResponse
 import com.stockapp.core.stock.api.MonthlyOhlcvResponse
@@ -16,9 +19,12 @@ import com.stockapp.core.stock.calc.OhlcvResampler
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,14 +33,16 @@ private const val TAG = "OhlcvService"
 
 /**
  * Service for fetching OHLCV (Open, High, Low, Close, Volume) data.
- * Uses Kiwoom REST API directly via KiwoomApiClient.
+ * Uses DB cache first, then KRX/Kiwoom API for missing data (incremental fetch).
+ * Shared across Analysis, Indicator, and Market features.
  */
 @Singleton
 class OhlcvService @Inject constructor(
     private val apiClient: KiwoomApiClient,
     private val krxDataSource: KrxDataSource,
     private val settingsRepo: SettingsRepo,
-    private val json: Json
+    private val json: Json,
+    private val ohlcvCacheDao: OhlcvCacheDao
 ) {
     /**
      * OHLCV period type.
@@ -54,6 +62,12 @@ class OhlcvService @Inject constructor(
         val baseUrl: String
     )
 
+    // Per-ticker mutex to prevent concurrent duplicate API calls
+    private val tickerMutexes = ConcurrentHashMap<String, Mutex>()
+
+    private fun getMutex(ticker: String): Mutex =
+        tickerMutexes.getOrPut(ticker) { Mutex() }
+
     /**
      * Get API configuration from settings.
      */
@@ -71,6 +85,7 @@ class OhlcvService @Inject constructor(
 
     /**
      * Get OHLCV data for a stock.
+     * Uses DB cache first, fetches only missing date ranges from API (incremental).
      *
      * @param ticker Stock ticker code
      * @param days Number of days to fetch
@@ -84,35 +99,134 @@ class OhlcvService @Inject constructor(
     ): Result<OhlcvData> {
         Log.d(TAG, "getOhlcv() ticker=$ticker, days=$days, period=$period")
 
-        // 1) Try KRX first for daily data
-        if (period == Period.DAILY) {
-            val krxResult = fetchOhlcvFromKrx(ticker, days)
-            if (krxResult != null) {
-                Log.d(TAG, "getOhlcv() using KRX data for $ticker (${krxResult.dates.size} records)")
-                return Result.success(krxResult)
+        // For weekly/monthly: get daily data from cache, then resample
+        if (period != Period.DAILY) {
+            val multiplier = if (period == Period.WEEKLY) 7 else 31
+            val dailyResult = getOhlcv(ticker, days * multiplier, Period.DAILY)
+            return dailyResult.map { dailyData ->
+                when (period) {
+                    Period.WEEKLY -> resampleToWeekly(dailyData)
+                    Period.MONTHLY -> resampleToMonthly(dailyData)
+                    else -> dailyData
+                }
             }
-            Log.d(TAG, "getOhlcv() KRX unavailable, falling back to Kiwoom for $ticker")
         }
 
-        // 2) Fallback to Kiwoom API
+        // Daily data: use DB cache with incremental fetch
+        return getOhlcvWithCache(ticker, days)
+    }
+
+    /**
+     * DB cache-first OHLCV fetch with incremental API call.
+     * Uses per-ticker mutex to prevent concurrent duplicate API calls.
+     */
+    private suspend fun getOhlcvWithCache(ticker: String, days: Int): Result<OhlcvData> {
+        val today = LocalDate.now()
+        val startDate = today.minusDays(days.toLong() + 30) // extra buffer for holidays
+        val startDateStr = startDate.format(DATE_FORMAT_YYYYMMDD)
+        val endDateStr = today.format(DATE_FORMAT_YYYYMMDD)
+
+        // Step 1: Check DB cache
+        val cachedCount = ohlcvCacheDao.countInRange(ticker, startDateStr, endDateStr)
+        val expectedTradingDays = (days * AppConfig.OHLCV_CACHE_SUFFICIENCY_RATIO).toInt()
+
+        if (cachedCount >= expectedTradingDays) {
+            // Cache is sufficient
+            val cached = ohlcvCacheDao.getByTickerAndDateRange(ticker, startDateStr, endDateStr)
+            if (cached.isNotEmpty()) {
+                Log.d(TAG, "getOhlcvWithCache() cache hit for $ticker ($cachedCount bars)")
+                return Result.success(entitiesToOhlcvData(ticker, cached))
+            }
+        }
+
+        // Step 2: Need API fetch - use mutex to prevent concurrent calls for same ticker
+        return getMutex(ticker).withLock {
+            // Re-check cache (another coroutine may have populated it)
+            val recheckCount = ohlcvCacheDao.countInRange(ticker, startDateStr, endDateStr)
+            if (recheckCount >= expectedTradingDays) {
+                val cached = ohlcvCacheDao.getByTickerAndDateRange(ticker, startDateStr, endDateStr)
+                if (cached.isNotEmpty()) {
+                    Log.d(TAG, "getOhlcvWithCache() cache hit after mutex for $ticker")
+                    return@withLock Result.success(entitiesToOhlcvData(ticker, cached))
+                }
+            }
+
+            // Step 3: Determine fetch range (incremental)
+            val latestCached = ohlcvCacheDao.getLatestDate(ticker)
+            val fetchStartDate: String
+            val fetchEndDate = endDateStr
+
+            if (latestCached != null && latestCached >= startDateStr) {
+                // Incremental: fetch from day after latest cached
+                val nextDay = LocalDate.parse(latestCached, DATE_FORMAT_YYYYMMDD)
+                    .plusDays(1)
+                fetchStartDate = nextDay.format(DATE_FORMAT_YYYYMMDD)
+
+                if (fetchStartDate > fetchEndDate) {
+                    // All data up to today is already cached
+                    val cached = ohlcvCacheDao.getByTickerAndDateRange(ticker, startDateStr, endDateStr)
+                    Log.d(TAG, "getOhlcvWithCache() fully cached for $ticker")
+                    return@withLock Result.success(entitiesToOhlcvData(ticker, cached))
+                }
+
+                Log.d(TAG, "getOhlcvWithCache() incremental fetch $ticker: $fetchStartDate~$fetchEndDate")
+            } else {
+                // Full fetch
+                fetchStartDate = startDateStr
+                Log.d(TAG, "getOhlcvWithCache() full fetch $ticker: $fetchStartDate~$fetchEndDate")
+            }
+
+            // Step 4: Fetch from KRX/Kiwoom
+            val fetchResult = fetchDailyFromApi(ticker, fetchStartDate, fetchEndDate)
+
+            if (fetchResult != null && fetchResult.dates.isNotEmpty()) {
+                // Step 5: Save to DB cache
+                val entities = ohlcvDataToEntities(fetchResult)
+                if (entities.isNotEmpty()) {
+                    ohlcvCacheDao.insertAll(entities)
+                }
+            }
+
+            // Step 6: Read full range from DB
+            val allData = ohlcvCacheDao.getByTickerAndDateRange(ticker, startDateStr, endDateStr)
+            if (allData.isNotEmpty()) {
+                Result.success(entitiesToOhlcvData(ticker, allData))
+            } else if (fetchResult != null) {
+                // DB might be empty if fetch returned data but couldn't save
+                Result.success(fetchResult)
+            } else {
+                Result.failure(Exception("No OHLCV data available for $ticker"))
+            }
+        }
+    }
+
+    /**
+     * Fetch daily OHLCV from API (KRX first, Kiwoom fallback).
+     * Used internally by cache layer.
+     */
+    private suspend fun fetchDailyFromApi(
+        ticker: String,
+        startDate: String,
+        endDate: String
+    ): OhlcvData? {
+        // Try KRX first
+        val krxResult = fetchOhlcvFromKrx(ticker, startDate, endDate)
+        if (krxResult != null && krxResult.dates.isNotEmpty()) {
+            return krxResult
+        }
+
+        // Fallback to Kiwoom API
         return try {
             val config = getApiConfig()
-
-            val baseDate = LocalDate.now()
-
             val request = OhlcvRequest(
                 stkCd = ticker,
-                baseDt = baseDate.format(DATE_FORMAT_YYYYMMDD)
+                baseDt = endDate
             )
-
-            when (period) {
-                Period.DAILY -> fetchDailyOhlcv(ticker, request, config)
-                Period.WEEKLY -> fetchWeeklyOhlcv(ticker, request, config)
-                Period.MONTHLY -> fetchMonthlyOhlcv(ticker, request, config)
-            }
+            val result = fetchDailyOhlcv(ticker, request, config)
+            result.getOrNull()
         } catch (e: ApiError) {
-            Log.e(TAG, "getOhlcv() Kiwoom fallback failed: ${e.message}", e)
-            Result.failure(e)
+            Log.e(TAG, "fetchDailyFromApi() Kiwoom fallback failed: ${e.message}", e)
+            null
         }
     }
 
@@ -120,16 +234,13 @@ class OhlcvService @Inject constructor(
      * Fetch OHLCV data from KRX (primary data source).
      * Returns null if KRX fails (allows fallback to Kiwoom API).
      */
-    private suspend fun fetchOhlcvFromKrx(ticker: String, days: Int): OhlcvData? {
+    private suspend fun fetchOhlcvFromKrx(
+        ticker: String,
+        startDate: String,
+        endDate: String
+    ): OhlcvData? {
         return try {
-            val today = LocalDate.now()
-            val startDate = today.minusDays(days.toLong() + 30) // extra buffer for holidays
-
-            val result = krxDataSource.getOhlcvByTicker(
-                startDate.format(DATE_FORMAT_YYYYMMDD),
-                today.format(DATE_FORMAT_YYYYMMDD),
-                ticker
-            )
+            val result = krxDataSource.getOhlcvByTicker(startDate, endDate, ticker)
             result.getOrNull()?.let { history ->
                 if (history.isEmpty()) return null
                 OhlcvData(
@@ -166,48 +277,6 @@ class OhlcvService @Inject constructor(
             baseUrl = config.baseUrl
         ) { responseJson ->
             val response = json.decodeFromString<DailyOhlcvResponse>(responseJson)
-            parseOhlcvResponse(ticker, response.data)
-        }
-    }
-
-    /**
-     * Fetch weekly OHLCV using ka10082 API.
-     */
-    private suspend fun fetchWeeklyOhlcv(
-        ticker: String,
-        request: OhlcvRequest,
-        config: ApiConfig
-    ): Result<OhlcvData> {
-        return apiClient.call(
-            apiId = StockApiIds.WEEKLY_CHART,
-            url = StockApiEndpoints.WEEKLY_CHART,
-            body = request.toRequestBody(),
-            appKey = config.appKey,
-            secretKey = config.secretKey,
-            baseUrl = config.baseUrl
-        ) { responseJson ->
-            val response = json.decodeFromString<WeeklyOhlcvResponse>(responseJson)
-            parseOhlcvResponse(ticker, response.data)
-        }
-    }
-
-    /**
-     * Fetch monthly OHLCV using ka10083 API.
-     */
-    private suspend fun fetchMonthlyOhlcv(
-        ticker: String,
-        request: OhlcvRequest,
-        config: ApiConfig
-    ): Result<OhlcvData> {
-        return apiClient.call(
-            apiId = StockApiIds.MONTHLY_CHART,
-            url = StockApiEndpoints.MONTHLY_CHART,
-            body = request.toRequestBody(),
-            appKey = config.appKey,
-            secretKey = config.secretKey,
-            baseUrl = config.baseUrl
-        ) { responseJson ->
-            val response = json.decodeFromString<MonthlyOhlcvResponse>(responseJson)
             parseOhlcvResponse(ticker, response.data)
         }
     }
@@ -253,11 +322,40 @@ class OhlcvService @Inject constructor(
         )
     }
 
+    // ===== Conversion helpers =====
+
+    private fun entitiesToOhlcvData(ticker: String, entities: List<OhlcvCacheEntity>): OhlcvData {
+        return OhlcvData(
+            ticker = ticker,
+            dates = entities.map { it.date },
+            opens = entities.map { it.open },
+            highs = entities.map { it.high },
+            lows = entities.map { it.low },
+            closes = entities.map { it.close },
+            volumes = entities.map { it.volume }
+        )
+    }
+
+    private fun ohlcvDataToEntities(data: OhlcvData): List<OhlcvCacheEntity> {
+        val now = System.currentTimeMillis()
+        return data.dates.indices.map { i ->
+            OhlcvCacheEntity(
+                ticker = data.ticker,
+                date = data.dates[i],
+                open = data.opens[i],
+                high = data.highs[i],
+                low = data.lows[i],
+                close = data.closes[i],
+                volume = data.volumes[i],
+                cachedAt = now
+            )
+        }
+    }
+
+    // ===== Resampling =====
+
     /**
      * Convert daily OHLCV data to weekly bars using resampling.
-     *
-     * @param dailyData Daily OHLCV data
-     * @return Weekly OHLCV data
      */
     fun resampleToWeekly(dailyData: OhlcvData): OhlcvData {
         val bars = dailyData.toOhlcvBars()
@@ -267,9 +365,6 @@ class OhlcvService @Inject constructor(
 
     /**
      * Convert daily OHLCV data to monthly bars using resampling.
-     *
-     * @param dailyData Daily OHLCV data
-     * @return Monthly OHLCV data
      */
     fun resampleToMonthly(dailyData: OhlcvData): OhlcvData {
         val bars = dailyData.toOhlcvBars()
@@ -277,9 +372,6 @@ class OhlcvService @Inject constructor(
         return ohlcvBarsToData(dailyData.ticker, monthlyBars)
     }
 
-    /**
-     * Convert OhlcvData to list of OhlcvBar for resampling.
-     */
     private fun OhlcvData.toOhlcvBars(): List<OhlcvResampler.OhlcvBar> {
         return dates.indices.map { i ->
             OhlcvResampler.OhlcvBar(
@@ -293,9 +385,6 @@ class OhlcvService @Inject constructor(
         }
     }
 
-    /**
-     * Convert list of OhlcvBar to OhlcvData.
-     */
     private fun ohlcvBarsToData(ticker: String, bars: List<OhlcvResampler.OhlcvBar>): OhlcvData {
         return OhlcvData(
             ticker = ticker,

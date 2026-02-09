@@ -51,4 +51,28 @@ interface StockDao {
 
     @Query("SELECT MAX(updatedAt) FROM stocks")
     suspend fun lastUpdated(): Long?
+
+    @Query("SELECT ticker FROM stocks")
+    suspend fun getAllTickers(): List<String>
+
+    @Query("DELETE FROM stocks WHERE ticker IN (:tickers)")
+    suspend fun deleteByTickers(tickers: List<String>)
+
+    /**
+     * Smart sync: upsert active stocks and remove delisted ones.
+     * More efficient than deleteAll() + insertAll() for 10K+ stocks.
+     */
+    @Transaction
+    suspend fun smartSync(stocks: List<StockEntity>) {
+        insertAll(stocks) // OnConflictStrategy.REPLACE = upsert
+        val activeTickers = stocks.map { it.ticker }.toSet()
+        val allTickers = getAllTickers()
+        val inactive = allTickers.filter { it !in activeTickers }
+        if (inactive.isNotEmpty()) {
+            // SQLite has a limit on variables in IN clause, so batch
+            inactive.chunked(500).forEach { batch ->
+                deleteByTickers(batch)
+            }
+        }
+    }
 }

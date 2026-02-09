@@ -8,6 +8,7 @@ import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.AnalysisCacheDao
 import com.stockapp.core.db.entity.AnalysisCacheEntity
 import com.stockapp.core.krx.KrxDataSource
+import com.stockapp.core.stock.data.InvestorTradingService
 import com.stockapp.core.stock.api.InvestorTrendRequest
 import com.stockapp.core.stock.api.InvestorTrendResponse
 import com.stockapp.core.stock.api.OhlcvData
@@ -52,6 +53,7 @@ class NativeAnalysisRepoImpl @Inject constructor(
     private val settingsRepo: SettingsRepo,
     private val cacheDao: AnalysisCacheDao,
     private val ohlcvService: OhlcvService,
+    private val investorTradingService: InvestorTradingService,
     private val json: Json
 ) : AnalysisRepo {
 
@@ -370,31 +372,25 @@ class NativeAnalysisRepoImpl @Inject constructor(
     }
 
     /**
-     * Fetch investor trend data from KRX.
-     * Returns null if KRX fails (allows fallback to Kiwoom API).
+     * Fetch investor trend data via shared InvestorTradingService (DB cache + KRX).
+     * Returns null if fetch fails (allows fallback to Kiwoom API).
      */
     private suspend fun fetchInvestorTrendFromKrx(
         ticker: String,
         days: Int
     ): List<InvestorTrendData>? {
         return try {
-            val today = LocalDate.now()
-            val startDate = today.minusDays(days.toLong() + 10) // extra buffer
-            val krxResult = krxDataSource.getTradingByInvestor(
-                startDate.format(DATE_FORMAT_YYYYMMDD),
-                today.format(DATE_FORMAT_YYYYMMDD),
-                ticker
-            )
-            krxResult.getOrNull()?.let { tradingList ->
+            val result = investorTradingService.getInvestorTrading(ticker, days)
+            result.getOrNull()?.let { tradingList ->
                 if (tradingList.isNotEmpty()) {
-                    Log.d(TAG, "fetchInvestorTrendFromKrx() KRX returned ${tradingList.size} for $ticker")
+                    Log.d(TAG, "fetchInvestorTrendFromKrx() got ${tradingList.size} records for $ticker")
                     tradingList.take(days).map { trading ->
                         InvestorTrendData(
                             date = trading.date,
-                            foreignNet = trading.foreigner,
-                            institutionNet = trading.institutionalTotal,
-                            individualNet = trading.individual,
-                            marketCap = 0L // KRX investor trading doesn't include market cap
+                            foreignNet = trading.foreignNet,
+                            institutionNet = trading.institutionNet,
+                            individualNet = trading.individualNet,
+                            marketCap = 0L
                         )
                     }
                 } else null

@@ -1,5 +1,7 @@
 package com.stockapp.feature.market.domain.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * Market indicator tab types.
  * Matches EtfMonitor_Rel: 공포/탐욕, 과매수/과매도, 자금 동향, Blood Indicator
@@ -33,6 +35,7 @@ data class MarketOscillator(
 /**
  * Oscillator signal classification.
  */
+@Serializable
 enum class OscillatorSignal(val label: String, val description: String) {
     EXTREME_GREED("극도의 탐욕", "과매수 구간 - 조정 가능성"),
     GREED("탐욕", "상승세 강함"),
@@ -52,6 +55,7 @@ enum class OscillatorSignal(val label: String, val description: String) {
  * 4. Foreign/Institution Net Buy: 외인+기관 순매수 비율
  * 5. Short Selling Ratio: 공매도 비율 (역지표)
  */
+@Serializable
 data class MarketFearGreed(
     val date: String,
     val overallScore: Double,
@@ -66,6 +70,7 @@ data class MarketFearGreed(
 /**
  * Individual indicator component for Fear & Greed.
  */
+@Serializable
 data class IndicatorComponent(
     val name: String,
     val rawValue: Double,
@@ -77,6 +82,7 @@ data class IndicatorComponent(
 /**
  * Fear & Greed signal classification.
  */
+@Serializable
 enum class FearGreedSignal(val label: String, val scoreRange: String) {
     EXTREME_GREED("극도의 탐욕", "80-100"),
     GREED("탐욕", "60-80"),
@@ -115,6 +121,7 @@ enum class MarketDateRange(val label: String, val days: Int) {
 /**
  * Market oscillator history for chart display.
  */
+@Serializable
 data class OscillatorHistory(
     val dates: List<String>,
     val values: List<Double>,
@@ -126,6 +133,7 @@ data class OscillatorHistory(
 /**
  * Fear & Greed history for chart display.
  */
+@Serializable
 data class FearGreedHistory(
     val dates: List<String>,
     val scores: List<Double>,
@@ -150,6 +158,7 @@ data class FundFlowData(
 /**
  * Fund flow history for chart display.
  */
+@Serializable
 data class FundFlowHistory(
     val dates: List<String>,
     val foreignNetBuys: List<Long>,

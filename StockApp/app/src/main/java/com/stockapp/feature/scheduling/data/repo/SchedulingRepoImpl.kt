@@ -1,7 +1,9 @@
 package com.stockapp.feature.scheduling.data.repo
 
 import android.util.Log
+import com.stockapp.core.db.cleanup.DbCleanupManager
 import com.stockapp.core.db.dao.SchedulingConfigDao
+import com.stockapp.core.db.dao.SearchHistoryDao
 import com.stockapp.core.db.dao.StockAnalysisDataDao
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.dao.SyncHistoryDao
@@ -14,6 +16,8 @@ import com.stockapp.feature.etf.domain.model.CollectionStatus
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.repo.EtfRepository
 import com.stockapp.feature.etf.domain.usecase.CollectAllEtfDataUC
+import com.stockapp.feature.market.domain.model.MarketDateRange
+import com.stockapp.feature.market.domain.repo.MarketRepo
 import com.stockapp.feature.scheduling.domain.model.SchedulingConfig
 import com.stockapp.feature.scheduling.domain.model.SyncHistory
 import com.stockapp.feature.scheduling.domain.model.SyncResult
@@ -42,10 +46,13 @@ class SchedulingRepoImpl @Inject constructor(
     private val syncHistoryDao: SyncHistoryDao,
     private val stockDao: StockDao,
     private val analysisDataDao: StockAnalysisDataDao,
+    private val searchHistoryDao: SearchHistoryDao,
     private val pyClient: PyClient,
     private val json: Json,
     private val collectAllEtfDataUC: CollectAllEtfDataUC,
-    private val etfRepository: EtfRepository
+    private val etfRepository: EtfRepository,
+    private val marketRepo: MarketRepo,
+    private val dbCleanupManager: DbCleanupManager
 ) : SchedulingRepo {
 
     override fun observeConfig(): Flow<SchedulingConfig> {
@@ -128,9 +135,8 @@ class SchedulingRepoImpl @Inject constructor(
                         stocks
                     }
 
-                    // Clear and insert
-                    stockDao.deleteAll()
-                    stockDao.insertAll(limitedStocks)
+                    // Smart sync: upsert active + remove delisted
+                    stockDao.smartSync(limitedStocks)
 
                     val count = stockDao.count()
                     Log.d(TAG, "Stock list synced: $count stocks")
@@ -182,6 +188,20 @@ class SchedulingRepoImpl @Inject constructor(
 
             // 3. Sync ETF data
             val (etfCount, etfConstituentCount) = syncEtfData()
+
+            // 4. Pre-fetch market indicator data (Fear/Greed, Fund Flow)
+            try {
+                syncMarketData()
+            } catch (e: Exception) {
+                Log.w(TAG, "Market data pre-fetch failed (non-fatal): ${e.message}")
+            }
+
+            // 5. Run DB cleanup (expired caches, old OHLCV data)
+            try {
+                dbCleanupManager.runCleanup()
+            } catch (e: Exception) {
+                Log.w(TAG, "DB cleanup failed (non-fatal): ${e.message}")
+            }
 
             val durationMs = System.currentTimeMillis() - startTime
             finishSync(historyId, true, stockCount, analysisCount, 0, etfCount, etfConstituentCount, null, startTime)
@@ -273,14 +293,55 @@ class SchedulingRepoImpl @Inject constructor(
     }
 
     private suspend fun syncTopStocksAnalysis(): Result<Int> {
-        // Get recently searched stocks or top KOSPI/KOSDAQ stocks
-        val stocks = stockDao.getAllOnce(100) // Limit to top 100
+        // Priority 1: Recently searched stocks (most likely to be viewed again)
+        val recentSearchTickers = searchHistoryDao.getRecentList(30).map { it.ticker }
 
-        if (stocks.isEmpty()) {
-            return Result.success(0)
+        // Priority 2: Stocks with existing analysis data (already tracked)
+        val trackedTickers = analysisDataDao.getAllOnce()
+            .sortedByDescending { it.updatedAt }
+            .take(50)
+            .map { it.ticker }
+
+        // Combine, deduplicate, limit to 100
+        val prioritizedTickers = (recentSearchTickers + trackedTickers)
+            .distinct()
+            .take(100)
+
+        if (prioritizedTickers.isEmpty()) {
+            // Fallback to first 100 stocks
+            val stocks = stockDao.getAllOnce(100)
+            if (stocks.isEmpty()) return Result.success(0)
+            return syncAnalysisData(stocks.map { it.ticker })
         }
 
-        return syncAnalysisData(stocks.map { it.ticker })
+        return syncAnalysisData(prioritizedTickers)
+    }
+
+    /**
+     * Pre-fetch market indicator data to populate cache.
+     * Fear/Greed and Fund Flow are fast; Oscillator is skipped (expensive per-day calls).
+     */
+    private suspend fun syncMarketData() {
+        Log.d(TAG, "syncMarketData() started")
+        val dateRange = MarketDateRange.THREE_MONTHS
+
+        // Fear & Greed index (latest)
+        marketRepo.getFearGreedIndex().onFailure {
+            Log.w(TAG, "syncMarketData() Fear/Greed index failed: ${it.message}")
+        }
+
+        // Fear & Greed history
+        marketRepo.getFearGreedHistory(dateRange).onFailure {
+            Log.w(TAG, "syncMarketData() Fear/Greed history failed: ${it.message}")
+        }
+
+        // Fund Flow history
+        marketRepo.getFundFlowHistory(dateRange).onFailure {
+            Log.w(TAG, "syncMarketData() Fund Flow failed: ${it.message}")
+        }
+
+        // Note: Oscillator is skipped due to high cost (20 individual KRX calls)
+        Log.d(TAG, "syncMarketData() completed")
     }
 
     /**
