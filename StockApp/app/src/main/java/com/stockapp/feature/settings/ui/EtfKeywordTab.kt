@@ -50,6 +50,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -867,12 +868,23 @@ private fun CollectionSection(
 
     // Date picker dialog
     if (showDatePicker) {
+        val todayMillis = remember {
+            LocalDate.now()
+                .atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toInstant()
+                .toEpochMilli()
+        }
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = selectedStartDate?.let {
                 LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE)
                     .atStartOfDay(ZoneId.of("Asia/Seoul"))
                     .toInstant()
                     .toEpochMilli()
+            },
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    return utcTimeMillis <= todayMillis
+                }
             }
         )
 
