@@ -273,6 +273,10 @@ class EtfSettingsVm @Inject constructor(
 
     // ==================== Collection ====================
 
+    // Tracks whether this ViewModel instance initiated or is tracking an active collection.
+    // Prevents stale WorkManager results from previous sessions from showing on tab open.
+    private var trackingActiveCollection = false
+
     fun setSelectedStartDate(date: String?) {
         _selectedStartDate.value = date
     }
@@ -281,6 +285,7 @@ class EtfSettingsVm @Inject constructor(
         // Prevent duplicate collection (KEEP policy ignores new requests anyway)
         if (_collectionState.value is EtfSettingsCollectionState.Collecting) return
 
+        trackingActiveCollection = true
         _collectionState.value = EtfSettingsCollectionState.Collecting()
         val state = _uiState.value
         val filterConfig = EtfFilterConfig(
@@ -293,10 +298,12 @@ class EtfSettingsVm @Inject constructor(
 
     fun cancelCollection() {
         EtfCollectionWorker.cancelOngoingCollection(context)
+        trackingActiveCollection = false
         _collectionState.value = EtfSettingsCollectionState.Idle
     }
 
     fun resetCollectionState() {
+        trackingActiveCollection = false
         _collectionState.value = EtfSettingsCollectionState.Idle
     }
 
@@ -309,6 +316,9 @@ class EtfSettingsVm @Inject constructor(
 
                     when (workInfo.state) {
                         WorkInfo.State.RUNNING -> {
+                            // If we see RUNNING work, start tracking it
+                            // (could be started by this VM or from scheduling/ETF screen)
+                            trackingActiveCollection = true
                             val current = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_CURRENT, 0)
                             val total = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_TOTAL, 0)
                             val dayCurrent = workInfo.progress.getInt(EtfCollectionWorker.KEY_PROGRESS_DAY_CURRENT, 0)
@@ -323,6 +333,8 @@ class EtfSettingsVm @Inject constructor(
                             )
                         }
                         WorkInfo.State.SUCCEEDED -> {
+                            // Only show results for collections we're actively tracking
+                            if (!trackingActiveCollection) return@collect
                             val etfCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_ETF_COUNT, 0)
                             val constituentCount = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_CONSTITUENT_COUNT, 0)
                             val successDays = workInfo.outputData.getInt(EtfCollectionWorker.KEY_RESULT_SUCCESS_DAYS, 0)
@@ -341,6 +353,7 @@ class EtfSettingsVm @Inject constructor(
                             loadDataStatistics()
                         }
                         WorkInfo.State.FAILED -> {
+                            if (!trackingActiveCollection) return@collect
                             val error = workInfo.outputData.getString(EtfCollectionWorker.KEY_RESULT_ERROR)
                                 ?: "수집 실패"
                             _collectionState.value = EtfSettingsCollectionState.Error(error)
