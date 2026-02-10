@@ -222,7 +222,9 @@ StockApp/app/src/main/java/com/stockapp/
 
 ### Phase 1: 종목 검색 + 수급 분석
 - **SearchScreen**: 종목명/코드 검색, 500ms debounce, 히스토리 50개
-- **AnalysisScreen**: 시가총액, 외인/기관 순매수, 수급 신호
+- **AnalysisScreen**: 종목 헤더 카드(종목명+코드+자동 새로고침 Switch), 수급 요약 카드(신호+시가총액+외인/기관 순매수+수급비율), 차트
+  - StockHeader: 좌측 종목명/코드, 우측 자동 새로고침 Switch (장외 시 disabled)
+  - CompactSummaryCard: 수급 신호 + 4개 메트릭을 단일 카드에 compact 표시
 - **수급 신호**: STRONG_BUY (>0.5%), BUY (>0.2%), NEUTRAL, SELL, STRONG_SELL
 
 ### Phase 2: 기술적 지표

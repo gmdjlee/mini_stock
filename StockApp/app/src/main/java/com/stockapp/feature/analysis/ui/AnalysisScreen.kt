@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -265,56 +266,16 @@ private fun AnalysisContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Stock header
-        StockHeader(summary = summary)
-
-        // Auto refresh card (only during trading hours)
-        if (isTradingHours) {
-            AutoRefreshCard(
-                enabled = autoRefreshEnabled,
-                onEnabledChange = onAutoRefreshChange,
-                lastUpdatedAt = summary.lastUpdatedAt
-            )
-        }
-
-        // Supply signal card
-        SupplySignalCard(summary = summary)
-
-        // Market cap card
-        MetricCard(
-            title = "시가총액",
-            value = formatTrillion(summary.mcapTrillion),
-            unit = "조원"
+        // Stock header with integrated auto-refresh switch
+        StockHeader(
+            summary = summary,
+            isTradingHours = isTradingHours,
+            autoRefreshEnabled = autoRefreshEnabled,
+            onAutoRefreshChange = onAutoRefreshChange
         )
 
-        // Foreign/Institution cards in a row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            MetricCard(
-                title = "외국인 순매수",
-                value = formatBillion(summary.for5dBillion),
-                unit = "억원",
-                valueColor = getValueColor(summary.for5dBillion),
-                modifier = Modifier.weight(1f)
-            )
-            MetricCard(
-                title = "기관 순매수",
-                value = formatBillion(summary.ins5dBillion),
-                unit = "억원",
-                valueColor = getValueColor(summary.ins5dBillion),
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Supply ratio
-        MetricCard(
-            title = "수급 비율",
-            value = formatPercent(summary.supplyRatio * 100),
-            unit = "%",
-            valueColor = getValueColor(summary.supplyRatio)
-        )
+        // Compact summary card (signal + all metrics)
+        CompactSummaryCard(summary = summary)
 
         // Market Cap & Oscillator Chart (EtfMonitor style)
         if (mcapHistory.isNotEmpty()) {
@@ -359,95 +320,23 @@ private fun AnalysisContent(
     }
 }
 
-/**
- * Auto refresh card for trading hours.
- */
-@Composable
-private fun AutoRefreshCard(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    lastUpdatedAt: Long,
-    modifier: Modifier = Modifier
-) {
-    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
-    val lastUpdatedTime = remember(lastUpdatedAt) {
-        timeFormat.format(Date(lastUpdatedAt))
-    }
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(
-                    text = "장중 자동 새로고침",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Text(
-                    text = "마지막 업데이트: $lastUpdatedTime",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                )
-            }
-            Switch(
-                checked = enabled,
-                onCheckedChange = onEnabledChange
-            )
-        }
-    }
-}
-
 @Composable
 private fun StockHeader(
     summary: AnalysisSummary,
+    isTradingHours: Boolean,
+    autoRefreshEnabled: Boolean,
+    onAutoRefreshChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val lastUpdatedTime = remember(summary.lastUpdatedAt) {
+        timeFormat.format(Date(summary.lastUpdatedAt))
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = summary.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = summary.ticker,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun SupplySignalCard(
-    summary: AnalysisSummary,
-    modifier: Modifier = Modifier
-) {
-    val (icon, color, label) = getSignalDisplay(summary.supplySignal)
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.1f)
         )
     ) {
         Row(
@@ -456,23 +345,32 @@ private fun SupplySignalCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.padding(end = 12.dp)
-            )
-            Column {
+            // Left: stock name + ticker
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "수급 신호",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    text = summary.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = summary.ticker,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            // Right: switch + last updated time
+            Column(horizontalAlignment = Alignment.End) {
+                Switch(
+                    checked = autoRefreshEnabled,
+                    onCheckedChange = onAutoRefreshChange,
+                    enabled = isTradingHours
                 )
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = color
+                    text = lastUpdatedTime,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
                 )
             }
         }
@@ -480,13 +378,12 @@ private fun SupplySignalCard(
 }
 
 @Composable
-private fun MetricCard(
-    title: String,
-    value: String,
-    unit: String,
-    modifier: Modifier = Modifier,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface
+private fun CompactSummaryCard(
+    summary: AnalysisSummary,
+    modifier: Modifier = Modifier
 ) {
+    val (icon, signalColor, signalLabel) = getSignalDisplay(summary.supplySignal)
+
     Card(
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -494,30 +391,93 @@ private fun MetricCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            // Signal row
             Row(
-                verticalAlignment = Alignment.Bottom
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = valueColor
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = signalColor,
+                    modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = unit,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    text = "수급 신호",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = signalLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = signalColor
                 )
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            // 시가총액
+            SummaryMetricRow(
+                label = "시가총액",
+                value = "${formatTrillion(summary.mcapTrillion)} 조원"
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // 외국인 순매수
+            SummaryMetricRow(
+                label = "외국인 순매수",
+                value = "${formatBillion(summary.for5dBillion)} 억원",
+                valueColor = getValueColor(summary.for5dBillion)
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // 기관 순매수
+            SummaryMetricRow(
+                label = "기관 순매수",
+                value = "${formatBillion(summary.ins5dBillion)} 억원",
+                valueColor = getValueColor(summary.ins5dBillion)
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // 수급 비율
+            SummaryMetricRow(
+                label = "수급 비율",
+                value = "${formatPercent(summary.supplyRatio * 100)} %",
+                valueColor = getValueColor(summary.supplyRatio)
+            )
         }
+    }
+}
+
+@Composable
+private fun SummaryMetricRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
     }
 }
 
