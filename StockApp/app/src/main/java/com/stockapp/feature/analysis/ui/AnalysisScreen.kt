@@ -362,13 +362,18 @@ private fun StockHeader(
             }
             // Right: switch + last updated time
             Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "장중 자동 새로고침",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                )
                 Switch(
                     checked = autoRefreshEnabled,
                     onCheckedChange = onAutoRefreshChange,
                     enabled = isTradingHours
                 )
                 Text(
-                    text = lastUpdatedTime,
+                    text = "최근 업데이트 $lastUpdatedTime",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
                 )
