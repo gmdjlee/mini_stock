@@ -1,14 +1,11 @@
 package com.stockapp.nav
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -22,13 +19,13 @@ object DeepLinkScheme {
 }
 
 /**
- * Navigation destinations with deep link support (P3).
+ * Navigation destinations with deep link support.
  *
  * Deep link URL scheme:
- * - stockapp://search
- * - stockapp://stock/{ticker} -> Analysis
- * - stockapp://stock/{ticker}/indicator
- * - stockapp://stock/{ticker}/financial
+ * - stockapp://search -> StockAnalysis (tab=0)
+ * - stockapp://stock/{ticker} -> StockAnalysis (tab=1, Analysis)
+ * - stockapp://stock/{ticker}/indicator -> StockAnalysis (tab=2)
+ * - stockapp://stock/{ticker}/financial -> StockAnalysis (tab=3)
  * - stockapp://ranking
  * - stockapp://etf
  * - stockapp://settings
@@ -39,49 +36,19 @@ sealed class Screen(
     val icon: ImageVector? = null,
     val deepLinkPattern: String? = null
 ) {
-    // Bottom nav destinations with deep links
-    data object Search : Screen(
-        route = "search",
-        title = "검색",
-        icon = Icons.Default.Search,
-        deepLinkPattern = DeepLinkScheme.buildUri("search")
-    )
-
-    data object Analysis : Screen(
-        route = "analysis?${NavArgs.TICKER}={${NavArgs.TICKER}}",
-        title = "수급 분석",
-        icon = Icons.Default.Analytics,
-        deepLinkPattern = DeepLinkScheme.buildUri("stock/{${NavArgs.TICKER}}")
+    data object StockAnalysis : Screen(
+        route = "stock_analysis?${NavArgs.TICKER}={${NavArgs.TICKER}}&${NavArgs.TAB}={${NavArgs.TAB}}",
+        title = "종목 분석",
+        icon = Icons.Default.Analytics
     ) {
-        // Route without argument for bottom nav
-        const val baseRoute = "analysis"
+        const val baseRoute = "stock_analysis"
 
-        fun createRoute(ticker: String? = null): String =
-            if (ticker != null) "analysis?${NavArgs.TICKER}=$ticker" else baseRoute
-    }
-
-    data object Indicator : Screen(
-        route = "indicator?${NavArgs.TICKER}={${NavArgs.TICKER}}",
-        title = "기술 지표",
-        icon = Icons.AutoMirrored.Filled.ShowChart,
-        deepLinkPattern = DeepLinkScheme.buildUri("stock/{${NavArgs.TICKER}}/indicator")
-    ) {
-        const val baseRoute = "indicator"
-
-        fun createRoute(ticker: String? = null): String =
-            if (ticker != null) "indicator?${NavArgs.TICKER}=$ticker" else baseRoute
-    }
-
-    data object Financial : Screen(
-        route = "financial?${NavArgs.TICKER}={${NavArgs.TICKER}}",
-        title = "재무정보",
-        icon = Icons.Default.AccountBalance,
-        deepLinkPattern = DeepLinkScheme.buildUri("stock/{${NavArgs.TICKER}}/financial")
-    ) {
-        const val baseRoute = "financial"
-
-        fun createRoute(ticker: String? = null): String =
-            if (ticker != null) "financial?${NavArgs.TICKER}=$ticker" else baseRoute
+        fun createRoute(ticker: String? = null, tab: Int? = null): String {
+            val params = mutableListOf<String>()
+            ticker?.let { params.add("${NavArgs.TICKER}=$it") }
+            tab?.let { params.add("${NavArgs.TAB}=$it") }
+            return if (params.isEmpty()) baseRoute else "$baseRoute?${params.joinToString("&")}"
+        }
     }
 
     data object Ranking : Screen(
@@ -113,13 +80,10 @@ sealed class Screen(
     )
 
     companion object {
-        val bottomNavItems = listOf(Search, Analysis, Indicator, Financial, Ranking, Market, Etf, Settings)
+        val bottomNavItems = listOf(StockAnalysis, Ranking, Market, Etf, Settings)
 
-        // Base routes for bottom nav selection matching
         fun getBaseRoute(screen: Screen): String = when (screen) {
-            Analysis -> Analysis.baseRoute
-            Indicator -> Indicator.baseRoute
-            Financial -> Financial.baseRoute
+            StockAnalysis -> StockAnalysis.baseRoute
             else -> screen.route
         }
     }
@@ -130,5 +94,6 @@ sealed class Screen(
  */
 object NavArgs {
     const val TICKER = "ticker"
+    const val TAB = "tab"
     const val TYPE = "type"
 }

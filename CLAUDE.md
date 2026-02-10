@@ -155,18 +155,15 @@ User Input → 500ms Debounce → Query Length Check
 
 **코드**: ~165 files, ~31,000 lines (Kotlin)
 
-### 앱 네비게이션 (Bottom Nav)
+### 앱 네비게이션 (Bottom Nav 5탭)
 
 | 탭 | 화면 | 기능 |
 |----|------|------|
-| 🔍 Search | SearchScreen | 종목 검색, 검색 히스토리 |
-| 📊 Analysis | AnalysisScreen | 수급 분석, 매매 신호 |
-| 📈 Indicator | IndicatorScreen | 기술적 지표 (Trend, Elder, DeMark) |
-| 🏦 Financial | FinancialScreen | 재무정보 (수익성, 안정성) |
-| 🏆 Ranking | RankingScreen | 순위정보 |
+| 📊 종목 분석 | StockAnalysisScreen | 통합 화면 (내부 4탭: 검색, 수급 분석, 기술 지표, 재무정보) |
+| 🏆 순위정보 | RankingScreen | 순위정보 |
+| 📉 시장 | MarketScreen | 시장 지표 (공포/탐욕, 과매수/과매도, 자금 동향, Blood) |
 | 📁 ETF | EtfScreen | ETF 포트폴리오 추적 |
-| 📉 Market | MarketScreen | 시장 지표 (공포/탐욕, 과매수/과매도, 자금 동향, Blood) |
-| ⚙️ Settings | SettingsScreen | API 키, 스케줄링, 시장 지표, DB 백업 |
+| ⚙️ 설정 | SettingsScreen | API 키, 스케줄링, 시장 지표, DB 백업 |
 
 ### Python 패키지 🔒 FROZEN
 
@@ -205,6 +202,7 @@ StockApp/app/src/main/java/com/stockapp/
 │   ├── backup/               # DB 백업/복원
 │   └── di/                   # Hilt DI Modules
 ├── feature/                  # 기능별 모듈
+│   ├── stockanalysis/        # 종목 분석 (통합: 검색+수급분석+기술지표+재무정보)
 │   ├── search/               # 종목 검색
 │   ├── analysis/             # 수급 분석
 │   ├── indicator/            # 기술적 지표

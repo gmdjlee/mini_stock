@@ -88,9 +88,11 @@ fun MainScreen() {
                             screen.icon?.let { Icon(it, contentDescription = screen.title) }
                         },
                         label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = currentDestination?.hierarchy?.any {
+                            it.route == screen.route || it.route == Screen.getBaseRoute(screen)
+                        } == true,
                         onClick = {
-                            navController.navigate(screen.route) {
+                            navController.navigate(Screen.getBaseRoute(screen)) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
                                 }

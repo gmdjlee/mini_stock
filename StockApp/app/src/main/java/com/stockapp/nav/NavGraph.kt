@@ -12,25 +12,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import android.util.Log
-import com.stockapp.core.state.SelectedStockManager
-import com.stockapp.feature.analysis.ui.AnalysisScreen
 import com.stockapp.feature.analysis.ui.AnalysisVm
 import com.stockapp.feature.etf.ui.EtfScreen
 import com.stockapp.feature.market.ui.MarketScreen
-import com.stockapp.feature.financial.ui.FinancialScreen
-import com.stockapp.feature.indicator.ui.IndicatorScreen
 import com.stockapp.feature.ranking.ui.RankingScreen
-import com.stockapp.feature.search.ui.SearchScreen
 import com.stockapp.feature.settings.ui.SettingsScreen
+import com.stockapp.feature.stockanalysis.ui.StockAnalysisScreen
 
 /**
- * Main navigation graph with deep link support (P3).
+ * Main navigation graph with deep link support.
  *
  * Deep link URL scheme: stockapp://
- * - stockapp://search
- * - stockapp://stock/{ticker} -> Analysis with ticker
- * - stockapp://stock/{ticker}/indicator
- * - stockapp://stock/{ticker}/financial
+ * - stockapp://search -> StockAnalysis (tab=0)
+ * - stockapp://stock/{ticker} -> StockAnalysis (tab=1, Analysis)
+ * - stockapp://stock/{ticker}/indicator -> StockAnalysis (tab=2)
+ * - stockapp://stock/{ticker}/financial -> StockAnalysis (tab=3)
  * - stockapp://ranking
  * - stockapp://etf
  * - stockapp://settings
@@ -42,48 +38,35 @@ fun NavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Search.route,
+        startDestination = Screen.StockAnalysis.baseRoute,
         modifier = modifier
     ) {
-        // Search screen - stock selection updates shared state
+        // Stock Analysis - integrated screen with 4 tabs (Search, Analysis, Indicator, Financial)
         composable(
-            route = Screen.Search.route,
-            deepLinks = Screen.Search.deepLinkPattern?.let {
-                listOf(navDeepLink { uriPattern = it })
-            } ?: emptyList()
-        ) {
-            SearchScreen(
-                onStockClick = { ticker ->
-                    // Navigate to Analysis tab after selecting stock
-                    navController.navigate(Screen.Analysis.createRoute(ticker)) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }
-            )
-        }
-
-        // Analysis screen - uses shared stock state, supports deep link with ticker
-        composable(
-            route = Screen.Analysis.route,
+            route = Screen.StockAnalysis.route,
             arguments = listOf(
                 navArgument(NavArgs.TICKER) {
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument(NavArgs.TAB) {
+                    type = NavType.IntType
+                    defaultValue = 0
                 }
             ),
-            deepLinks = Screen.Analysis.deepLinkPattern?.let {
-                listOf(navDeepLink { uriPattern = it })
-            } ?: emptyList()
+            deepLinks = listOf(
+                navDeepLink { uriPattern = DeepLinkScheme.buildUri("search") },
+                navDeepLink { uriPattern = DeepLinkScheme.buildUri("stock/{${NavArgs.TICKER}}") },
+                navDeepLink { uriPattern = DeepLinkScheme.buildUri("stock/{${NavArgs.TICKER}}/indicator") },
+                navDeepLink { uriPattern = DeepLinkScheme.buildUri("stock/{${NavArgs.TICKER}}/financial") }
+            )
         ) { backStackEntry ->
             val ticker = backStackEntry.arguments?.getString(NavArgs.TICKER)
+            val tab = backStackEntry.arguments?.getInt(NavArgs.TAB) ?: 0
             val viewModel: AnalysisVm = hiltViewModel()
 
-            // Handle deep link ticker - validate and select stock if provided
+            // Handle deep link ticker
             LaunchedEffect(ticker) {
                 ticker?.let {
                     if (AnalysisVm.isValidKoreanTicker(it)) {
@@ -94,70 +77,23 @@ fun NavGraph(
                 }
             }
 
-            AnalysisScreen()
-        }
-
-        // Indicator screen - uses shared stock state, supports deep link with ticker
-        composable(
-            route = Screen.Indicator.route,
-            arguments = listOf(
-                navArgument(NavArgs.TICKER) {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                }
-            ),
-            deepLinks = Screen.Indicator.deepLinkPattern?.let {
-                listOf(navDeepLink { uriPattern = it })
-            } ?: emptyList()
-        ) { backStackEntry ->
-            val ticker = backStackEntry.arguments?.getString(NavArgs.TICKER)
-            val analysisVm: AnalysisVm = hiltViewModel()
-
-            LaunchedEffect(ticker) {
-                ticker?.let {
-                    if (AnalysisVm.isValidKoreanTicker(it)) {
-                        analysisVm.selectTickerFromDeepLink(it)
-                    } else {
-                        Log.w("NavGraph", "Invalid deep link ticker ignored: $it")
+            // Determine initial tab from deep link URI
+            val initialTab = when {
+                ticker != null -> {
+                    val uri = backStackEntry.destination.route ?: ""
+                    when {
+                        uri.contains("financial") || tab == 3 -> 3
+                        uri.contains("indicator") || tab == 2 -> 2
+                        else -> 1 // Default to analysis for stock deep links
                     }
                 }
+                else -> tab
             }
 
-            IndicatorScreen()
+            StockAnalysisScreen(initialTab = initialTab)
         }
 
-        // Financial screen - uses shared stock state, supports deep link with ticker
-        composable(
-            route = Screen.Financial.route,
-            arguments = listOf(
-                navArgument(NavArgs.TICKER) {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                }
-            ),
-            deepLinks = Screen.Financial.deepLinkPattern?.let {
-                listOf(navDeepLink { uriPattern = it })
-            } ?: emptyList()
-        ) { backStackEntry ->
-            val ticker = backStackEntry.arguments?.getString(NavArgs.TICKER)
-            val analysisVm: AnalysisVm = hiltViewModel()
-
-            LaunchedEffect(ticker) {
-                ticker?.let {
-                    if (AnalysisVm.isValidKoreanTicker(it)) {
-                        analysisVm.selectTickerFromDeepLink(it)
-                    } else {
-                        Log.w("NavGraph", "Invalid deep link ticker ignored: $it")
-                    }
-                }
-            }
-
-            FinancialScreen()
-        }
-
-        // Ranking screen - stock selection navigates to Analysis
+        // Ranking screen - stock selection navigates to StockAnalysis
         composable(
             route = Screen.Ranking.route,
             deepLinks = Screen.Ranking.deepLinkPattern?.let {
@@ -166,7 +102,7 @@ fun NavGraph(
         ) {
             RankingScreen(
                 onStockClick = {
-                    navController.navigate(Screen.Analysis.createRoute()) {
+                    navController.navigate(Screen.StockAnalysis.createRoute(tab = 1)) {
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true
                         }
@@ -177,7 +113,7 @@ fun NavGraph(
             )
         }
 
-        // Market screen - market indicators
+        // Market screen
         composable(
             route = Screen.Market.route,
             deepLinks = Screen.Market.deepLinkPattern?.let {
@@ -187,7 +123,7 @@ fun NavGraph(
             MarketScreen()
         }
 
-        // ETF screen - stock selection navigates to Analysis
+        // ETF screen - stock selection navigates to StockAnalysis
         composable(
             route = Screen.Etf.route,
             deepLinks = Screen.Etf.deepLinkPattern?.let {
@@ -196,7 +132,7 @@ fun NavGraph(
         ) {
             EtfScreen(
                 onStockClick = {
-                    navController.navigate(Screen.Analysis.createRoute()) {
+                    navController.navigate(Screen.StockAnalysis.createRoute(tab = 1)) {
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true
                         }
