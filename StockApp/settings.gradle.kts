@@ -17,5 +17,12 @@ dependencyResolutionManagement {
 
 rootProject.name = "StockApp"
 include(":app")
+
+// kotlin_krx: Use real module if available, otherwise use stub for CI builds
+val krxktDir = file("../../kotlin_krx")
 include(":krxkt")
-project(":krxkt").projectDir = file("../../kotlin_krx")
+if (krxktDir.exists()) {
+    project(":krxkt").projectDir = krxktDir
+} else {
+    project(":krxkt").projectDir = file("krxkt-stub")
+}
