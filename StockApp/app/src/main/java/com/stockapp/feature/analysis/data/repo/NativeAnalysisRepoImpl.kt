@@ -40,7 +40,7 @@ private const val TAG = "NativeAnalysisRepoImpl"
 
 /**
  * Native Kotlin implementation of AnalysisRepo.
- * Uses KiwoomApiClient directly instead of Python/Chaquopy.
+ * Uses KiwoomApiClient directly.
  *
  * API calls:
  * - ka10059: Investor trend (투자자별 매매) - foreign, institution, individual net buying

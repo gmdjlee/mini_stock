@@ -14,20 +14,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Feature flag keys for gradual migration from Python to Kotlin Native.
- * Used to toggle between Python (Chaquopy) and Kotlin implementations.
+ * Feature flag keys for runtime feature toggling.
  */
 object FeatureFlags {
-    // Search feature
-    const val USE_NATIVE_SEARCH = "use_native_search"
-
-    // Analysis feature
-    const val USE_NATIVE_ANALYSIS = "use_native_analysis"
-
-    // Indicator feature
-    const val USE_NATIVE_INDICATOR = "use_native_indicator"
-
-    // Realtime supply (new feature, Kotlin only)
+    // Realtime supply (장중 실시간 투자자별 매매 데이터)
     const val ENABLE_REALTIME_SUPPLY = "enable_realtime_supply"
 
     // KRX direct data source (primary for batch data)
@@ -36,13 +26,8 @@ object FeatureFlags {
 
     /**
      * Default values for feature flags.
-     * All native features are enabled by default (Phase 7 completion).
-     * Python fallback is available via Settings if needed.
      */
     val DEFAULTS = mapOf(
-        USE_NATIVE_SEARCH to true,
-        USE_NATIVE_ANALYSIS to true,
-        USE_NATIVE_INDICATOR to true,
         ENABLE_REALTIME_SUPPLY to true,
         USE_KRX_DATA_SOURCE to true
     )
@@ -87,16 +72,6 @@ interface FeatureFlagRepo {
      * Reset all flags to default values.
      */
     suspend fun resetToDefaults()
-
-    /**
-     * Enable all native features (for testing or full migration).
-     */
-    suspend fun enableAllNative()
-
-    /**
-     * Disable all native features (fallback to Python).
-     */
-    suspend fun disableAllNative()
 }
 
 // DataStore instance for feature flags
@@ -148,24 +123,6 @@ class FeatureFlagRepoImpl @Inject constructor(
                 val key = booleanPreferencesKey(flag)
                 prefs[key] = defaultValue
             }
-        }
-    }
-
-    override suspend fun enableAllNative() {
-        dataStore.edit { prefs ->
-            prefs[booleanPreferencesKey(FeatureFlags.USE_NATIVE_SEARCH)] = true
-            prefs[booleanPreferencesKey(FeatureFlags.USE_NATIVE_ANALYSIS)] = true
-            prefs[booleanPreferencesKey(FeatureFlags.USE_NATIVE_INDICATOR)] = true
-            prefs[booleanPreferencesKey(FeatureFlags.ENABLE_REALTIME_SUPPLY)] = true
-        }
-    }
-
-    override suspend fun disableAllNative() {
-        dataStore.edit { prefs ->
-            prefs[booleanPreferencesKey(FeatureFlags.USE_NATIVE_SEARCH)] = false
-            prefs[booleanPreferencesKey(FeatureFlags.USE_NATIVE_ANALYSIS)] = false
-            prefs[booleanPreferencesKey(FeatureFlags.USE_NATIVE_INDICATOR)] = false
-            prefs[booleanPreferencesKey(FeatureFlags.ENABLE_REALTIME_SUPPLY)] = false
         }
     }
 }

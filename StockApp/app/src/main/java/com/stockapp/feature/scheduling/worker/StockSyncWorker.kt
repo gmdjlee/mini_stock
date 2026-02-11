@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.stockapp.core.py.PyError
 import com.stockapp.feature.scheduling.domain.model.SyncType
 import com.stockapp.feature.scheduling.domain.repo.SchedulingRepo
 import com.stockapp.feature.settings.domain.repo.SettingsRepo
@@ -35,16 +34,14 @@ class StockSyncWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Log.d(TAG, "doWork() started, attempt=${runAttemptCount + 1}")
 
-        // Ensure PyClient is initialized before sync.
+        // Ensure API client is initialized before sync.
         // When app is killed and WorkManager restarts the process,
-        // PyClient may not be initialized yet.
+        // the API client may not be initialized yet.
         val initResult = settingsRepo.initializeWithSavedKeys()
         initResult.fold(
             onSuccess = { initialized ->
                 if (!initialized) {
                     Log.w(TAG, "No API keys configured, cannot sync")
-                    // Don't set error-stopped flag - this is a configuration issue
-                    // User needs to configure API keys in Settings
                     schedulingRepo.updateLastSync(
                         System.currentTimeMillis(),
                         false,
@@ -52,17 +49,15 @@ class StockSyncWorker @AssistedInject constructor(
                     )
                     return Result.failure()
                 }
-                Log.d(TAG, "PyClient initialized for sync")
+                Log.d(TAG, "API client initialized for sync")
             },
             onFailure = { e ->
-                Log.e(TAG, "PyClient initialization failed: ${e.message}", e)
-                // Check if this is a retriable error
+                Log.e(TAG, "API client initialization failed: ${e.message}", e)
                 val isRetriable = isRetriableError(e)
                 if (isRetriable && runAttemptCount < MAX_RETRY_COUNT) {
                     Log.d(TAG, "Initialization failed with retriable error, will retry")
                     return Result.retry()
                 }
-                // Permanent error - stop syncing
                 schedulingRepo.setErrorStopped(true)
                 schedulingRepo.updateLastSync(
                     System.currentTimeMillis(),
@@ -138,7 +133,6 @@ class StockSyncWorker @AssistedInject constructor(
      */
     private fun isRetriableError(e: Throwable): Boolean {
         return when (e) {
-            is PyError -> e.isRetriable
             is java.net.SocketTimeoutException,
             is java.net.UnknownHostException,
             is java.net.ConnectException -> true

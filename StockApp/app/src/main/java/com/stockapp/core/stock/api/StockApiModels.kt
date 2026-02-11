@@ -5,7 +5,6 @@ import kotlinx.serialization.Serializable
 
 /**
  * Stock API request/response models for Kiwoom REST API.
- * Used by native Kotlin implementations (bypassing Python/Chaquopy).
  */
 
 // ============================================================================

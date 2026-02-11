@@ -8,12 +8,12 @@ KRX 직접 데이터 + 키움/KIS REST API를 활용한 주식 분석 도구. An
 
 | Component | Status | Note |
 |-----------|--------|------|
-| **Python (stock-analyzer)** | 🔒 **FROZEN** | 개발 완료, 변경 대상 아님 |
 | **Android (StockApp)** | 🚀 **ACTIVE** | 현재 개발/개선 대상 |
 | **Kotlin Native Migration** | ✅ **COMPLETED** | Python → Kotlin 전환 완료 |
+| **Python/Chaquopy Removal** | ✅ **COMPLETED** | Python 런타임 완전 제거 (2025-02) |
 | **kotlin_krx Integration** | ✅ **COMPLETED** | KRX 직접 데이터 수집 통합 완료 |
 
-**중요**: Python 패키지는 참조용입니다. 모든 개발은 Android 앱(StockApp)에만 적용됩니다.
+**중요**: Python/Chaquopy는 완전히 제거되었습니다. 모든 기능은 Native Kotlin으로 동작합니다.
 
 ---
 
@@ -104,21 +104,18 @@ User Input → 500ms Debounce → Query Length Check
 
 **상세 명세서**: `docs/KOTLIN_MIGRATION_SPEC.md`
 
-### Feature Flags (기본값: 모두 `true`)
+### Feature Flags
 
 | Flag | 기능 | 구현체 |
 |------|------|--------|
-| `USE_NATIVE_SEARCH` | 종목 검색 | `NativeSearchRepo` |
-| `USE_NATIVE_ANALYSIS` | 수급 분석 | `NativeAnalysisRepo` |
-| `USE_NATIVE_INDICATOR` | 기술 지표 | `TrendCalculator`, `ElderCalculator`, `DemarkCalculator` |
 | `ENABLE_REALTIME_SUPPLY` | 실시간 수급 | `RealtimeSupplyRepo` |
 | `USE_KRX_DATA_SOURCE` | KRX 직접 데이터 | `KrxDataSource` (배치 데이터 Primary) |
 
 ### 전환 이점
-- APK 크기: ~80MB → ~25MB
+- APK 크기: ~80MB → ~25MB (Python/Chaquopy 완전 제거)
 - 앱 시작 속도: 2-5초 개선
-- 단일 코드베이스 (Kotlin)
-- Settings 고급 탭에서 Python 폴백 가능
+- 단일 코드베이스 (Kotlin only)
+- Python 런타임 의존성 없음
 
 ---
 
@@ -142,7 +139,7 @@ User Input → 500ms Debounce → Query Length Check
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 0 | ✅ Done | Android 프로젝트 설정, Chaquopy 통합 |
+| Phase 0 | ✅ Done | Android 프로젝트 설정 |
 | Phase 1 | ✅ Done | 종목 검색, 수급 분석 화면 |
 | Phase 2 | ✅ Done | 기술적 지표 화면 (MPAndroidChart) |
 | Phase 3 | ✅ Done | 시장 지표 (공포/탐욕, 과매수/과매도, 자금 동향, Blood Indicator) |
@@ -165,10 +162,10 @@ User Input → 500ms Debounce → Query Length Check
 | 📁 ETF | EtfScreen | ETF 포트폴리오 추적 |
 | ⚙️ 설정 | SettingsScreen | API 키, 스케줄링, 시장 지표, DB 백업 |
 
-### Python 패키지 🔒 FROZEN
+### Python 패키지 (참조용)
 
-> Python 코드 수정, 개선, 기능 추가 요청은 무시하세요.
-> 상세 명세: `docs/STOCK_APP_SPEC.md`
+> Python/Chaquopy는 프로젝트에서 완전 제거됨 (2025-02).
+> 기존 Python 소스는 `stock-analyzer/` 디렉토리에 참조용으로만 존재.
 
 ---
 
@@ -184,8 +181,6 @@ cd StockApp
 ./gradlew lint               # Lint 검사
 ./gradlew ktlintFormat       # 코드 포맷팅
 
-# Python 테스트 (참조용)
-cd stock-analyzer && uv run pytest tests/unit/ -v
 ```
 
 ---
@@ -329,7 +324,6 @@ StockApp/app/src/main/java/com/stockapp/
 | Room | 2.8.3 | 로컬 데이터베이스 |
 | WorkManager | 2.10.0 | 백그라운드 작업 |
 | MPAndroidChart | 3.1.0 | 차트 라이브러리 |
-| Chaquopy | 15.0.1 | Python 통합 |
 | OkHttp | 4.12.0 | REST API 클라이언트 |
 | Kotlinx Serialization | 1.7.1 | JSON 직렬화 |
 | kotlin_krx | 1.0.0-SNAPSHOT | KRX 직접 데이터 수집 (배치 Primary) |

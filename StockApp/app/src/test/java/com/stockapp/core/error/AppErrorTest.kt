@@ -97,24 +97,6 @@ class AppErrorTest {
     }
 
     @Test
-    fun `PythonInitError has correct error code`() {
-        val error = AppError.PythonInitError("Python failed to start")
-        assertEquals(ErrorCode.PYTHON_INIT, error.code)
-    }
-
-    @Test
-    fun `PythonNotInitializedError has correct error code`() {
-        val error = AppError.PythonNotInitializedError()
-        assertEquals(ErrorCode.PYTHON_NOT_INIT, error.code)
-    }
-
-    @Test
-    fun `PythonCallError has correct error code`() {
-        val error = AppError.PythonCallError("Module not found")
-        assertEquals(ErrorCode.PYTHON_CALL, error.code)
-    }
-
-    @Test
     fun `UnknownError has correct error code`() {
         val error = AppError.UnknownError("Something went wrong")
         assertEquals(ErrorCode.UNKNOWN, error.code)

@@ -364,8 +364,8 @@ private fun StockHeader(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = "장중 자동 새로고침",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
                 Switch(
                     checked = autoRefreshEnabled,
@@ -374,8 +374,8 @@ private fun StockHeader(
                 )
                 Text(
                     text = "최근 업데이트 $lastUpdatedTime",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
             }
         }

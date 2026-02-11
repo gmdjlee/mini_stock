@@ -19,14 +19,13 @@ interface SettingsRepo {
     suspend fun saveApiKeyConfig(config: ApiKeyConfig)
 
     /**
-     * Test Kiwoom API key by attempting to initialize PyClient.
+     * Test Kiwoom API key configuration.
      * Returns true if connection is successful.
      */
     suspend fun testApiKey(config: ApiKeyConfig): Result<Boolean>
 
     /**
-     * Initialize PyClient with saved API keys if available.
-     * Should be called at app startup.
+     * Initialize with saved API keys if available.
      * Returns true if initialization was successful, false if no saved keys.
      */
     suspend fun initializeWithSavedKeys(): Result<Boolean>

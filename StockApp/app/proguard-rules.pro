@@ -56,7 +56,7 @@
 # Keep all API/DTO/Model classes for serialization
 -keep class com.stockapp.core.api.** { *; }
 -keep class com.stockapp.core.backup.** { *; }
--keep class com.stockapp.core.py.** { *; }
+
 -keep class com.stockapp.feature.search.domain.model.** { *; }
 -keep class com.stockapp.feature.analysis.domain.model.** { *; }
 -keep class com.stockapp.feature.indicator.domain.model.** { *; }
@@ -96,10 +96,6 @@
 -keep class com.stockapp.core.di.** { *; }
 -keep class com.stockapp.feature.*.di.** { *; }
 
-# ============================================================================
-# CHAQUOPY (Python integration)
-# ============================================================================
--keep class com.chaquo.python.** { *; }
 
 # ============================================================================
 # OKHTTP

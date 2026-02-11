@@ -29,13 +29,13 @@ import javax.inject.Singleton
 
 private const val TAG = "NativeSearchRepoImpl"
 
-// Default markets to include (KOSPI and KOSDAQ only, same as Python implementation)
+// Default markets to include (KOSPI and KOSDAQ only)
 // This filters out ETN, ETF, and other derivative products
 private val DEFAULT_MARKETS = setOf("KOSPI", "KOSDAQ")
 
 /**
  * Native Kotlin implementation of SearchRepo.
- * Uses KiwoomApiClient directly instead of Python/Chaquopy.
+ * Uses KiwoomApiClient directly.
  */
 @Singleton
 class NativeSearchRepoImpl @Inject constructor(

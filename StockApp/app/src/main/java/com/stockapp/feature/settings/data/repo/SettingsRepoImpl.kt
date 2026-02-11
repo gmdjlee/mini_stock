@@ -11,7 +11,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.stockapp.core.api.KisApiClient
 import com.stockapp.core.api.KisApiConfig
-import com.stockapp.core.py.PyClient
+import com.stockapp.core.api.TokenManager
 import com.stockapp.feature.settings.domain.model.ApiKeyConfig
 import com.stockapp.feature.settings.domain.model.InvestmentMode
 import com.stockapp.feature.settings.domain.model.KisApiKeyConfig
@@ -34,7 +34,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 @Singleton
 class SettingsRepoImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val pyClient: PyClient,
+    private val tokenManager: TokenManager,
     private val kisApiClient: KisApiClient
 ) : SettingsRepo {
 
@@ -116,27 +116,14 @@ class SettingsRepoImpl @Inject constructor(
                 InvestmentMode.PRODUCTION -> PROD_URL
             }
 
-            // Test connection without modifying global PyClient state
-            // This prevents race conditions with concurrent API calls
-            pyClient.testConnection(
+            // Test connection by fetching a token
+            tokenManager.getToken(
                 appKey = config.appKey,
                 secretKey = config.secretKey,
                 baseUrl = baseUrl
             ).fold(
-                onSuccess = {
-                    // Test passed, now initialize the actual client
-                    pyClient.initialize(
-                        appKey = config.appKey,
-                        secretKey = config.secretKey,
-                        baseUrl = baseUrl
-                    ).fold(
-                        onSuccess = { Result.success(true) },
-                        onFailure = { e -> Result.failure(e) }
-                    )
-                },
-                onFailure = { e ->
-                    Result.failure(e)
-                }
+                onSuccess = { Result.success(true) },
+                onFailure = { e -> Result.failure(e) }
             )
         } catch (e: CancellationException) {
             throw e
@@ -149,14 +136,13 @@ class SettingsRepoImpl @Inject constructor(
         return try {
             val config = getApiKeyConfig().first()
             if (config.isValid()) {
-                // Initialize without network test to avoid startup failures
-                // when network is unavailable
+                // Validate keys by fetching a token (non-blocking, cached)
                 val baseUrl = when (config.investmentMode) {
                     InvestmentMode.MOCK -> MOCK_URL
                     InvestmentMode.PRODUCTION -> PROD_URL
                 }
 
-                pyClient.initialize(
+                tokenManager.getToken(
                     appKey = config.appKey,
                     secretKey = config.secretKey,
                     baseUrl = baseUrl

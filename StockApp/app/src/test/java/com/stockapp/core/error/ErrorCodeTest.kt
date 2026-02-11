@@ -21,9 +21,6 @@ class ErrorCodeTest {
         assertEquals(ErrorCode.NO_DATA, ErrorCode.fromString("NO_DATA"))
         assertEquals(ErrorCode.INSUFFICIENT_DATA, ErrorCode.fromString("INSUFFICIENT_DATA"))
         assertEquals(ErrorCode.INVALID_ARG, ErrorCode.fromString("INVALID_ARG"))
-        assertEquals(ErrorCode.PYTHON_INIT, ErrorCode.fromString("PYTHON_INIT"))
-        assertEquals(ErrorCode.PYTHON_NOT_INIT, ErrorCode.fromString("PYTHON_NOT_INIT"))
-        assertEquals(ErrorCode.PYTHON_CALL, ErrorCode.fromString("PYTHON_CALL"))
         assertEquals(ErrorCode.UNKNOWN, ErrorCode.fromString("UNKNOWN"))
     }
 

@@ -48,9 +48,6 @@ sealed class TestResult {
  * State for feature flags in Advanced settings.
  */
 data class FeatureFlagsState(
-    val useNativeSearch: Boolean = true,
-    val useNativeAnalysis: Boolean = true,
-    val useNativeIndicator: Boolean = true,
     val enableRealtimeSupply: Boolean = true
 )
 
@@ -67,23 +64,22 @@ class SettingsVm @Inject constructor(
     val selectedTab: StateFlow<SettingsTab> = _selectedTab.asStateFlow()
 
     // Feature flags state
-    val featureFlagsState: StateFlow<FeatureFlagsState> = combine(
-        featureFlagRepo.observeFlag(FeatureFlags.USE_NATIVE_SEARCH),
-        featureFlagRepo.observeFlag(FeatureFlags.USE_NATIVE_ANALYSIS),
-        featureFlagRepo.observeFlag(FeatureFlags.USE_NATIVE_INDICATOR),
-        featureFlagRepo.observeFlag(FeatureFlags.ENABLE_REALTIME_SUPPLY)
-    ) { search, analysis, indicator, realtime ->
-        FeatureFlagsState(
-            useNativeSearch = search,
-            useNativeAnalysis = analysis,
-            useNativeIndicator = indicator,
-            enableRealtimeSupply = realtime
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = FeatureFlagsState()
-    )
+    val featureFlagsState: StateFlow<FeatureFlagsState> =
+        featureFlagRepo.observeFlag(FeatureFlags.ENABLE_REALTIME_SUPPLY).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        ).let { realtimeFlow ->
+            combine(realtimeFlow) { values ->
+                FeatureFlagsState(
+                    enableRealtimeSupply = values[0]
+                )
+            }.stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = FeatureFlagsState()
+            )
+        }
 
     // Kiwoom API states
     private val _appKey = MutableStateFlow("")
@@ -283,45 +279,9 @@ class SettingsVm @Inject constructor(
     // Feature Flag Methods
     // ============================================================
 
-    fun toggleNativeSearch(enabled: Boolean) {
-        viewModelScope.launch {
-            featureFlagRepo.setEnabled(FeatureFlags.USE_NATIVE_SEARCH, enabled)
-        }
-    }
-
-    fun toggleNativeAnalysis(enabled: Boolean) {
-        viewModelScope.launch {
-            featureFlagRepo.setEnabled(FeatureFlags.USE_NATIVE_ANALYSIS, enabled)
-        }
-    }
-
-    fun toggleNativeIndicator(enabled: Boolean) {
-        viewModelScope.launch {
-            featureFlagRepo.setEnabled(FeatureFlags.USE_NATIVE_INDICATOR, enabled)
-        }
-    }
-
     fun toggleRealtimeSupply(enabled: Boolean) {
         viewModelScope.launch {
             featureFlagRepo.setEnabled(FeatureFlags.ENABLE_REALTIME_SUPPLY, enabled)
-        }
-    }
-
-    fun enableAllNative() {
-        viewModelScope.launch {
-            featureFlagRepo.enableAllNative()
-        }
-    }
-
-    fun disableAllNative() {
-        viewModelScope.launch {
-            featureFlagRepo.disableAllNative()
-        }
-    }
-
-    fun resetToDefaults() {
-        viewModelScope.launch {
-            featureFlagRepo.resetToDefaults()
         }
     }
 }

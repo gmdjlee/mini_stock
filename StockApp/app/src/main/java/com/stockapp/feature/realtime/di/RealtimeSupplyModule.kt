@@ -11,8 +11,7 @@ import javax.inject.Singleton
 /**
  * Realtime supply module for dependency injection.
  *
- * Uses selector pattern for future migration flexibility.
- * Currently only Native implementation is available (no Python fallback).
+ * Uses selector pattern for feature flag control.
  */
 @Module
 @InstallIn(SingletonComponent::class)

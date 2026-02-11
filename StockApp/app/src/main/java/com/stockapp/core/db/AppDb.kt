@@ -69,7 +69,7 @@ import com.stockapp.core.db.entity.SyncHistoryEntity
         OhlcvCacheEntity::class,
         InvestorTradingCacheEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDb : RoomDatabase() {
@@ -339,6 +339,13 @@ abstract class AppDb : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_investor_trading_cache_ticker` ON `investor_trading_cache` (`ticker`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_investor_trading_cache_cachedAt` ON `investor_trading_cache` (`cachedAt`)")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Clear investor trading cache: unit changed from 원 to 백만원
+                db.execSQL("DELETE FROM investor_trading_cache")
             }
         }
     }

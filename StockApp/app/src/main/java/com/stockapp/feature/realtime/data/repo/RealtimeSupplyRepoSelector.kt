@@ -10,8 +10,7 @@ import javax.inject.Singleton
 /**
  * Selector for RealtimeSupplyRepo implementation.
  *
- * Uses ENABLE_REALTIME_SUPPLY feature flag to determine which implementation to use.
- * Currently only Native implementation is available (no Python fallback).
+ * Uses ENABLE_REALTIME_SUPPLY feature flag to control the realtime supply feature.
  */
 @Singleton
 class RealtimeSupplyRepoSelector @Inject constructor(
@@ -21,7 +20,6 @@ class RealtimeSupplyRepoSelector @Inject constructor(
 
     /**
      * Select repository based on feature flag.
-     * Currently always returns nativeRepo as there's no Python implementation.
      */
     private suspend fun selectRepo(): RealtimeSupplyRepo {
         val useNative = featureFlagRepo.isEnabled(FeatureFlags.ENABLE_REALTIME_SUPPLY)

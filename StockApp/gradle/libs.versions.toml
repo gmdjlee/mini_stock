@@ -16,7 +16,6 @@ workManager = "2.10.0"
 hiltWork = "1.2.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxSerializationJson = "1.7.1"
-chaquopy = "15.0.1"
 hiltNavigationCompose = "1.2.0"
 mpandroidchart = "v3.1.0"
 okhttp = "4.12.0"
@@ -98,4 +97,3 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-chaquopy = { id = "com.chaquo.python", version.ref = "chaquopy" }

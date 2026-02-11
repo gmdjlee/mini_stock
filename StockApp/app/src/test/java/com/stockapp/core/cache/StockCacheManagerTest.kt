@@ -1,21 +1,17 @@
 package com.stockapp.core.cache
 
 import com.stockapp.core.db.dao.StockDao
-import com.stockapp.core.db.entity.StockEntity
-import com.stockapp.core.py.PyClient
+import com.stockapp.feature.search.domain.model.Market
+import com.stockapp.feature.search.domain.model.Stock
+import com.stockapp.feature.search.domain.repo.SearchRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 /**
@@ -25,17 +21,15 @@ import org.mockito.kotlin.whenever
 @OptIn(ExperimentalCoroutinesApi::class)
 class StockCacheManagerTest {
 
-    private lateinit var pyClient: PyClient
+    private lateinit var searchRepo: SearchRepo
     private lateinit var stockDao: StockDao
-    private lateinit var json: Json
     private lateinit var cacheManager: StockCacheManager
 
     @Before
     fun setup() {
-        pyClient = mock()
+        searchRepo = mock()
         stockDao = mock()
-        json = Json { ignoreUnknownKeys = true; isLenient = true }
-        cacheManager = StockCacheManager(pyClient, stockDao, json)
+        cacheManager = StockCacheManager(searchRepo, stockDao)
     }
 
     // ==================== Initial State Tests ====================
@@ -48,17 +42,7 @@ class StockCacheManagerTest {
     // ==================== initializeIfNeeded Tests ====================
 
     @Test
-    fun `initializeIfNeeded returns failure when PyClient not ready`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(false)
-
-        val result = cacheManager.initializeIfNeeded()
-
-        assertTrue(result.isFailure)
-    }
-
-    @Test
     fun `initializeIfNeeded returns cached count when cache is valid`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(true)
         whenever(stockDao.count()).thenReturn(100)
         whenever(stockDao.lastUpdated()).thenReturn(System.currentTimeMillis() - 1000) // Recent
 
@@ -83,8 +67,6 @@ class StockCacheManagerTest {
         val stats = result.getOrNull()!!
         assertEquals(50, stats.count)
         assertTrue(stats.isExpired)
-        // Should NOT call pyClient since cache exists (even if stale)
-        verify(pyClient, never()).isReady()
         // State should be Stale, not Loading
         assertTrue(cacheManager.state.value is CacheState.Stale)
     }
@@ -104,33 +86,14 @@ class StockCacheManagerTest {
         assertEquals(CacheState.Ready(200), cacheManager.state.value)
     }
 
-    @Test
-    fun `initializeLazy attempts API when no cache at all and PyClient not ready`() = runTest {
-        whenever(stockDao.count()).thenReturn(0)
-        whenever(stockDao.lastUpdated()).thenReturn(null)
-        whenever(pyClient.isReady()).thenReturn(false)
-
-        val result = cacheManager.initializeLazy()
-
-        assertTrue(result.isSuccess)
-        val stats = result.getOrNull()!!
-        assertEquals(0, stats.count)
-    }
-
     // ==================== Cooldown Tests ====================
 
     @Test
     fun `refreshCache with cooldown prevents rapid refreshes`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(true)
-        whenever(stockDao.count()).thenReturn(100)
-        whenever(stockDao.lastUpdated()).thenReturn(System.currentTimeMillis())
+        whenever(searchRepo.getAll()).thenReturn(Result.failure(Exception("test")))
 
-        // First call should work (we mock the pyClient.call to fail to keep it simple)
-        whenever(pyClient.call<List<StockEntity>>(any(), any(), any(), any(), any()))
-            .thenReturn(Result.failure(Exception("test")))
-
-        val result1 = cacheManager.refreshCache(bypassCooldown = false)
-        // First call will fail due to mocked exception, but cooldown will be set
+        // First call should work
+        cacheManager.refreshCache(bypassCooldown = false)
 
         // Second call within cooldown should fail with RefreshCooldownException
         val result2 = cacheManager.refreshCache(bypassCooldown = false)
@@ -140,9 +103,7 @@ class StockCacheManagerTest {
 
     @Test
     fun `refreshCache bypassCooldown ignores cooldown`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(true)
-        whenever(pyClient.call<List<StockEntity>>(any(), any(), any(), any(), any()))
-            .thenReturn(Result.failure(Exception("test")))
+        whenever(searchRepo.getAll()).thenReturn(Result.failure(Exception("test")))
 
         // First call to set cooldown
         cacheManager.refreshCache(bypassCooldown = false)
@@ -169,24 +130,12 @@ class StockCacheManagerTest {
     // ==================== refreshCache state changes ====================
 
     @Test
-    fun `refreshCache sets Loading state when PyClient is ready`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(true)
-        whenever(pyClient.call<List<StockEntity>>(any(), any(), any(), any(), any()))
-            .thenReturn(Result.failure(Exception("test")))
+    fun `refreshCache sets Error state on failure`() = runTest {
+        whenever(searchRepo.getAll()).thenReturn(Result.failure(Exception("test")))
 
         cacheManager.refreshCache(bypassCooldown = true)
 
         // After failure, state should be Error
-        assertTrue(cacheManager.state.value is CacheState.Error)
-    }
-
-    @Test
-    fun `refreshCache sets Error state when PyClient not ready`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(false)
-
-        val result = cacheManager.refreshCache(bypassCooldown = true)
-
-        assertTrue(result.isFailure)
         assertTrue(cacheManager.state.value is CacheState.Error)
     }
 
@@ -241,12 +190,29 @@ class StockCacheManagerTest {
         assertTrue(stats.isExpired) // null means very old
     }
 
+    // ==================== Successful Refresh Tests ====================
+
+    @Test
+    fun `refreshCache sets Ready state on success`() = runTest {
+        val stocks = listOf(
+            Stock("005930", "삼성전자", Market.KOSPI),
+            Stock("000660", "SK하이닉스", Market.KOSPI)
+        )
+        whenever(searchRepo.getAll()).thenReturn(Result.success(stocks))
+        whenever(stockDao.count()).thenReturn(2)
+
+        val result = cacheManager.refreshCache(bypassCooldown = true)
+
+        assertTrue(result.isSuccess)
+        assertEquals(2, result.getOrNull())
+        assertTrue(cacheManager.state.value is CacheState.Ready)
+    }
+
     // ==================== Error Message Mapping Tests ====================
 
     @Test
     fun `refreshCache maps auth error to user-friendly message`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(true)
-        whenever(pyClient.call<List<StockEntity>>(any(), any(), any(), any(), any()))
+        whenever(searchRepo.getAll())
             .thenReturn(Result.failure(Exception("AuthError: Invalid API key")))
 
         cacheManager.refreshCache(bypassCooldown = true)
@@ -262,8 +228,7 @@ class StockCacheManagerTest {
 
     @Test
     fun `refreshCache maps network error to user-friendly message`() = runTest {
-        whenever(pyClient.isReady()).thenReturn(true)
-        whenever(pyClient.call<List<StockEntity>>(any(), any(), any(), any(), any()))
+        whenever(searchRepo.getAll())
             .thenReturn(Result.failure(Exception("Network error: Connection failed")))
 
         cacheManager.refreshCache(bypassCooldown = true)

@@ -52,7 +52,6 @@ private class CategoryRateLimiter(private val minInterval: Long = 500L) {
 
 /**
  * Direct Kotlin client for Kiwoom REST API.
- * Bypasses Python for features that need to be implemented in Kotlin only.
  *
  * Uses category-based rate limiting to allow different features (search, analysis, ranking)
  * to make API calls independently without blocking each other.

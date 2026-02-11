@@ -47,12 +47,6 @@ class ErrorStringProvider @Inject constructor(
     fun getNoDataError(): String = context.getString(R.string.error_no_data)
     fun getInsufficientDataError(): String = context.getString(R.string.error_insufficient_data)
 
-    // Python errors
-    fun getPythonInitError(message: String): String =
-        context.getString(R.string.error_python_init, message)
-    fun getPythonNotInitError(): String = context.getString(R.string.error_python_not_init)
-    fun getPythonCallError(): String = context.getString(R.string.error_python_call)
-
     // Generic
     fun getUnknownError(): String = context.getString(R.string.error_unknown)
 
@@ -88,9 +82,6 @@ class ErrorStringProvider @Inject constructor(
         is AppError.NoDataError -> getNoDataError()
         is AppError.InsufficientDataError -> getInsufficientDataError()
         is AppError.InvalidArgumentError -> error.message
-        is AppError.PythonInitError -> getPythonInitError(error.message)
-        is AppError.PythonNotInitializedError -> getPythonNotInitError()
-        is AppError.PythonCallError -> getPythonCallError()
         is AppError.UnknownError -> getUnknownError()
     }
 
@@ -109,9 +100,6 @@ class ErrorStringProvider @Inject constructor(
         ErrorCode.NO_DATA -> context.getString(R.string.error_code_no_data)
         ErrorCode.INSUFFICIENT_DATA -> context.getString(R.string.error_code_insufficient)
         ErrorCode.INVALID_ARG -> context.getString(R.string.error_code_invalid_arg)
-        ErrorCode.PYTHON_INIT -> context.getString(R.string.error_code_unknown)
-        ErrorCode.PYTHON_NOT_INIT -> context.getString(R.string.error_code_unknown)
-        ErrorCode.PYTHON_CALL -> context.getString(R.string.error_code_unknown)
         ErrorCode.UNKNOWN -> context.getString(R.string.error_code_unknown)
     }
 }

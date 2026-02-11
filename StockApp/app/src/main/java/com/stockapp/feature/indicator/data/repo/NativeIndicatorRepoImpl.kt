@@ -26,7 +26,7 @@ private const val TAG = "NativeIndicatorRepo"
 
 /**
  * Native Kotlin implementation of IndicatorRepo.
- * Uses OhlcvService and native calculators instead of Python/Chaquopy.
+ * Uses OhlcvService and native calculators.
  */
 @Singleton
 class NativeIndicatorRepoImpl @Inject constructor(

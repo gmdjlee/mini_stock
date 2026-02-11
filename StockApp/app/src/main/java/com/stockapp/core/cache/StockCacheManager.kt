@@ -5,15 +5,11 @@ import com.stockapp.core.config.AppConfig
 import com.stockapp.core.db.AppDb
 import com.stockapp.core.db.dao.StockDao
 import com.stockapp.core.db.entity.StockEntity
-import com.stockapp.core.py.PyClient
-import com.stockapp.feature.search.domain.model.SearchResponse
+import com.stockapp.feature.search.domain.repo.SearchRepo
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,9 +39,8 @@ class RefreshCooldownException(message: String) : Exception(message)
  */
 @Singleton
 class StockCacheManager @Inject constructor(
-    private val pyClient: PyClient,
-    private val stockDao: StockDao,
-    private val json: Json
+    private val searchRepo: SearchRepo,
+    private val stockDao: StockDao
 ) {
     private val _state = MutableStateFlow<CacheState>(CacheState.Idle)
     val state: StateFlow<CacheState> = _state.asStateFlow()
@@ -60,12 +55,6 @@ class StockCacheManager @Inject constructor(
      */
     suspend fun initializeIfNeeded(): Result<Int> {
         Log.d(TAG, "initializeIfNeeded() called")
-
-        // Check if PyClient is ready
-        if (!pyClient.isReady()) {
-            Log.w(TAG, "initializeIfNeeded() PyClient not ready, skipping")
-            return Result.failure(Exception("PyClient not initialized"))
-        }
 
         // Check current cache state
         val count = stockDao.count()
@@ -125,12 +114,6 @@ class StockCacheManager @Inject constructor(
         // No cache at all - this is the only case we call API
         Log.d(TAG, "initializeLazy() no cache, calling API")
 
-        // Check if PyClient is ready before API call
-        if (!pyClient.isReady()) {
-            Log.w(TAG, "initializeLazy() PyClient not ready, skipping API call")
-            return Result.success(stats) // Return empty stats, UI will handle
-        }
-
         return refreshCache(bypassCooldown = true).map {
             CacheStats(
                 count = it,
@@ -162,42 +145,30 @@ class StockCacheManager @Inject constructor(
             lastRefreshAttempt = now
         }
 
-        // Check if PyClient is ready
-        if (!pyClient.isReady()) {
-            Log.w(TAG, "refreshCache() PyClient not ready, cannot refresh")
-            _state.value = CacheState.Error("API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.")
-            return Result.failure(Exception("PyClient not initialized"))
-        }
-
         _state.value = CacheState.Loading
 
         return try {
-            val result = pyClient.call(
-                module = "stock_analyzer.stock.search",
-                func = "get_all",
-                args = emptyList(),
-                timeoutMs = AppConfig.STOCK_LIST_TIMEOUT_MS
-            ) { jsonStr ->
-                parseStockList(jsonStr)
-            }
+            val result = searchRepo.getAll()
 
             result.fold(
                 onSuccess = { stocks ->
                     Log.d(TAG, "refreshCache() fetched ${stocks.size} stocks")
 
-                    // Log market breakdown for debugging
-                    val kospiCount = stocks.count { it.market == "KOSPI" }
-                    val kosdaqCount = stocks.count { it.market == "KOSDAQ" }
-                    val otherCount = stocks.size - kospiCount - kosdaqCount
-                    Log.d(TAG, "refreshCache() market breakdown - KOSPI: $kospiCount, KOSDAQ: $kosdaqCount, OTHER: $otherCount")
+                    val now = System.currentTimeMillis()
+                    val stockEntities = stocks.map { stock ->
+                        StockEntity(
+                            ticker = stock.ticker,
+                            name = stock.name,
+                            market = stock.market.name,
+                            updatedAt = now
+                        )
+                    }
 
                     // Apply size limit to prevent excessive memory usage
-                    // Sort by market (KOSPI first) then by name to preserve most relevant stocks
-                    val limitedStocks = if (stocks.size > AppConfig.MAX_STOCK_CACHE_SIZE) {
-                        Log.w(TAG, "refreshCache() truncating ${stocks.size} stocks to ${AppConfig.MAX_STOCK_CACHE_SIZE}")
-                        stocks.sortedWith(
+                    val limitedStocks = if (stockEntities.size > AppConfig.MAX_STOCK_CACHE_SIZE) {
+                        Log.w(TAG, "refreshCache() truncating ${stockEntities.size} stocks to ${AppConfig.MAX_STOCK_CACHE_SIZE}")
+                        stockEntities.sortedWith(
                             compareBy<StockEntity> {
-                                // KOSPI stocks first, then KOSDAQ
                                 when (it.market) {
                                     "KOSPI" -> 0
                                     "KOSDAQ" -> 1
@@ -206,7 +177,7 @@ class StockCacheManager @Inject constructor(
                             }.thenBy { it.name }
                         ).take(AppConfig.MAX_STOCK_CACHE_SIZE)
                     } else {
-                        stocks
+                        stockEntities
                     }
 
                     // Smart sync: upsert active + remove delisted
@@ -271,26 +242,6 @@ class StockCacheManager @Inject constructor(
         return maxOf(0, ((REFRESH_COOLDOWN_MS - elapsed) / 1000).toInt())
     }
 
-    private fun parseStockList(jsonStr: String): List<StockEntity> {
-        Log.d(TAG, "parseStockList() JSON length: ${jsonStr.length}")
-
-        val response = json.decodeFromString<SearchResponse>(jsonStr)
-
-        if (response.ok && response.data != null) {
-            val now = System.currentTimeMillis()
-            return response.data.map { stock ->
-                StockEntity(
-                    ticker = stock.ticker,
-                    name = stock.name,
-                    market = stock.market,
-                    updatedAt = now
-                )
-            }
-        } else {
-            throw Exception(response.error?.msg ?: "Failed to parse stock list")
-        }
-    }
-
     /**
      * Map technical error messages to user-friendly messages.
      */
@@ -313,7 +264,8 @@ class StockCacheManager @Inject constructor(
             }
             // Not initialized
             errorMessage.contains("not initialized") ||
-            errorMessage.contains("NotInitialized") -> {
+            errorMessage.contains("NotInitialized") ||
+            errorMessage.contains("NoApiKey") -> {
                 "API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요."
             }
             // Rate limit

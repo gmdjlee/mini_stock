@@ -1,8 +1,6 @@
 package com.stockapp.core.error
 
 import com.stockapp.core.api.ApiError
-import com.stockapp.core.py.PyApiException
-import com.stockapp.core.py.PyError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,118 +73,6 @@ class ErrorCompatTest {
 
         assertTrue(appError is AppError.NoApiKeyError)
         assertEquals(ErrorCode.NO_API_KEY, appError.code)
-    }
-
-    // === PyError conversions ===
-
-    @Test
-    fun `PyError InitError converts to AppError PythonInitError`() {
-        val pyError = PyError.InitError("Python failed to start")
-        val appError = pyError.toAppError()
-
-        assertTrue(appError is AppError.PythonInitError)
-        assertEquals(ErrorCode.PYTHON_INIT, appError.code)
-    }
-
-    @Test
-    fun `PyError NotInitialized converts to AppError PythonNotInitializedError`() {
-        val pyError = PyError.NotInitialized("Not initialized")
-        val appError = pyError.toAppError()
-
-        assertTrue(appError is AppError.PythonNotInitializedError)
-        assertEquals(ErrorCode.PYTHON_NOT_INIT, appError.code)
-    }
-
-    @Test
-    fun `PyError CallError converts to AppError PythonCallError`() {
-        val pyError = PyError.CallError("Function not found")
-        val appError = pyError.toAppError()
-
-        assertTrue(appError is AppError.PythonCallError)
-        assertEquals(ErrorCode.PYTHON_CALL, appError.code)
-    }
-
-    @Test
-    fun `PyError Timeout converts to AppError TimeoutError`() {
-        val pyError = PyError.Timeout("Timed out after 30s")
-        val appError = pyError.toAppError()
-
-        assertTrue(appError is AppError.TimeoutError)
-        assertEquals(ErrorCode.TIMEOUT, appError.code)
-    }
-
-    @Test
-    fun `PyError ParseError converts to AppError ParseError`() {
-        val pyError = PyError.ParseError("JSON parse error")
-        val appError = pyError.toAppError()
-
-        assertTrue(appError is AppError.ParseError)
-        assertEquals(ErrorCode.PARSE_ERROR, appError.code)
-    }
-
-    // === PyApiException conversions ===
-
-    @Test
-    fun `PyApiException INVALID_ARG converts to AppError InvalidArgumentError`() {
-        val exception = PyApiException(PyApiException.INVALID_ARG, "Invalid ticker")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.InvalidArgumentError)
-        assertEquals(ErrorCode.INVALID_ARG, appError.code)
-    }
-
-    @Test
-    fun `PyApiException TICKER_NOT_FOUND converts to AppError NotFoundError`() {
-        val exception = PyApiException(PyApiException.TICKER_NOT_FOUND, "005930")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.NotFoundError)
-        assertEquals(ErrorCode.NOT_FOUND, appError.code)
-    }
-
-    @Test
-    fun `PyApiException NO_DATA converts to AppError NoDataError`() {
-        val exception = PyApiException(PyApiException.NO_DATA, "No data available")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.NoDataError)
-        assertEquals(ErrorCode.NO_DATA, appError.code)
-    }
-
-    @Test
-    fun `PyApiException AUTH_ERROR converts to AppError AuthError`() {
-        val exception = PyApiException(PyApiException.AUTH_ERROR, "Auth failed")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.AuthError)
-        assertEquals(ErrorCode.AUTH_ERROR, appError.code)
-    }
-
-    @Test
-    fun `PyApiException NETWORK_ERROR converts to AppError NetworkError`() {
-        val exception = PyApiException(PyApiException.NETWORK_ERROR, "Network error")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.NetworkError)
-        assertEquals(ErrorCode.NETWORK_ERROR, appError.code)
-    }
-
-    @Test
-    fun `PyApiException INSUFFICIENT_DATA converts to AppError InsufficientDataError`() {
-        val exception = PyApiException(PyApiException.INSUFFICIENT_DATA, "Insufficient")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.InsufficientDataError)
-        assertEquals(ErrorCode.INSUFFICIENT_DATA, appError.code)
-    }
-
-    @Test
-    fun `PyApiException unknown code converts to AppError UnknownError`() {
-        val exception = PyApiException("CUSTOM_ERROR", "Custom error")
-        val appError = exception.toAppError()
-
-        assertTrue(appError is AppError.UnknownError)
-        assertEquals(ErrorCode.UNKNOWN, appError.code)
     }
 
     // === Throwable.toAppError() ===
@@ -277,12 +163,6 @@ class ErrorCompatTest {
     fun `getErrorCode returns correct code for ApiError`() {
         val error = ApiError.TimeoutError("Timeout")
         assertEquals(ErrorCode.TIMEOUT, error.getErrorCode())
-    }
-
-    @Test
-    fun `getErrorCode returns correct code for PyError`() {
-        val error = PyError.InitError("Init failed")
-        assertEquals(ErrorCode.PYTHON_INIT, error.getErrorCode())
     }
 
     @Test

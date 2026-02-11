@@ -16,7 +16,6 @@ import com.stockapp.feature.settings.domain.repo.SettingsRepo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -58,20 +57,17 @@ class App : Application(), Configuration.Provider {
                     AppEntryPoint::class.java
                 )
 
-                // 1. Initialize PyClient with saved API keys
-                Log.d(TAG, "Initializing PyClient with saved keys...")
+                // 1. Initialize API client with saved API keys
+                Log.d(TAG, "Initializing API client with saved keys...")
                 val settingsRepo = entryPoint.settingsRepo()
                 val initResult = settingsRepo.initializeWithSavedKeys()
 
                 initResult.fold(
                     onSuccess = { initialized ->
                         if (initialized) {
-                            Log.d(TAG, "PyClient initialized successfully")
+                            Log.d(TAG, "API client initialized successfully")
 
                             // 2. Initialize stock cache lazily (non-blocking)
-                            // Uses stale cache if available to improve startup time
-                            delay(500) // Small delay to ensure PyClient is fully ready
-
                             Log.d(TAG, "Initializing stock cache (lazy)...")
                             val cacheManager = entryPoint.stockCacheManager()
                             val cacheResult = cacheManager.initializeLazy()
@@ -92,7 +88,7 @@ class App : Application(), Configuration.Provider {
                         }
                     },
                     onFailure = { e ->
-                        Log.w(TAG, "PyClient initialization failed: ${e.message}")
+                        Log.w(TAG, "API client initialization failed: ${e.message}")
                     }
                 )
             } catch (e: Exception) {

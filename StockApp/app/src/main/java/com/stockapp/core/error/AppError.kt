@@ -2,7 +2,7 @@ package com.stockapp.core.error
 
 /**
  * Unified error hierarchy for StockApp.
- * P1 fix: Consolidates ApiError, PyError, and PyApiException into a single type system.
+ * P1 fix: Consolidates ApiError into a single type system.
  *
  * This provides:
  * - Consistent error handling across the app
@@ -70,21 +70,6 @@ sealed class AppError(
         message: String
     ) : AppError(ErrorCode.INVALID_ARG, message)
 
-    // === Python Bridge Errors ===
-    class PythonInitError(
-        message: String,
-        cause: Throwable? = null
-    ) : AppError(ErrorCode.PYTHON_INIT, message, cause)
-
-    class PythonNotInitializedError(
-        message: String = "PyClient not initialized. Call initialize() first."
-    ) : AppError(ErrorCode.PYTHON_NOT_INIT, message)
-
-    class PythonCallError(
-        message: String,
-        cause: Throwable? = null
-    ) : AppError(ErrorCode.PYTHON_CALL, message, cause)
-
     // === Generic Error ===
     class UnknownError(
         message: String,
@@ -106,9 +91,6 @@ sealed class AppError(
         is NoDataError -> message
         is InsufficientDataError -> message
         is InvalidArgumentError -> message
-        is PythonInitError -> "앱 초기화에 실패했습니다. 앱을 재시작해주세요."
-        is PythonNotInitializedError -> "앱이 초기화되지 않았습니다"
-        is PythonCallError -> "처리 중 오류가 발생했습니다"
         is UnknownError -> "알 수 없는 오류가 발생했습니다"
     }
 }
@@ -135,11 +117,6 @@ enum class ErrorCode(val code: String, val displayName: String) {
     NO_DATA("NO_DATA", "데이터 없음"),
     INSUFFICIENT_DATA("INSUFFICIENT_DATA", "데이터 부족"),
     INVALID_ARG("INVALID_ARG", "잘못된 인자"),
-
-    // Python
-    PYTHON_INIT("PYTHON_INIT", "Python 초기화 오류"),
-    PYTHON_NOT_INIT("PYTHON_NOT_INIT", "Python 미초기화"),
-    PYTHON_CALL("PYTHON_CALL", "Python 호출 오류"),
 
     // Other
     UNKNOWN("UNKNOWN", "알 수 없는 오류");

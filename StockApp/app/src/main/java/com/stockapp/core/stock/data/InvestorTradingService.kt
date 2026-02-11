@@ -171,12 +171,13 @@ class InvestorTradingService @Inject constructor(
 
             result.map { tradingList ->
                 tradingList.map { trading ->
+                    // KRX API returns 거래대금 in 원, convert to 백만원 for system consistency
                     InvestorTradingData(
                         date = trading.date,
-                        foreignNet = trading.foreigner,
-                        institutionNet = trading.institutionalTotal,
-                        individualNet = trading.individual,
-                        totalTrading = trading.total
+                        foreignNet = trading.foreigner / 1_000_000,
+                        institutionNet = trading.institutionalTotal / 1_000_000,
+                        individualNet = trading.individual / 1_000_000,
+                        totalTrading = trading.total / 1_000_000
                     )
                 }
             }

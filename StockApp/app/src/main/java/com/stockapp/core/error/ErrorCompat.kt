@@ -1,8 +1,6 @@
 package com.stockapp.core.error
 
 import com.stockapp.core.api.ApiError
-import com.stockapp.core.py.PyApiException
-import com.stockapp.core.py.PyError
 
 /**
  * Error compatibility layer for gradual migration.
@@ -29,44 +27,12 @@ fun ApiError.toAppError(): AppError = when (this) {
 }
 
 /**
- * Convert PyError to AppError./ㄷ턋
- *
- */
-fun PyError.toAppError(): AppError = when (this) {
-    is PyError.InitError -> AppError.PythonInitError(message)
-    is PyError.NotInitialized -> AppError.PythonNotInitializedError(message)
-    is PyError.CallError -> AppError.PythonCallError(message)
-    is PyError.Timeout -> AppError.TimeoutError(message)
-    is PyError.ParseError -> AppError.ParseError(message)
-    is PyError.NetworkError -> AppError.NetworkError(message)
-    is PyError.AuthError -> AppError.AuthError(message)
-}
-
-/**
- * Convert PyApiException to AppError.
- */
-fun PyApiException.toAppError(): AppError = when (code) {
-    PyApiException.INVALID_ARG -> AppError.InvalidArgumentError(message)
-    PyApiException.TICKER_NOT_FOUND -> AppError.NotFoundError("종목", message)
-    PyApiException.NO_DATA -> AppError.NoDataError(message)
-    PyApiException.API_ERROR -> AppError.ApiCallError(0, message)
-    PyApiException.AUTH_ERROR -> AppError.AuthError(message)
-    PyApiException.NETWORK_ERROR -> AppError.NetworkError(message)
-    PyApiException.INSUFFICIENT_DATA -> AppError.InsufficientDataError(message)
-    PyApiException.CHART_ERROR -> AppError.PythonCallError(message)
-    PyApiException.CONDITION_NOT_FOUND -> AppError.NotFoundError("조건검색", message)
-    else -> AppError.UnknownError(message)
-}
-
-/**
  * Convert any Throwable to AppError.
  * Use this at the boundary between data and UI layers.
  */
 fun Throwable.toAppError(): AppError = when (this) {
     is AppError -> this
     is ApiError -> this.toAppError()
-    is PyError -> this.toAppError()
-    is PyApiException -> this.toAppError()
     is java.net.UnknownHostException -> AppError.NetworkError(cause = this)
     is java.net.SocketTimeoutException -> AppError.TimeoutError(cause = this)
     is java.net.ConnectException -> AppError.NetworkError("서버에 연결할 수 없습니다", this)

@@ -11,7 +11,7 @@ import com.stockapp.core.db.entity.SchedulingConfigEntity
 import com.stockapp.core.db.entity.StockAnalysisDataEntity
 import com.stockapp.core.db.entity.StockEntity
 import com.stockapp.core.db.entity.SyncHistoryEntity
-import com.stockapp.core.py.PyClient
+import com.stockapp.feature.analysis.domain.repo.AnalysisRepo
 import com.stockapp.feature.etf.domain.model.CollectionStatus
 import com.stockapp.feature.etf.domain.model.EtfFilterConfig
 import com.stockapp.feature.etf.domain.repo.EtfRepository
@@ -24,14 +24,12 @@ import com.stockapp.feature.scheduling.domain.model.SyncResult
 import com.stockapp.feature.scheduling.domain.model.SyncStatus
 import com.stockapp.feature.scheduling.domain.model.SyncType
 import com.stockapp.feature.scheduling.domain.repo.SchedulingRepo
-import com.stockapp.feature.search.domain.model.SearchResponse
+import com.stockapp.feature.search.domain.repo.SearchRepo
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,8 +45,8 @@ class SchedulingRepoImpl @Inject constructor(
     private val stockDao: StockDao,
     private val analysisDataDao: StockAnalysisDataDao,
     private val searchHistoryDao: SearchHistoryDao,
-    private val pyClient: PyClient,
-    private val json: Json,
+    private val searchRepo: SearchRepo,
+    private val analysisRepo: AnalysisRepo,
     private val collectAllEtfDataUC: CollectAllEtfDataUC,
     private val etfRepository: EtfRepository,
     private val marketRepo: MarketRepo,
@@ -99,30 +97,26 @@ class SchedulingRepoImpl @Inject constructor(
     override suspend fun syncStockList(): Result<Int> = withContext(Dispatchers.IO) {
         Log.d(TAG, "syncStockList() started")
 
-        if (!pyClient.isReady()) {
-            Log.w(TAG, "PyClient not ready - client may not be initialized or Python crashed")
-            return@withContext Result.failure(
-                Exception("API 클라이언트가 준비되지 않았습니다. 앱을 재시작하거나 설정에서 API 키를 확인해주세요.")
-            )
-        }
-
         try {
-            val result = pyClient.call(
-                module = "stock_analyzer.stock.search",
-                func = "get_all",
-                args = emptyList(),
-                timeoutMs = 120_000
-            ) { jsonStr ->
-                parseStockList(jsonStr)
-            }
+            val result = searchRepo.getAll()
 
             result.fold(
                 onSuccess = { stocks ->
                     Log.d(TAG, "Fetched ${stocks.size} stocks")
 
+                    val now = System.currentTimeMillis()
+                    val stockEntities = stocks.map { stock ->
+                        StockEntity(
+                            ticker = stock.ticker,
+                            name = stock.name,
+                            market = stock.market.name,
+                            updatedAt = now
+                        )
+                    }
+
                     // Limit stock count
-                    val limitedStocks = if (stocks.size > MAX_STOCKS_PER_BATCH) {
-                        stocks.sortedWith(
+                    val limitedStocks = if (stockEntities.size > MAX_STOCKS_PER_BATCH) {
+                        stockEntities.sortedWith(
                             compareBy<StockEntity> {
                                 when (it.market) {
                                     "KOSPI" -> 0
@@ -132,7 +126,7 @@ class SchedulingRepoImpl @Inject constructor(
                             }.thenBy { it.name }
                         ).take(MAX_STOCKS_PER_BATCH)
                     } else {
-                        stocks
+                        stockEntities
                     }
 
                     // Smart sync: upsert active + remove delisted
@@ -236,22 +230,49 @@ class SchedulingRepoImpl @Inject constructor(
     override suspend fun syncAnalysisData(tickers: List<String>): Result<Int> = withContext(Dispatchers.IO) {
         Log.d(TAG, "syncAnalysisData() for ${tickers.size} tickers")
 
-        if (!pyClient.isReady()) {
-            return@withContext Result.failure(
-                Exception("API 클라이언트가 준비되지 않았습니다. 앱을 재시작하거나 설정에서 API 키를 확인해주세요.")
-            )
-        }
-
         var syncedCount = 0
 
         try {
             tickers.chunked(ANALYSIS_BATCH_SIZE).forEach { batch ->
                 batch.forEach { ticker ->
                     try {
-                        val lastDate = analysisDataDao.getLastAnalyzedDate(ticker)
-                        val result = fetchAndSaveAnalysis(ticker, lastDate)
+                        val result = analysisRepo.getAnalysis(ticker, 30, useCache = false)
                         if (result.isSuccess) {
-                            syncedCount++
+                            val data = result.getOrNull()
+                            if (data != null) {
+                                val latestMcap = data.mcap.lastOrNull() ?: 0L
+                                val latestFor5d = data.for5d.lastOrNull() ?: 0L
+                                val latestIns5d = data.ins5d.lastOrNull() ?: 0L
+
+                                val supplyRatio = if (latestMcap > 0) {
+                                    ((latestFor5d + latestIns5d).toDouble() / latestMcap) * 100
+                                } else 0.0
+
+                                val signalType = when {
+                                    supplyRatio > 0.5 -> "STRONG_BUY"
+                                    supplyRatio > 0.2 -> "BUY"
+                                    supplyRatio < -0.5 -> "STRONG_SELL"
+                                    supplyRatio < -0.2 -> "SELL"
+                                    else -> "NEUTRAL"
+                                }
+
+                                val market = stockDao.getByTicker(ticker)?.market ?: "UNKNOWN"
+                                val entity = StockAnalysisDataEntity(
+                                    ticker = ticker,
+                                    name = data.name,
+                                    market = market,
+                                    marketCap = latestMcap,
+                                    foreignNet5d = latestFor5d,
+                                    institutionNet5d = latestIns5d,
+                                    supplyRatio = supplyRatio,
+                                    signalType = signalType,
+                                    lastAnalyzedDate = data.dates.lastOrNull() ?: "",
+                                    detailDataJson = "",
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                                analysisDataDao.insertOrUpdate(entity)
+                                syncedCount++
+                            }
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -397,96 +418,6 @@ class SchedulingRepoImpl @Inject constructor(
         }
     }
 
-    private suspend fun fetchAndSaveAnalysis(ticker: String, lastDate: String?): Result<Unit> {
-        try {
-            val result = pyClient.call(
-                module = "stock_analyzer.stock.analysis",
-                func = "analyze",
-                args = listOf(ticker, 30), // Fetch 30 days
-                timeoutMs = 60_000
-            ) { jsonStr -> jsonStr }
-
-            return result.fold(
-                onSuccess = { jsonStr ->
-                    val analysisData = parseAnalysisData(ticker, jsonStr)
-                    if (analysisData != null) {
-                        analysisDataDao.insertOrUpdate(analysisData)
-                        Result.success(Unit)
-                    } else {
-                        Result.failure(Exception("Failed to parse analysis data"))
-                    }
-                },
-                onFailure = { e -> Result.failure(e) }
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            return Result.failure(e)
-        }
-    }
-
-    private fun parseAnalysisData(ticker: String, jsonStr: String): StockAnalysisDataEntity? {
-        return try {
-            val response = json.decodeFromString<AnalysisApiResponse>(jsonStr)
-            if (response.ok && response.data != null) {
-                val data = response.data
-                val lastDate = data.dates.lastOrNull() ?: ""
-                val latestMcap = data.mcap.lastOrNull() ?: 0L
-                val latestFor5d = data.for5d.lastOrNull() ?: 0L
-                val latestIns5d = data.ins5d.lastOrNull() ?: 0L
-
-                // Calculate supply ratio
-                val supplyRatio = if (latestMcap > 0) {
-                    ((latestFor5d + latestIns5d).toDouble() / latestMcap) * 100
-                } else 0.0
-
-                // Determine signal type
-                val signalType = when {
-                    supplyRatio > 0.5 -> "STRONG_BUY"
-                    supplyRatio > 0.2 -> "BUY"
-                    supplyRatio < -0.5 -> "STRONG_SELL"
-                    supplyRatio < -0.2 -> "SELL"
-                    else -> "NEUTRAL"
-                }
-
-                StockAnalysisDataEntity(
-                    ticker = ticker,
-                    name = data.name,
-                    market = data.market ?: "UNKNOWN",
-                    marketCap = latestMcap,
-                    foreignNet5d = latestFor5d,
-                    institutionNet5d = latestIns5d,
-                    supplyRatio = supplyRatio,
-                    signalType = signalType,
-                    lastAnalyzedDate = lastDate,
-                    detailDataJson = jsonStr,
-                    updatedAt = System.currentTimeMillis()
-                )
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "parseAnalysisData failed: ${e.message}")
-            null
-        }
-    }
-
-    private fun parseStockList(jsonStr: String): List<StockEntity> {
-        val response = json.decodeFromString<SearchResponse>(jsonStr)
-        if (response.ok && response.data != null) {
-            val now = System.currentTimeMillis()
-            return response.data.map { stock ->
-                StockEntity(
-                    ticker = stock.ticker,
-                    name = stock.name,
-                    market = stock.market,
-                    updatedAt = now
-                )
-            }
-        }
-        throw Exception(response.error?.msg ?: "Failed to parse stock list")
-    }
-
     private suspend fun finishSync(
         historyId: Long,
         success: Boolean,
@@ -543,27 +474,3 @@ class SchedulingRepoImpl @Inject constructor(
         syncedAt = syncedAt
     )
 }
-
-@Serializable
-private data class AnalysisApiResponse(
-    val ok: Boolean,
-    val data: AnalysisData? = null,
-    val error: ErrorInfo? = null
-)
-
-@Serializable
-private data class AnalysisData(
-    val ticker: String,
-    val name: String,
-    val market: String? = null,
-    val dates: List<String> = emptyList(),
-    val mcap: List<Long> = emptyList(),
-    val for5d: List<Long> = emptyList(),
-    val ins5d: List<Long> = emptyList()
-)
-
-@Serializable
-private data class ErrorInfo(
-    val code: String? = null,
-    val msg: String? = null
-)

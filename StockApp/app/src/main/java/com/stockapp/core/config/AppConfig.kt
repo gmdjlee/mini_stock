@@ -19,7 +19,7 @@ object AppConfig {
 
     // ========== Timeout Configuration (milliseconds) ==========
 
-    /** Default timeout for Python API calls */
+    /** Default timeout for API calls */
     const val DEFAULT_TIMEOUT_MS = 30_000L
 
     /** Extended timeout for analysis operations */

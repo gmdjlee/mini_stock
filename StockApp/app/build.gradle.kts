@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.chaquopy)
 }
 
 android {
@@ -21,11 +20,6 @@ android {
 
         // P3: Use Hilt test runner for E2E tests
         testInstrumentationRunner = "com.stockapp.HiltTestRunner"
-
-        // Chaquopy ABI filters
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
 
         // Build config fields for API keys
         buildConfigField("String", "KIWOOM_APP_KEY",
@@ -82,19 +76,6 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
-    }
-}
-
-chaquopy {
-    defaultConfig {
-        pip {
-            // Pin versions known to work with Chaquopy 15.0.1 + Python 3.11
-            // These are pure Python packages, no native compilation needed
-            install("requests")
-            install("python-dotenv")
-            // numpy, pandas, matplotlib, mplfinance excluded
-            // - not used in Android version (chart modules excluded)
-        }
     }
 }
 
